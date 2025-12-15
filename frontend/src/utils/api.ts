@@ -1,7 +1,13 @@
 export const getApiUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  let apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (apiUrl) {
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = `https://${apiUrl}`;
+    }
+    return apiUrl;
   }
+
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:3001/api`;
   }
