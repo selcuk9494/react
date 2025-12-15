@@ -223,7 +223,7 @@ export default function Dashboard() {
       <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">{t('reports')}</h1>
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">{t('reports')}</h1>
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
             <button 
                 onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
@@ -351,19 +351,19 @@ export default function Dashboard() {
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full">
         {/* Main Summary Card */}
-        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
+        <div className="bg-gradient-to-br from-[#2aa290] via-[#249685] to-[#1f7a6c] rounded-3xl p-8 text-white shadow-xl shadow-[#2aa290]/30 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-indigo-400 opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-[#1f7a6c] opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           
           <div className="relative z-10">
-            <p className="text-indigo-100 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">Genel Toplam</p>
+            <p className="text-teal-50 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">Genel Toplam</p>
             <h2 className="text-5xl font-black mb-3 tracking-tight drop-shadow-sm">
               {formatCurrency(
                 (data?.kapali_adisyon_toplam || 0) + 
                 (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)
               )}
             </h2>
-            <p className="text-indigo-200 text-sm font-medium">
+            <p className="text-teal-100 text-sm font-medium">
               Açık ve Kapalı Adisyonlar
             </p>
           </div>
