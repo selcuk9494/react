@@ -90,9 +90,9 @@ export default function Dashboard() {
       name: '',
       db_host: '',
       db_port: 5432,
-      db_name: '',
-      db_user: '',
-      db_password: '',
+      db_name: 'fasrest',
+      db_user: 'begum',
+      db_password: 'KORDO',
       kasa_no: 1
   });
 
@@ -220,14 +220,14 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
       {/* Header Section */}
-      <div className="bg-white px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm">
+      <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold text-gray-900">{t('reports')}</h1>
-            <span className="text-sm text-gray-500">{user?.email}</span>
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">{t('reports')}</h1>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
             <button 
                 onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
-                className="text-xs font-bold text-gray-900 ml-2 bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 transition"
+                className="text-xs font-bold text-gray-600 ml-2 bg-gray-100 px-2 py-1 rounded-md hover:bg-gray-200 transition ring-1 ring-gray-200"
             >
                 {lang.toUpperCase()}
             </button>
@@ -351,20 +351,22 @@ export default function Dashboard() {
 
       <main className="px-4 py-4 space-y-6">
         {/* Main Summary Card */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-6 text-white shadow-lg text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
+        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-indigo-400 opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           
-          <p className="text-blue-100 text-sm font-medium mb-2 relative z-10">Genel Toplam</p>
-          <h2 className="text-4xl font-bold mb-2 relative z-10">
-            {formatCurrency(
-              (data?.kapali_adisyon_toplam || 0) + 
-              (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)
-            )}
-          </h2>
-          <p className="text-blue-200 text-xs italic relative z-10">
-            Açık ve Kapalı Adisyonlar
-          </p>
+          <div className="relative z-10">
+            <p className="text-indigo-100 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">Genel Toplam</p>
+            <h2 className="text-5xl font-black mb-3 tracking-tight drop-shadow-sm">
+              {formatCurrency(
+                (data?.kapali_adisyon_toplam || 0) + 
+                (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)
+              )}
+            </h2>
+            <p className="text-indigo-200 text-sm font-medium">
+              Açık ve Kapalı Adisyonlar
+            </p>
+          </div>
         </div>
 
         {/* Metric Cards Row */}
@@ -525,88 +527,112 @@ export default function Dashboard() {
         </div>
 
         {/* Other Reports Section */}
-        <div className="space-y-3">
-            <h3 className="text-lg font-bold text-gray-900 px-1">Diğer Raporlar</h3>
-            <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-900 px-1 flex items-center">
+              <span className="w-1 h-6 bg-indigo-600 rounded-full mr-2"></span>
+              Diğer Raporlar
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <button 
                     onClick={() => router.push('/reports/product-sales')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-orange-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <PieChartIcon className="w-5 h-5 text-orange-600" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-orange-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <PieChartIcon className="w-6 h-6 text-orange-600" />
                     </div>
-                    <h4 className="font-bold text-gray-900">Ürün Satışları</h4>
-                    <p className="text-xs text-gray-500 mt-1">En çok satan ürünler</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ürün Satışları</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">En çok satan ürünler</p>
+                    </div>
                 </button>
                 
                 <button 
                     onClick={() => router.push('/reports/performance')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-purple-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Users className="w-5 h-5 text-purple-600" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-purple-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <Users className="w-6 h-6 text-purple-600" />
                     </div>
-                    <h4 className="font-bold text-gray-900">Personel Performans</h4>
-                    <p className="text-xs text-gray-500 mt-1">Garson satış raporları</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Personel</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">Garson performans</p>
+                    </div>
                 </button>
 
                 <button 
                     onClick={() => router.push('/reports/payment-types')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-blue-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <CreditCard className="w-5 h-5 text-blue-600" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-blue-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <CreditCard className="w-6 h-6 text-blue-600" />
                     </div>
-                    <h4 className="font-bold text-gray-900">Ödeme Tipleri</h4>
-                    <p className="text-xs text-gray-500 mt-1">Nakit, Kredi Kartı vb.</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ödeme Tipleri</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">Nakit, Kredi Kartı</p>
+                    </div>
                 </button>
 
                 <button 
                     onClick={() => router.push('/reports/sales-chart')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-red-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <TrendingUp className="w-5 h-5 text-red-600" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-red-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <TrendingUp className="w-6 h-6 text-red-600" />
                     </div>
-                    <h4 className="font-bold text-gray-900">Saatlik Satışlar</h4>
-                    <p className="text-xs text-gray-500 mt-1">Günün yoğun saatleri</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Saatlik Satış</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">Günün yoğun saatleri</p>
+                    </div>
                 </button>
 
                 <button 
                     onClick={() => router.push('/reports/cancelled-items')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-pink-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-pink-600">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-pink-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-pink-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-pink-600">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <h4 className="font-bold text-gray-900">İptal / İade</h4>
-                    <p className="text-xs text-gray-500 mt-1">İptal edilen ürünler</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">İptal / İade</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">İptal edilenler</p>
+                    </div>
                 </button>
 
                 <button 
-                    onClick={() => router.push('/reports/product-sales?group_id=1')} // Placeholder for group view
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    onClick={() => router.push('/reports/product-sales?group_id=1')} 
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-cyan-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-cyan-600">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-cyan-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-cyan-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-cyan-600">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                         </svg>
                     </div>
-                    <h4 className="font-bold text-gray-900">Ürün Grupları</h4>
-                    <p className="text-xs text-gray-500 mt-1">Kategori bazlı satışlar</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ürün Grupları</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">Kategori bazlı</p>
+                    </div>
                 </button>
 
                 <button 
                     onClick={() => router.push('/reports/courier-tracking')}
-                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition text-left group"
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="bg-teal-100 w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Bike className="w-5 h-5 text-teal-600" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-teal-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <Bike className="w-6 h-6 text-teal-600" />
                     </div>
-                    <h4 className="font-bold text-gray-900">Kurye Takip</h4>
-                    <p className="text-xs text-gray-500 mt-1">Paket servis süreleri</p>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Kurye Takip</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">Paket süreleri</p>
+                    </div>
                 </button>
             </div>
         </div>
@@ -985,23 +1011,23 @@ export default function Dashboard() {
                             </div>
                         ))}
                         <button 
-                            onClick={() => {
-                                setEditingBranch({ id: null });
-                                setBranchForm({
-                                    name: '',
-                                    db_host: '',
-                                    db_port: 5432,
-                                    db_name: '',
-                                    db_user: '',
-                                    db_password: '',
-                                    kasa_no: 1
-                                });
-                            }}
-                            className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
-                        >
-                            <Plus className="w-5 h-5" />
-                            <span>Yeni Şube Ekle</span>
-                        </button>
+                                onClick={() => {
+                                    setEditingBranch({ id: null });
+                                    setBranchForm({
+                                        name: '',
+                                        db_host: '',
+                                        db_port: 5432,
+                                        db_name: 'fasrest',
+                                        db_user: 'begum',
+                                        db_password: 'KORDO',
+                                        kasa_no: 1
+                                    });
+                                }}
+                                className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
+                            >
+                                <Plus className="w-5 h-5" />
+                                <span>Yeni Şube Ekle</span>
+                            </button>
                     </div>
                 ) : (
                     <form onSubmit={handleSaveBranch} className="space-y-4">
@@ -1043,7 +1069,7 @@ export default function Dashboard() {
                                 <input 
                                     type="text" 
                                     required
-                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                     value={branchForm.db_name}
                                     onChange={(e) => setBranchForm({...branchForm, db_name: e.target.value})}
                                 />
@@ -1053,7 +1079,7 @@ export default function Dashboard() {
                                 <input 
                                     type="number" 
                                     required
-                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                     value={branchForm.kasa_no}
                                     onChange={(e) => setBranchForm({...branchForm, kasa_no: parseInt(e.target.value)})}
                                 />
@@ -1062,9 +1088,9 @@ export default function Dashboard() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">DB Kullanıcı</label>
                             <input 
-                                type="text" 
+                                type="password" 
                                 required
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                 value={branchForm.db_user}
                                 onChange={(e) => setBranchForm({...branchForm, db_user: e.target.value})}
                             />
@@ -1074,7 +1100,7 @@ export default function Dashboard() {
                             <input 
                                 type="password" 
                                 required
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                 value={branchForm.db_password}
                                 onChange={(e) => setBranchForm({...branchForm, db_password: e.target.value})}
                             />
