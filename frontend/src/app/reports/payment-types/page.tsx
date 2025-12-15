@@ -101,60 +101,78 @@ export default function PaymentTypesPage() {
                 </div>
 
                 {/* Chart Section */}
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                    <h3 className="font-bold text-gray-900 mb-6">Dağılım Grafiği</h3>
-                    <div className="h-[300px] w-full">
+                <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 z-0"></div>
+                    <h3 className="font-bold text-gray-900 mb-6 text-lg relative z-10 flex items-center">
+                        <span className="w-1 h-6 bg-indigo-600 rounded-full mr-3"></span>
+                        {t('distribution_chart')}
+                    </h3>
+                    <div className="h-[350px] w-full relative z-10">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={data}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
+                                    innerRadius={80}
+                                    outerRadius={120}
                                     paddingAngle={5}
                                     dataKey="total"
                                     nameKey="payment_name"
+                                    stroke="none"
                                 >
                                     {data.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="drop-shadow-sm" />
                                     ))}
                                 </Pie>
                                 <Tooltip 
                                     formatter={(value: any) => formatCurrency(Number(value))}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                                    itemStyle={{ color: '#1f2937', fontWeight: 600 }}
                                 />
-                                <Legend verticalAlign="bottom" height={36}/>
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={36} 
+                                    iconType="circle"
+                                    formatter={(value, entry: any) => <span className="text-sm font-medium text-gray-600 ml-1">{value}</span>}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
                 {/* List Section */}
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <h3 className="font-bold text-gray-900">{t('detailed_info')}</h3>
+                <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center">
+                        <span className="w-1 h-6 bg-indigo-600 rounded-full mr-3"></span>
+                        <h3 className="font-bold text-gray-900 text-lg">{t('detailed_info')}</h3>
                     </div>
                     <div className="divide-y divide-gray-100">
                         {data.map((item, idx) => (
-                            <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                            <div key={idx} className="p-5 flex items-center justify-between hover:bg-gray-50 transition duration-200 group">
                                 <div className="flex items-center space-x-4">
-                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100">
+                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 group-hover:scale-110 transition-transform duration-300 shadow-sm">
                                         {getIconForPayment(item.payment_name)}
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-gray-900">{item.payment_name}</h4>
-                                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-0.5">
-                                            <span className="font-medium bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                                        <h4 className="font-bold text-gray-900 text-lg">{item.payment_name}</h4>
+                                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                                            <span className="font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">
                                                 {((item.total / totalAmount) * 100).toFixed(1)}%
                                             </span>
                                             <span>•</span>
-                                            <span>{item.count} {t('transaction')}</span>
+                                            <span className="font-medium">{item.count} {t('transaction')}</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-bold text-gray-900">{formatCurrency(item.total)}</p>
+                                    <p className="font-black text-gray-900 text-xl tracking-tight">{formatCurrency(item.total)}</p>
+                                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2 w-24 ml-auto overflow-hidden">
+                                        <div 
+                                            className="bg-indigo-600 h-1.5 rounded-full" 
+                                            style={{ width: `${(item.total / totalAmount) * 100}%` }}
+                                        ></div>
+                                    </div>
                                 </div>
                             </div>
                         ))}

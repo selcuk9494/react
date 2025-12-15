@@ -54,7 +54,7 @@ function ProductSalesContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ReportHeader
-        title={groupId ? 'Ürün Grubu Satışları' : t('product_sales')}
+        title={groupId ? t('product_group_sales') : t('product_sales')}
         period={period}
         setPeriod={setPeriod}
         customStartDate={customStartDate}
@@ -80,9 +80,9 @@ function ProductSalesContent() {
                 <thead className="bg-gray-50/50">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{groupId ? 'Ürün Grubu' : 'Ürün Adı'}</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Miktar</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Tutar</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{groupId ? t('product_group') : t('product_name')}</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('quantity')}</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('amount')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-50">

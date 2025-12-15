@@ -193,12 +193,12 @@ export default function Dashboard() {
         window.location.reload();
     } catch (e) {
         console.error(e);
-        alert('İşlem başarısız oldu.');
+        alert(t('operation_failed'));
     }
   };
 
   const handleDeleteBranch = async (id: number) => {
-      if (!confirm('Bu şubeyi silmek istediğinize emin misiniz?')) return;
+      if (!confirm(t('confirm_delete_branch'))) return;
       try {
           await axios.delete(`${getApiUrl()}/branches/${id}`, {
               headers: { Authorization: `Bearer ${token}` }
@@ -206,7 +206,7 @@ export default function Dashboard() {
           window.location.reload();
       } catch (e) {
           console.error(e);
-          alert('Silme işlemi başarısız.');
+          alert(t('delete_failed'));
       }
   };
 
@@ -251,7 +251,7 @@ export default function Dashboard() {
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
                             >
                                 <Building className="w-4 h-4 mr-2" />
-                                Şube Yönetimi
+                                {t('branch_management')}
                             </button>
                             <div className="h-px bg-gray-100 my-1"></div>
                             <button 
@@ -284,8 +284,8 @@ export default function Dashboard() {
             <Building className="w-4 h-4 text-gray-500" />
             <span>
               {user?.branches && user.branches.length > 0 && user.selected_branch !== undefined
-                ? user.branches[user.selected_branch]?.name || 'Şube Seçiniz'
-                : 'Şube Yok'}
+                ? user.branches[user.selected_branch]?.name || t('select_branch')
+                : t('no_branch')}
             </span>
           </button>
           
@@ -302,12 +302,12 @@ export default function Dashboard() {
         {/* Date Filter Row */}
         <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-2">
             {[
-                { id: 'today', label: 'Bugün' },
-                { id: 'yesterday', label: 'Dün' },
-                { id: 'week', label: 'Bu Hafta' },
-                { id: 'last7days', label: 'Son 7 Gün' },
-                { id: 'month', label: 'Bu Ay' },
-                { id: 'lastmonth', label: 'Geçen Ay' },
+                { id: 'today', label: t('today') },
+                { id: 'yesterday', label: t('yesterday') },
+                { id: 'week', label: t('this_week') },
+                { id: 'last7days', label: t('last_7_days') },
+                { id: 'month', label: t('this_month') },
+                { id: 'lastmonth', label: t('last_month') },
             ].map((p) => (
                 <button
                     key={p.id}
@@ -334,7 +334,7 @@ export default function Dashboard() {
                 )}
             >
                 <Calendar className="w-4 h-4 mr-2" />
-                Özel Tarih
+                {t('custom_date')}
             </button>
         </div>
         <div className="text-xs text-gray-500 mt-1 pl-1">
@@ -356,7 +356,7 @@ export default function Dashboard() {
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-[#1f7a6c] opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           
           <div className="relative z-10">
-            <p className="text-teal-50 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">Genel Toplam</p>
+            <p className="text-teal-50 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
             <h2 className={clsx(
               "font-black mb-3 tracking-tight drop-shadow-sm transition-all",
               ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 100000000 ? "text-3xl" : 
@@ -368,7 +368,7 @@ export default function Dashboard() {
               )}
             </h2>
             <p className="text-teal-100 text-sm font-medium">
-              Açık ve Kapalı Adisyonlar
+              {t('open_closed_total')}
             </p>
           </div>
         </div>
@@ -383,7 +383,7 @@ export default function Dashboard() {
             >
                 <div className="flex justify-between items-start mb-2">
                     <div>
-                        <h3 className="text-gray-500 text-sm font-medium mb-1">Açık Adisyon</h3>
+                        <h3 className="text-gray-500 text-sm font-medium mb-1">{t('open_orders')}</h3>
                         <p className="text-3xl font-bold text-gray-900 tracking-tight">
                             {formatCurrency(data?.acik_adisyon_toplam || 0)}
                         </p>
@@ -394,8 +394,8 @@ export default function Dashboard() {
                             <PieChart>
                                 <Pie
                                     data={[
-                                        { name: 'Adisyon', value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
-                                        { name: 'Paket', value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
                                     ]}
                                     cx="50%"
                                     cy="50%"
@@ -406,8 +406,8 @@ export default function Dashboard() {
                                     stroke="none"
                                 >
                                     {[
-                                        { name: 'Adisyon', value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
-                                        { name: 'Paket', value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
                                     ].map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -424,11 +424,11 @@ export default function Dashboard() {
                         className="bg-indigo-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition"
                     >
                         <div>
-                            <span className="text-xs font-bold text-indigo-700 block mb-0.5">Adisyon</span>
+                            <span className="text-xs font-bold text-indigo-700 block mb-0.5">{t('order_type_adisyon')}</span>
                             <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
                         </div>
                         <span className="text-xs text-indigo-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                            {data?.dagilim?.adisyon.acik_adet || 0} adet
+                            {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
                         </span>
                     </div>
                     
@@ -438,11 +438,11 @@ export default function Dashboard() {
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
-                                <span className="text-xs font-bold text-amber-700 block mb-0.5">Paket</span>
+                                <span className="text-xs font-bold text-amber-700 block mb-0.5">{t('order_type_paket')}</span>
                                 <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.paket.acik_toplam || 0)}</span>
                             </div>
                             <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                {data?.dagilim?.paket.acik_adet || 0} adet
+                                {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
                             </span>
                         </div>
                     )}
@@ -457,14 +457,14 @@ export default function Dashboard() {
             >
                 <div className="flex justify-between items-start mb-2">
                     <div>
-                        <h3 className="text-gray-500 text-sm font-medium mb-1">Kapalı Adisyon</h3>
+                        <h3 className="text-gray-500 text-sm font-medium mb-1">{t('closed_orders')}</h3>
                         <p className="text-3xl font-bold text-gray-900 tracking-tight">
                             {formatCurrency(data?.kapali_adisyon_toplam || 0)}
                         </p>
                         <div className="mt-1">
                             <span className="bg-emerald-50 text-emerald-600 text-[10px] font-medium px-2 py-0.5 rounded-full inline-flex items-center">
                                 <Tag className="w-3 h-3 mr-1" />
-                                İskonto: {formatCurrency(data?.kapali_iskonto_toplam || 0)}
+                                {t('discount')}: {formatCurrency(data?.kapali_iskonto_toplam || 0)}
                             </span>
                         </div>
                     </div>
@@ -474,8 +474,8 @@ export default function Dashboard() {
                             <PieChart>
                                 <Pie
                                     data={[
-                                        { name: 'Adisyon', value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
-                                        { name: 'Paket', value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
                                     ]}
                                     cx="50%"
                                     cy="50%"
@@ -486,8 +486,8 @@ export default function Dashboard() {
                                     stroke="none"
                                 >
                                     {[
-                                        { name: 'Adisyon', value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
-                                        { name: 'Paket', value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
                                     ].map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -504,11 +504,11 @@ export default function Dashboard() {
                         className="bg-emerald-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-emerald-100 transition"
                     >
                         <div>
-                            <span className="text-xs font-bold text-emerald-700 block mb-0.5">Adisyon</span>
+                            <span className="text-xs font-bold text-emerald-700 block mb-0.5">{t('order_type_adisyon')}</span>
                             <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
                         </div>
                         <span className="text-xs text-emerald-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                            {data?.dagilim?.adisyon.kapali_adet || 0} adet
+                            {data?.dagilim?.adisyon.kapali_adet || 0} {t('piece')}
                         </span>
                     </div>
 
@@ -518,11 +518,11 @@ export default function Dashboard() {
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
-                                <span className="text-xs font-bold text-amber-700 block mb-0.5">Paket</span>
+                                <span className="text-xs font-bold text-amber-700 block mb-0.5">{t('order_type_paket')}</span>
                                 <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.paket.kapali_toplam || 0)}</span>
                             </div>
                             <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                {data?.dagilim?.paket.kapali_adet || 0} adet
+                                {data?.dagilim?.paket.kapali_adet || 0} {t('piece')}
                             </span>
                         </div>
                     )}
@@ -534,7 +534,7 @@ export default function Dashboard() {
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-900 px-1 flex items-center">
               <span className="w-1 h-6 bg-indigo-600 rounded-full mr-2"></span>
-              Diğer Raporlar
+              {t('other_reports')}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <button 
@@ -546,8 +546,8 @@ export default function Dashboard() {
                         <PieChartIcon className="w-6 h-6 text-orange-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ürün Satışları</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">En çok satan ürünler</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('product_sales')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('product_sales_desc')}</p>
                     </div>
                 </button>
                 
@@ -560,8 +560,8 @@ export default function Dashboard() {
                         <Users className="w-6 h-6 text-purple-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Personel</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">Garson performans</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('personnel')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('personnel_desc')}</p>
                     </div>
                 </button>
 
@@ -574,8 +574,8 @@ export default function Dashboard() {
                         <CreditCard className="w-6 h-6 text-blue-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ödeme Tipleri</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">Nakit, Kredi Kartı</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('payment_types')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('payment_types_card_desc')}</p>
                     </div>
                 </button>
 
@@ -588,8 +588,8 @@ export default function Dashboard() {
                         <TrendingUp className="w-6 h-6 text-red-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Saatlik Satış</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">Günün yoğun saatleri</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('hourly_sales')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('hourly_sales_desc')}</p>
                     </div>
                 </button>
 
@@ -604,8 +604,8 @@ export default function Dashboard() {
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">İptal / İade</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">İptal edilenler</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('cancelled_items')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('cancelled_items_desc')}</p>
                     </div>
                 </button>
 
@@ -620,8 +620,8 @@ export default function Dashboard() {
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ürün Grupları</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">Kategori bazlı</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('product_groups')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('product_groups_desc')}</p>
                     </div>
                 </button>
 
@@ -634,8 +634,8 @@ export default function Dashboard() {
                         <Bike className="w-6 h-6 text-teal-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Kurye Takip</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">Paket süreleri</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('courier_tracking')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('courier_tracking_card_desc')}</p>
                     </div>
                 </button>
             </div>
@@ -647,7 +647,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-gray-900">Şube Seçimi</h3>
+                    <h3 className="text-lg font-bold text-gray-900">{t('branch_selection')}</h3>
                     <button onClick={() => setBranchModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                         <X className="w-5 h-5" />
                     </button>
@@ -681,14 +681,14 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl p-6">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-gray-900">Tarih Aralığı Seç</h3>
+                    <h3 className="text-lg font-bold text-gray-900">{t('select_date_range')}</h3>
                     <button onClick={() => setShowCustomDateModal(false)} className="text-gray-400 hover:text-gray-600">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
                 <form onSubmit={handleCustomDateSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Başlangıç Tarihi</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('start_date')}</label>
                         <input 
                             type="date" 
                             required
@@ -698,7 +698,7 @@ export default function Dashboard() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Bitiş Tarihi</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('end_date')}</label>
                         <input 
                             type="date" 
                             required
@@ -711,7 +711,7 @@ export default function Dashboard() {
                         type="submit"
                         className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 transition"
                     >
-                        Uygula
+                        {t('apply')}
                     </button>
                 </form>
             </div>
@@ -730,7 +730,7 @@ export default function Dashboard() {
                         </svg>
                     </button>
                     <h2 className="text-xl font-bold text-gray-900 flex-1 text-center mr-10">
-                        {detailType === 'open' ? 'Açık Adisyon' : 'Kapalı Adisyon'}
+                        {detailType === 'open' ? t('open_orders') : t('closed_orders')}
                     </h2>
                 </div>
 
@@ -741,11 +741,11 @@ export default function Dashboard() {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-500 mr-2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                             </svg>
-                            <h3 className="font-bold text-gray-900">Filtrele</h3>
+                            <h3 className="font-bold text-gray-900">{t('filter_title')}</h3>
                         </div>
                         <div className="flex space-x-3">
                             <div className="flex-1">
-                                <label className="block text-xs text-gray-500 mb-1">Masa No:</label>
+                                <label className="block text-xs text-gray-500 mb-1">{t('table_no_label')}</label>
                                 <input 
                                     type="text" 
                                     placeholder="Örn: 5" 
@@ -753,15 +753,15 @@ export default function Dashboard() {
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-xs text-gray-500 mb-1">Tarih:</label>
+                                <label className="block text-xs text-gray-500 mb-1">{t('date')}:</label>
                                 <button className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-500">
                                     <Calendar className="w-4 h-4 mr-2" />
-                                    Seç
+                                    {t('select')}
                                 </button>
                             </div>
                         </div>
                     </div>
-                    <p className="text-gray-500 text-sm mt-4 ml-1">{orders.length} adet adisyon</p>
+                    <p className="text-gray-500 text-sm mt-4 ml-1">{orders.length} {t('count_orders')}</p>
                 </div>
                 
                 {/* List Content */}
@@ -786,13 +786,13 @@ export default function Dashboard() {
                                                 </svg>
                                             </div>
                                             <h3 className="font-bold text-gray-900 text-lg">
-                                                {order.masano === 99999 ? 'Paket' : `Masa ${order.masano}`} {order.masano === 99999 ? '' : order.masano}
+                                                {order.masano === 99999 ? t('order_type_paket') : `${t('table')} ${order.masano}`} {order.masano === 99999 ? '' : order.masano}
                                             </h3>
                                         </div>
                                         <div className="flex items-center">
                                             {order.masano === 99999 && (
                                                 <span className="bg-green-50 text-green-700 text-xs font-bold px-2 py-1 rounded-full mr-2">
-                                                    Paket
+                                                    {t('order_type_paket')}
                                                 </span>
                                             )}
                                             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -806,20 +806,20 @@ export default function Dashboard() {
                                     <div className="space-y-1 text-sm text-gray-500">
                                         <div className="flex items-center">
                                             <Users className="w-4 h-4 mr-2" />
-                                            <span>Garson: {order.garson || 'Bilinmiyor'}</span>
+                                            <span>{t('waiter')}: {order.garson || 'Bilinmiyor'}</span>
                                         </div>
                                         <div className="flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                             </svg>
-                                            <span>Kapanış: {new Date(order.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <span>{t('closing_time')}: {new Date(order.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                                         </div>
                                         <div className="flex items-center">
                                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                                             </svg>
-                                            <span>Sipyer: RESTORAN</span>
+                                            <span>{t('order_place')} RESTORAN</span>
                                         </div>
                                     </div>
 
@@ -830,7 +830,7 @@ export default function Dashboard() {
                             ))}
                             {orders.length === 0 && (
                                 <div className="text-center py-10 text-gray-500">
-                                    Kayıt bulunamadı.
+                                    {t('not_found')}
                                 </div>
                             )}
                         </>
@@ -852,7 +852,7 @@ export default function Dashboard() {
                         </svg>
                     </button>
                     <h2 className="text-xl font-bold text-gray-900 flex-1 text-center mr-10">
-                        Adisyon Detayı
+                        {t('order_detail')}
                     </h2>
                 </div>
                 
@@ -860,27 +860,27 @@ export default function Dashboard() {
                      {/* Header Info Card */}
                      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4 text-center">
                         <h3 className="text-3xl font-bold text-indigo-900 mb-1">
-                            {selectedOrder.masano === 99999 ? 'Paket' : `Masa ${selectedOrder.masano}`}
+                            {selectedOrder.masano === 99999 ? t('order_type_paket') : `${t('table')} ${selectedOrder.masano}`}
                         </h3>
                         <p className="text-gray-500 text-sm font-medium bg-gray-100 inline-block px-3 py-1 rounded-full mt-2">
-                            Adisyon No: #{selectedOrder.adsno}
+                            {t('order_no')}: #{selectedOrder.adsno}
                         </p>
                         
                         <div className="mt-6 grid grid-cols-3 gap-4 divide-x divide-gray-100">
                              <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">TARİH</p>
+                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('date_label')}</p>
                                  <p className="font-semibold text-gray-900 text-sm">
                                      {new Date(selectedOrder.tarih).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
                                  </p>
                              </div>
                              <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">SAAT</p>
+                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('time_label')}</p>
                                  <p className="font-semibold text-gray-900 text-sm">
                                      {new Date(selectedOrder.tarih).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}
                                  </p>
                              </div>
                               <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">GARSON</p>
+                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('waiter_label')}</p>
                                  <p className="font-semibold text-gray-900 text-sm truncate px-1">
                                      {selectedOrder.garson || '-'}
                                  </p>
@@ -891,9 +891,9 @@ export default function Dashboard() {
                       {/* Products List */}
                       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-4">
                          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                             <h4 className="font-bold text-gray-900">Siparişler</h4>
+                             <h4 className="font-bold text-gray-900">{t('orders_title')}</h4>
                              <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">
-                                 {selectedOrder.items.length} Kalem
+                                 {selectedOrder.items.length} {t('item_count')}
                              </span>
                          </div>
                          <div className="divide-y divide-gray-50">
@@ -906,7 +906,7 @@ export default function Dashboard() {
                                         <div>
                                             <p className="font-bold text-gray-900">{item.product_name}</p>
                                             <p className="text-xs text-gray-500 font-medium mt-0.5">
-                                                {formatCurrency(item.total / item.quantity)} / adet
+                                                {formatCurrency(item.total / item.quantity)} / {t('piece')}
                                             </p>
                                         </div>
                                     </div>
@@ -922,23 +922,23 @@ export default function Dashboard() {
                      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
                         <div className="space-y-3 mb-6">
                             <div className="flex justify-between items-center">
-                                 <span className="text-gray-500 font-medium">Ara Toplam</span>
+                                 <span className="text-gray-500 font-medium">{t('subtotal')}</span>
                                  <span className="font-bold text-gray-900">{formatCurrency(selectedOrder.toplam_tutar)}</span>
                             </div>
                              <div className="flex justify-between items-center">
-                                 <span className="text-gray-500 font-medium">Kişi Sayısı</span>
+                                 <span className="text-gray-500 font-medium">{t('person_count')}</span>
                                  <span className="font-bold text-gray-900">{selectedOrder.kisi_sayisi}</span>
                             </div>
                             {selectedOrder.odeme_yontemi && (
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500 font-medium">Ödeme Yöntemi</span>
+                                    <span className="text-gray-500 font-medium">{t('payment_method')}</span>
                                     <span className="font-bold text-gray-900">{selectedOrder.odeme_yontemi}</span>
                                 </div>
                             )}
                         </div>
                         
                         <div className="border-t-2 border-dashed border-gray-100 pt-4 flex justify-between items-center">
-                            <span className="text-lg font-bold text-gray-900">Genel Toplam</span>
+                            <span className="text-lg font-bold text-gray-900">{t('range_label_total')}</span>
                             <span className="text-3xl font-black text-indigo-600 tracking-tight">{formatCurrency(selectedOrder.toplam_tutar)}</span>
                         </div>
                      </div>
@@ -952,7 +952,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 backdrop-blur-sm">
             <div className="bg-white p-4 rounded-2xl shadow-xl flex items-center space-x-3">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-                <span className="font-medium text-gray-700">Yükleniyor...</span>
+                <span className="font-medium text-gray-700">{t('loading')}</span>
             </div>
         </div>
       )}
@@ -963,7 +963,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl p-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-gray-900">
-                        {editingBranch ? (editingBranch.id ? 'Şube Düzenle' : 'Yeni Şube Ekle') : 'Şube Yönetimi'}
+                        {editingBranch ? (editingBranch.id ? t('edit_branch') : t('add_new_branch')) : t('branch_management')}
                     </h3>
                     <button 
                         onClick={() => {
@@ -1030,13 +1030,13 @@ export default function Dashboard() {
                                 className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
                             >
                                 <Plus className="w-5 h-5" />
-                                <span>Yeni Şube Ekle</span>
+                                <span>{t('add_new_branch')}</span>
                             </button>
                     </div>
                 ) : (
                     <form onSubmit={handleSaveBranch} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Şube Adı</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('branch_name')}</label>
                             <input 
                                 type="text" 
                                 required
@@ -1047,7 +1047,7 @@ export default function Dashboard() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Host</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('host')}</label>
                                 <input 
                                     type="text" 
                                     required
@@ -1057,7 +1057,7 @@ export default function Dashboard() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('port')}</label>
                                 <input 
                                     type="number" 
                                     required
@@ -1069,7 +1069,7 @@ export default function Dashboard() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">DB Adı</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('db_name')}</label>
                                 <input 
                                     type="text" 
                                     required
@@ -1079,7 +1079,7 @@ export default function Dashboard() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Kasa No</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('kasa_no')}</label>
                                 <input 
                                     type="number" 
                                     required
@@ -1090,7 +1090,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">DB Kullanıcı</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('db_user')}</label>
                             <input 
                                 type="password" 
                                 required
@@ -1100,7 +1100,7 @@ export default function Dashboard() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">DB Şifre</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('db_password')}</label>
                             <input 
                                 type="password" 
                                 required
@@ -1116,14 +1116,14 @@ export default function Dashboard() {
                                 onClick={() => setEditingBranch(null)}
                                 className="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-50 transition"
                             >
-                                İptal
+                                {t('cancel')}
                             </button>
                             <button 
                                 type="submit"
                                 className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center"
                             >
                                 <Save className="w-4 h-4 mr-2" />
-                                Kaydet
+                                {t('save')}
                             </button>
                         </div>
                     </form>

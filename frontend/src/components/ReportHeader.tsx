@@ -37,12 +37,12 @@ export default function ReportHeader({
 
   return (
     <>
-      <div className="bg-white px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm">
+      <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="flex items-center space-x-2 mb-4">
-          <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-gray-600">
+          <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">{title}</h1>
         </div>
 
         {/* Date Filter Row */}
@@ -128,7 +128,7 @@ export default function ReportHeader({
                 type="submit"
                 className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 transition"
               >
-                Uygula
+                {t('apply')}
               </button>
             </form>
           </div>
