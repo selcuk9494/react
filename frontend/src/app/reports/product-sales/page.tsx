@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useSearchParams } from 'next/navigation';
@@ -9,7 +9,7 @@ import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
 
-export default function ProductSalesPage() {
+function ProductSalesContent() {
   const { token } = useAuth();
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -74,30 +74,30 @@ export default function ProductSalesPage() {
             <p className="text-gray-500">{t('not_found')}</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{groupId ? 'Ürün Grubu' : 'Ürün Adı'}</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Miktar</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tutar</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{groupId ? 'Ürün Grubu' : 'Ürün Adı'}</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Miktar</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Tutar</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-50">
                   {data.map((row, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <tr key={index} className="transition-colors duration-150 hover:bg-gray-50 group">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium group-hover:text-gray-600">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">
                         {groupId ? row.group_name : row.product_name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                        {row.quantity}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right font-medium">
+                        <span className="bg-gray-100 px-2.5 py-1 rounded-full">{row.quantity}</span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right tracking-tight">
                         {formatCurrency(parseFloat(row.total))}
                       </td>
                     </tr>
@@ -109,5 +109,13 @@ export default function ProductSalesPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ProductSalesPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
+      <ProductSalesContent />
+    </Suspense>
   );
 }
