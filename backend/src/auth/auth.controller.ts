@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request, Get } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -8,11 +8,14 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() req) {
-    const user = await this.authService.validateUser(req.email, req.password);
-    if (!user) {
-        throw new Error('Invalid credentials');
+    const result = await this.authService.validateUser(req.email, req.password);
+    if (result === 'not_found') {
+        throw new UnauthorizedException('Kullanıcı bulunamadı');
     }
-    return this.authService.login(user);
+    if (result === 'wrong_password') {
+        throw new UnauthorizedException('Girdiğiniz şifre hatalı');
+    }
+    return this.authService.login(result);
   }
 
   @Post('register')
