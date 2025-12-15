@@ -349,9 +349,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="px-4 py-4 space-y-6">
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full">
         {/* Main Summary Card */}
-        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500">
+        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-indigo-400 opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           
