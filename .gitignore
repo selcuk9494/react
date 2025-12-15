@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+.env
+.env.*
+.DS_Store
+coverage
+.vercel
+*.log
+backend/dist
+backend/node_modules
+frontend/.next
+frontend/node_modules
+frontend/out
