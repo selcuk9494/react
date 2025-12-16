@@ -362,16 +362,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full pt-[140px]">
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full pt-[170px]">
         {/* Main Summary Card */}
-        <div className="bg-gradient-to-br from-[#2aa290] via-[#249685] to-[#1f7a6c] rounded-3xl p-8 text-white shadow-xl shadow-[#2aa290]/30 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
+        <div className="bg-gradient-to-br from-[#2aa290] via-[#249685] to-[#1f7a6c] rounded-3xl p-6 text-white shadow-xl shadow-[#2aa290]/30 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-[#1f7a6c] opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
           
           <div className="relative z-10">
-            <p className="text-teal-50 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
+            <p className="text-teal-50 text-sm font-medium mb-2 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
             <h2 className={clsx(
-              "font-black mb-3 tracking-tight drop-shadow-sm transition-all",
+              "font-black mb-2 tracking-tight drop-shadow-sm transition-all",
               ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 100000000 ? "text-2xl" : 
               ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 1000000 ? "text-3xl" : "text-4xl"
             )}>
