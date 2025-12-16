@@ -45,6 +45,7 @@ interface DashboardData {
       kapali_adet: number;
       kapali_toplam: number;
       kapali_iskonto: number;
+      kapali_yuzde?: number;
       toplam_adet: number;
       toplam_tutar: number;
     };
@@ -55,6 +56,7 @@ interface DashboardData {
       kapali_adet: number;
       kapali_toplam: number;
       kapali_iskonto: number;
+      kapali_yuzde?: number;
       toplam_adet: number;
       toplam_tutar: number;
     };
@@ -66,6 +68,7 @@ interface DashboardData {
         kapali_iskonto: number;
         toplam_adet: number;
         toplam_tutar: number;
+        kapali_yuzde?: number;
     };
   };
 }
@@ -512,6 +515,7 @@ export default function Dashboard() {
                                     data={[
                                         { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
                                         { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.kapali_toplam || 0, color: '#ec4899' },
                                     ]}
                                     cx="50%"
                                     cy="50%"
@@ -524,6 +528,7 @@ export default function Dashboard() {
                                     {[
                                         { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
                                         { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.kapali_toplam || 0, color: '#ec4899' },
                                     ].map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -546,6 +551,11 @@ export default function Dashboard() {
                         <span className="text-xs text-emerald-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
                             {data?.dagilim?.adisyon.kapali_adet || 0} {t('piece')}
                         </span>
+                        {typeof data?.dagilim?.adisyon.kapali_yuzde !== 'undefined' && (
+                          <span className="ml-2 text-[10px] text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                            %{data?.dagilim?.adisyon.kapali_yuzde}
+                          </span>
+                        )}
                     </div>
 
                     {(data?.dagilim?.paket.kapali_toplam || 0) > 0 && (
@@ -560,6 +570,33 @@ export default function Dashboard() {
                             <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
                                 {data?.dagilim?.paket.kapali_adet || 0} {t('piece')}
                             </span>
+                            {typeof data?.dagilim?.paket.kapali_yuzde !== 'undefined' && (
+                              <span className="ml-2 text-[10px] text-amber-700 bg-amber-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                                %{data?.dagilim?.paket.kapali_yuzde}
+                              </span>
+                            )}
+                        </div>
+                    )}
+
+                    {(data?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
+                        <div 
+                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=3'); }}
+                            className="bg-pink-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-pink-100 transition"
+                        >
+                            <div>
+                                <span className="text-xs font-bold text-pink-700 block mb-0.5">{t('order_type_hizli')}</span>
+                                <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-pink-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                                  {data?.dagilim?.hizli?.kapali_adet || 0} {t('piece')}
+                              </span>
+                              {typeof data?.dagilim?.hizli?.kapali_yuzde !== 'undefined' && (
+                                <span className="text-[10px] text-pink-700 bg-pink-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                                  %{data?.dagilim?.hizli?.kapali_yuzde}
+                                </span>
+                              )}
+                            </div>
                         </div>
                     )}
                 </div>

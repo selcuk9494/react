@@ -252,30 +252,41 @@ export class ReportsService {
       else acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
     });
 
-    // 2. Kapali Adisyonlar
+    // 2. Kapali Adisyonlar (ads_odeme üzerinden adtur ile)
     const kapaliQuery = `
-      WITH adsno_masano AS (
-          SELECT DISTINCT adsno, MAX(COALESCE(masano, 0)) as masano
-          FROM ads_adisyon
-          WHERE kasa = $1
-          GROUP BY adsno
+      WITH kapali_toplam AS (
+          SELECT 
+              o.adsno,
+              MAX(COALESCE(o.adtur, CASE WHEN am.masano = 99999 THEN 1 ELSE 0 END)) AS adtur,
+              SUM(COALESCE(o.otutar, 0)) AS otutar_sum,
+              SUM(COALESCE(o.iskonto, 0)) AS iskonto_sum
+          FROM ads_odeme o
+          LEFT JOIN (
+              SELECT adsno, MAX(COALESCE(masano, 0)) as masano
+              FROM ads_adisyon
+              WHERE kasa = $1
+              GROUP BY adsno
+          ) am ON o.adsno = am.adsno
+          WHERE DATE(o.raptar) BETWEEN $2 AND $3 AND o.kasa = $4
+          GROUP BY o.adsno
       )
       SELECT 
-          CASE WHEN am.masano = 99999 THEN 'paket' ELSE 'adisyon' END as tip,
-          COUNT(DISTINCT o.adsno) as adet,
-          COALESCE(SUM(o.otutar), 0) as toplam,
-          COALESCE(SUM(o.iskonto), 0) as iskonto
-      FROM ads_odeme o
-      LEFT JOIN adsno_masano am ON o.adsno = am.adsno
-      WHERE DATE(o.raptar) BETWEEN $2 AND $3 AND o.kasa = $4
-      GROUP BY tip
+          adtur,
+          COUNT(DISTINCT adsno) as adet,
+          COALESCE(SUM(otutar_sum), 0) as toplam,
+          COALESCE(SUM(iskonto_sum), 0) as iskonto
+      FROM kapali_toplam
+      GROUP BY adtur
     `;
     const kapaliRows = await this.db.executeQuery(pool, kapaliQuery, [kasa_no, dStart, dEnd, kasa_no]);
 
     let kapali_paket = { adet: 0, toplam: 0, iskonto: 0 };
     let kapali_adisyon = { adet: 0, toplam: 0, iskonto: 0 };
-    kapaliRows.forEach(row => {
-      if (row.tip === 'paket') kapali_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
+    let kapali_hizli = { adet: 0, toplam: 0, iskonto: 0 };
+    kapaliRows.forEach((row: any) => {
+      const t = parseInt(row.adtur);
+      if (t === 1) kapali_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
+      else if (t === 3) kapali_hizli = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
       else kapali_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
     });
 
@@ -290,7 +301,7 @@ export class ReportsService {
 
     // Totals
     const acik_toplam = acik_paket.toplam + acik_adisyon.toplam;
-    const kapali_toplam = kapali_paket.toplam + kapali_adisyon.toplam;
+    const kapali_toplam = kapali_paket.toplam + kapali_adisyon.toplam + kapali_hizli.toplam;
     const kapali_iskonto_toplam = kapali_paket.iskonto + kapali_adisyon.iskonto;
 
     return {
@@ -298,7 +309,7 @@ export class ReportsService {
       kapali_adisyon_toplam: kapali_toplam,
       kapali_iskonto_toplam: kapali_iskonto_toplam,
       iptal_toplam: parseFloat(iptal.toplam),
-      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet + acik_hizli.adet,
+      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet,
       kapali_adisyon_adet: kapali_paket.adet + kapali_adisyon.adet,
       iptal_adet: parseInt(iptal.adet),
       dagilim: {
@@ -310,7 +321,8 @@ export class ReportsService {
           kapali_iskonto: kapali_paket.iskonto,
           toplam_adet: acik_paket.adet + kapali_paket.adet,
           toplam_tutar: acik_paket.toplam + kapali_paket.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_paket.toplam / acik_toplam) * 100) : 0
+          acik_yuzde: acik_toplam > 0 ? Math.round((acik_paket.toplam / acik_toplam) * 100) : 0,
+          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_paket.toplam / kapali_toplam) * 100) : 0
         },
         adisyon: {
           acik_adet: acik_adisyon.adet,
@@ -320,7 +332,18 @@ export class ReportsService {
           kapali_iskonto: kapali_adisyon.iskonto,
           toplam_adet: acik_adisyon.adet + kapali_adisyon.adet,
           toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_adisyon.toplam / acik_toplam) * 100) : 0
+          acik_yuzde: acik_toplam > 0 ? Math.round((acik_adisyon.toplam / acik_toplam) * 100) : 0,
+          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_adisyon.toplam / kapali_toplam) * 100) : 0
+        },
+        hizli: {
+          acik_adet: 0,
+          acik_toplam: 0,
+          kapali_adet: kapali_hizli.adet,
+          kapali_toplam: kapali_hizli.toplam,
+          kapali_iskonto: kapali_hizli.iskonto,
+          toplam_adet: kapali_hizli.adet,
+          toplam_tutar: kapali_hizli.toplam,
+          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_hizli.toplam / kapali_toplam) * 100) : 0
         }
       }
     };
