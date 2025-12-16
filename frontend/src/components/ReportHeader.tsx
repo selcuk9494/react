@@ -25,7 +25,7 @@ export default function ReportHeader({
   customEndDate,
   setCustomEndDate,
 }: ReportHeaderProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
 
@@ -46,7 +46,7 @@ export default function ReportHeader({
         </div>
 
         {/* Date Filter Row */}
-        <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-2 items-center">
           {[
             { id: 'today', label: t('today') },
             { id: 'yesterday', label: t('yesterday') },
@@ -80,14 +80,54 @@ export default function ReportHeader({
             )}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            {t('custom_date')}
+            {period === 'custom' && customStartDate && customEndDate
+              ? `${new Date(customStartDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
+              : t('custom_date')}
           </button>
+          <span className="text-xs text-gray-700 font-medium ml-2 whitespace-nowrap">
+            {(() => {
+              const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+              const now = new Date();
+              if (period === 'today') return f(now);
+              if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
+              if (period === 'week') {
+                const d = new Date();
+                const day = d.getDay(); // 0..6
+                const diff = (day + 6) % 7; // make Monday start
+                const start = new Date(d); start.setDate(d.getDate() - diff);
+                const end = new Date(start); end.setDate(start.getDate() + 6);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'last7days') {
+                const end = new Date();
+                const start = new Date(); start.setDate(end.getDate() - 6);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'month') {
+                const d = new Date();
+                const start = new Date(d.getFullYear(), d.getMonth(), 1);
+                const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'lastmonth') {
+                const d = new Date();
+                const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+                const end = new Date(d.getFullYear(), d.getMonth(), 0);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'custom' && customStartDate && customEndDate) {
+                const s = new Date(customStartDate); const e = new Date(customEndDate);
+                return `${f(s)} - ${f(e)}`;
+              }
+              return '';
+            })()}
+          </span>
         </div>
         <div className="text-xs text-gray-500 mt-1 pl-1">
           {period === 'custom' && customStartDate && customEndDate
-            ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+            ? `${new Date(customStartDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
             : period === 'today'
-              ? new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+              ? new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
               : ''
           }
         </div>
@@ -109,7 +149,7 @@ export default function ReportHeader({
                 <input
                   type="date"
                   required
-                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
                 />
@@ -119,7 +159,7 @@ export default function ReportHeader({
                 <input
                   type="date"
                   required
-                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
                 />
