@@ -160,15 +160,20 @@ function OrderDetailContent() {
                         <p className="text-indigo-200 text-sm font-medium mb-1">{t('order_no')}</p>
                         <p className="text-3xl font-bold text-white">#{orderData?.adsno || id}</p>
                     </div>
-                    {orderData?.items && orderData.items.length > 0 && orderData.items[0]?.adtur_label && (
+                    {orderData?.items && orderData.items.length > 0 && (
                         <div className="bg-indigo-500/50 backdrop-blur-sm border border-indigo-400/30 px-3 py-1.5 rounded-lg">
-                            <span className="text-xs font-bold text-indigo-100">{orderData.items[0].adtur_label}</span>
+                            <span className="text-xs font-bold text-indigo-100">
+                                {orderData.sipyer === 3 ? t('order_type_adisyon') : 
+                                 orderData.sipyer === 2 ? t('order_type_paket') : 
+                                 orderData.sipyer === 1 ? t('order_type_hizli') :
+                                 (orderData.items[0]?.adtur_label || 'Diğer')}
+                            </span>
                         </div>
                     )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                    {orderData?.masa_no !== undefined && orderData?.masa_no !== null && (
+                    {(orderData?.masa_no !== undefined && orderData?.masa_no !== null && orderData.masa_no !== 99999) && (
                         <div className="flex items-center space-x-2">
                             <div className="p-1.5 bg-indigo-500/30 rounded-lg">
                                 {/* Restaurant Icon alternative */}
@@ -195,14 +200,14 @@ function OrderDetailContent() {
                         </div>
                     )}
 
-                    {orderData?.garson_adi && (
+                    {(orderData?.garson || orderData?.garson_adi) && (
                          <div className="flex items-center space-x-2">
                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
                                 <User className="w-4 h-4 text-indigo-200" />
                             </div>
                             <div>
                                 <p className="text-xs text-indigo-200">{t('waiter')}</p>
-                                <p className="text-sm font-semibold truncate max-w-[120px]">{orderData.garson_adi}</p>
+                                <p className="text-sm font-semibold truncate max-w-[120px]">{orderData.garson || orderData.garson_adi}</p>
                             </div>
                         </div>
                     )}
@@ -214,7 +219,9 @@ function OrderDetailContent() {
                             </div>
                             <div>
                                 <p className="text-xs text-indigo-200">{t('order_place')}</p>
-                                <p className="text-sm font-semibold">{orderData.sipyer}</p>
+                                <p className="text-sm font-semibold">
+                                    {orderData.sipyer === 3 ? 'Adisyon' : orderData.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
+                                </p>
                             </div>
                         </div>
                     )}
@@ -243,14 +250,14 @@ function OrderDetailContent() {
                         </div>
                     )}
 
-                     {orderData?.customer_name && (
+                     {(orderData?.customer_name || orderData?.mustid) && (
                          <div className="flex items-center space-x-2 col-span-2">
                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
                                 <Users className="w-4 h-4 text-indigo-200" />
                             </div>
                             <div>
                                 <p className="text-xs text-indigo-200">{t('customer')}</p>
-                                <p className="text-sm font-semibold">{orderData.customer_name}</p>
+                                <p className="text-sm font-semibold">{orderData.customer_name || orderData.mustid}</p>
                             </div>
                         </div>
                     )}
@@ -301,11 +308,14 @@ function OrderDetailContent() {
                                 {item.miktar} {t('quantity').toLowerCase()} × {formatCurrency(item.birim_fiyat)}
                             </span>
                         </div>
-                        {(item.ack1 || item.ack2 || item.ack3) && (
+                        {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                                 {item.ack1 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack1}</p>}
                                 {item.ack2 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack2}</p>}
                                 {item.ack3 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack3}</p>}
+                                {item.notes && item.notes.map((note: string, i: number) => (
+                                    <p key={i} className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {note}</p>
+                                ))}
                             </div>
                         )}
                     </div>

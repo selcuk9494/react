@@ -114,7 +114,19 @@ function OpenOrdersContent() {
     const adturParam = searchParams.get('adtur');
     if (adturParam !== null) {
       const t = Number(adturParam);
-      filtered = filtered.filter(o => (o.adtur ?? -1) === t);
+      // Map legacy adtur to sipyer if needed, or filter by both
+      // Legacy: 0=Adisyon, 1=Paket, 3=Hizli
+      // New: 3=Adisyon, 2=Paket, 1=Hizli
+      
+      let targetSipyer = -1;
+      if (t === 0) targetSipyer = 3;
+      else if (t === 1) targetSipyer = 2;
+      else if (t === 3) targetSipyer = 1;
+
+      filtered = filtered.filter(o => {
+          if (o.sipyer) return o.sipyer === targetSipyer;
+          return (o.adtur ?? -1) === t;
+      });
     }
     setOrders(filtered);
   };
@@ -296,11 +308,14 @@ function OpenOrdersContent() {
                             <Receipt className="w-6 h-6 text-amber-500" />
                             <div>
                                 <h3 className="text-base font-bold text-gray-900">
-                                    {order.masa_no ? `Masa ${order.masa_no}` : `Sipariş #${order.id}`}
+                                    {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
                                 </h3>
-                                {typeof order.adtur !== 'undefined' && (
+                                {(order.sipyer || typeof order.adtur !== 'undefined') && (
                                     <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md mt-0.5">
-                                        {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                        {order.sipyer === 3 ? t('order_type_adisyon') : 
+                                         order.sipyer === 2 ? t('order_type_paket') : 
+                                         order.sipyer === 1 ? t('order_type_hizli') :
+                                         (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
                                     </span>
                                 )}
                             </div>
@@ -315,10 +330,10 @@ function OpenOrdersContent() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
-                        {order.garson_adi && (
+                        {(order.garson || order.garson_adi) && (
                             <div className="flex items-center">
                                 <User className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('waiter')}: {order.garson_adi}</span>
+                                <span className="truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
                             </div>
                         )}
                         {order.acilis_saati && (
@@ -330,13 +345,15 @@ function OpenOrdersContent() {
                         {order.sipyer && (
                             <div className="flex items-center">
                                 <MapPin className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('order_place')} {order.sipyer}</span>
+                                <span className="truncate">
+                                    {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
+                                </span>
                             </div>
                         )}
-                        {(order.adtur === 1 || order.masa_no === 0) && order.customer_name && (
+                        {(order.sipyer === 2 || order.masa_no === 99999) && (order.customer_name || order.mustid) && (
                             <div className="flex items-center">
                                 <Users className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('customer')}: {order.customer_name}</span>
+                                <span className="truncate">{t('customer')}: {order.customer_name || order.mustid}</span>
                             </div>
                         )}
                         {order.acilis_saati && (
