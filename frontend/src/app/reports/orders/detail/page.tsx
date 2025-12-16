@@ -159,20 +159,27 @@ function OrderDetailContent() {
              <div className="absolute top-0 right-0 -mr-10 -mt-10 w-32 h-32 bg-white opacity-10 rounded-full"></div>
              <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-32 h-32 bg-white opacity-10 rounded-full"></div>
 
-            <div className="relative z-10">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <p className="text-indigo-200 text-sm font-medium mb-1">{t('order_no')}</p>
-                        <p className="text-3xl font-bold text-white">#{orderData?.adsno || id}</p>
-                    </div>
-                    {orderData?.type_label && (
-                        <div className="bg-indigo-500/50 backdrop-blur-sm border border-indigo-400/30 px-3 py-1.5 rounded-lg">
-                            <span className="text-xs font-bold text-indigo-100">
-                                {orderData.type_label}
-                            </span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <p className="text-indigo-200 text-sm font-medium mb-1">{t('order_no')}</p>
+                                <p className="text-3xl font-bold text-white">#{orderData?.adsno || id}</p>
+                                {typeof orderData?.adtur !== 'undefined' && (
+                                    <div className="mt-1 bg-white/10 rounded-lg inline-flex items-center px-2 py-0.5">
+                                        <span className="text-[10px] font-bold text-indigo-100">
+                                            {orderData.adtur===0 ? t('order_type_adisyon') : (orderData.adtur===1 ? t('order_type_paket') : (orderData.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            {orderData?.type_label && (
+                                <div className="bg-indigo-500/50 backdrop-blur-sm border border-indigo-400/30 px-3 py-1.5 rounded-lg">
+                                    <span className="text-xs font-bold text-indigo-100">
+                                        {orderData.type_label}
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
 
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                     {((orderData?.masa_no ?? orderData?.masano) !== undefined && (orderData?.masa_no ?? orderData?.masano) !== null && (orderData?.masa_no ?? orderData?.masano) !== 99999) && (

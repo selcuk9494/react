@@ -152,6 +152,7 @@ export class ReportsService {
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                MAX(COALESCE(a.masano, 0)) as masa_no,
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 CASE 
                   WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
@@ -194,6 +195,7 @@ export class ReportsService {
                 o.adsno,
                 MAX(COALESCE(o.adtur, 0)) as adtur,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                MAX(COALESCE(a.masano, 0)) as masa_no,
                 CASE 
                   WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
                   ELSE 'Adisyon'
@@ -218,7 +220,7 @@ export class ReportsService {
                     'sturu', a.sturu
                 )) as items
             FROM ads_odeme o
-            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
+            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno AND o.kasa = a.kasa AND o.adtur = a.adtur
             LEFT JOIN personel p ON a.garsonno = p.id
             LEFT JOIN ads_musteri m ON o.mustid = m.id
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
