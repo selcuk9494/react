@@ -4,17 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
-import { Wallet, Banknote, CreditCard as CreditCardIcon, CreditCard } from 'lucide-react';
+import { Wallet, Banknote, CreditCard as CreditCardIcon, CreditCard, AlertCircle } from 'lucide-react';
 import axios from 'axios';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
-
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export default function PaymentTypesPage() {
   const { token } = useAuth();
   const { t } = useI18n();
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('today');
@@ -52,11 +50,18 @@ export default function PaymentTypesPage() {
   const totalAmount = data.reduce((acc, curr) => acc + curr.total, 0);
   const totalCount = data.reduce((acc, curr) => acc + curr.count, 0);
 
-  const getIconForPayment = (name: string) => {
-      const lower = name.toLowerCase();
-      if (lower.includes('nakit')) return <Banknote className="w-5 h-5 text-green-600" />;
-      if (lower.includes('kredi')) return <CreditCardIcon className="w-5 h-5 text-purple-600" />;
-      return <Wallet className="w-5 h-5 text-blue-600" />;
+  const getPercent = (value: number) => {
+    if (!totalAmount) return 0;
+    return Math.round((value / totalAmount) * 100);
+  };
+
+  const getChartColors = () => {
+    return ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+  };
+
+  const getIconForPayment = (name: string, index: number) => {
+      const color = getChartColors()[index % getChartColors().length];
+      return <CreditCardIcon className="w-6 h-6" style={{ color }} />;
   };
 
   return (
@@ -71,111 +76,76 @@ export default function PaymentTypesPage() {
         setCustomEndDate={setCustomEndDate}
       />
 
-      <main className="px-4 py-4 space-y-6">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {loading ? (
             <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             </div>
         ) : data.length === 0 ? (
             <div className="text-center py-12">
-                <CreditCard className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{t('not_found')}</p>
+                <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">{t('period_no_sales_products')}</p>
             </div>
         ) : (
             <>
-                {/* Total Card */}
-                <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-                    
-                    <div className="relative z-10 flex justify-between items-end">
-                        <div>
-                            <p className="text-indigo-100 text-sm font-medium mb-1">{t('total_payment')}</p>
-                            <h2 className="text-3xl font-bold">{formatCurrency(totalAmount)}</h2>
-                        </div>
-                        <div className="text-right">
-                             <p className="text-3xl font-bold">{totalCount}</p>
-                             <p className="text-indigo-200 text-xs">{t('transaction')}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Chart Section */}
-                <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 z-0"></div>
-                    <h3 className="font-bold text-gray-900 mb-6 text-lg relative z-10 flex items-center">
-                        <span className="w-1 h-6 bg-indigo-600 rounded-full mr-3"></span>
-                        {t('distribution_chart')}
-                    </h3>
-                    <div className="h-[350px] w-full relative z-10">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={80}
-                                    outerRadius={120}
-                                    paddingAngle={5}
-                                    dataKey="total"
-                                    nameKey="payment_name"
-                                    stroke="none"
-                                >
-                                    {data.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="drop-shadow-sm" />
-                                    ))}
-                                </Pie>
-                                <Tooltip 
-                                    formatter={(value: any) => formatCurrency(Number(value))}
-                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
-                                    itemStyle={{ color: '#1f2937', fontWeight: 600 }}
-                                />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    height={36} 
-                                    iconType="circle"
-                                    formatter={(value, entry: any) => <span className="text-sm font-medium text-gray-600 ml-1">{value}</span>}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
+                {/* Total Summary Card */}
+                <div className="bg-[#10B981] rounded-2xl p-6 text-center text-white shadow-lg shadow-emerald-100">
+                    <p className="text-emerald-100 text-sm font-medium mb-2">{t('total_payment')}</p>
+                    <h2 className="text-4xl font-bold tracking-tight">{formatCurrency(totalAmount)}</h2>
+                    <p className="text-emerald-200 text-sm mt-2 font-medium">{data.length} {t('payment_types_count')}</p>
                 </div>
 
                 {/* List Section */}
-                <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center">
-                        <span className="w-1 h-6 bg-indigo-600 rounded-full mr-3"></span>
-                        <h3 className="font-bold text-gray-900 text-lg">{t('detailed_info')}</h3>
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                        {data.map((item, idx) => (
-                            <div key={idx} className="p-5 flex items-center justify-between hover:bg-gray-50 transition duration-200 group">
-                                <div className="flex items-center space-x-4">
-                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                                        {getIconForPayment(item.payment_name)}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-gray-900 text-lg">{item.payment_name}</h4>
-                                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
-                                            <span className="font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">
-                                                {((item.total / totalAmount) * 100).toFixed(1)}%
-                                            </span>
-                                            <span>•</span>
-                                            <span className="font-medium">{item.count} {t('transaction')}</span>
+                <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('detailed_info')}</h3>
+                    
+                    <div className="space-y-3">
+                        {data.map((item, index) => {
+                            const color = getChartColors()[index % getChartColors().length];
+                            
+                            return (
+                                <div 
+                                    key={index} 
+                                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer active:scale-[0.99] transform duration-150"
+                                    onClick={() => {
+                                        // Not implementing navigation yet as order details page needs to be ready
+                                        // router.push(...)
+                                    }}
+                                >
+                                    <div className="flex items-center">
+                                        {/* Icon */}
+                                        <div 
+                                            className="w-12 h-12 rounded-xl flex items-center justify-center mr-4"
+                                            style={{ backgroundColor: `${color}20` }}
+                                        >
+                                            <CreditCardIcon className="w-6 h-6" style={{ color }} />
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-base font-bold text-gray-900 truncate">{item.payment_name}</h4>
+                                            <p className="text-sm text-gray-500 mt-0.5">{item.count} {t('transaction')}</p>
+                                            
+                                            {/* Progress Bar Container */}
+                                            <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full rounded-full" 
+                                                    style={{ width: `${getPercent(item.total)}%`, backgroundColor: color }}
+                                                ></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Amount & Percent */}
+                                        <div className="ml-4 text-right">
+                                            <p className="text-base font-bold text-emerald-600">{formatCurrency(item.total)}</p>
+                                            <div className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded-lg inline-block mt-1">
+                                                %{getPercent(item.total)}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-black text-gray-900 text-xl tracking-tight">{formatCurrency(item.total)}</p>
-                                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2 w-24 ml-auto overflow-hidden">
-                                        <div 
-                                            className="bg-indigo-600 h-1.5 rounded-full" 
-                                            style={{ width: `${(item.total / totalAmount) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </>
