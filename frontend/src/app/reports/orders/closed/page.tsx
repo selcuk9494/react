@@ -265,48 +265,48 @@ function ClosedOrdersContent() {
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center space-x-3">
                             <CheckCircle className="w-6 h-6 text-emerald-500" />
-                            <div>
-                                <h3 className="text-base font-bold text-gray-900">
-                                    {order.masa_no ? `Masa ${order.masa_no}` : `Sipariş #${order.id}`}
-                                </h3>
-                                {typeof order.adtur !== 'undefined' && (
-                                    <span className="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md mt-0.5">
-                                        {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
-                                    </span>
-                                )}
-                            </div>
+                            <h3 className="text-base font-bold text-gray-900">
+                                {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
+                            </h3>
+                            {typeof order.adtur !== 'undefined' && (
+                                <span className="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                    {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                </span>
+                            )}
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />
                     </div>
 
-                    <div className="flex justify-between items-center mb-3">
-                        <p className="text-xl font-bold text-emerald-600">
-                            {formatCurrency(order.tutar)}
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
-                        {order.garson_adi && (
-                            <div className="flex items-center">
-                                <User className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('waiter')}: {order.garson_adi}</span>
+                    <div className="flex flex-row justify-between items-center">
+                        <div className="mr-4">
+                            <p className="text-xl font-bold text-emerald-600 whitespace-nowrap">
+                                {formatCurrency(order.tutar)}
+                            </p>
+                        </div>
+                        
+                        <div className="flex-1 space-y-1.5 border-l border-gray-100 pl-4">
+                             {order.garson_adi && (
+                                <div className="flex items-center">
+                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson_adi}</span>
+                                </div>
+                            )}
+                            {order.kapanis_saati && (
+                                <div className="flex items-center">
+                                    <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
+                                </div>
+                            )}
+                            {order.sipyer && (
+                                <div className="flex items-center">
+                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">{t('order_place')} {order.sipyer}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
+                                <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>
                             </div>
-                        )}
-                        {order.kapanis_saati && (
-                            <div className="flex items-center">
-                                <Clock className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span>{t('closing')}: {formatTime(order.kapanis_saati)}</span>
-                            </div>
-                        )}
-                        {order.sipyer && (
-                            <div className="flex items-center">
-                                <MapPin className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('order_place')} {order.sipyer}</span>
-                            </div>
-                        )}
-                        <div className="flex items-center">
-                            <Calendar className="w-3 h-3 mr-1.5 text-gray-400" />
-                            <span>{formatDate(order.tarih)}</span>
                         </div>
                     </div>
                 </button>
