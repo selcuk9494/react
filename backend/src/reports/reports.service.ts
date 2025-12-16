@@ -401,7 +401,7 @@ export class ReportsService {
           a.donsaat as donus,
           a.actar as tarih,
           a.mustid as mustid,
-          COALESCE(m.adi, NULL) as musteri_adi,
+          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
           'open' as status
       FROM ads_acik a
       LEFT JOIN personel p ON a.garsonno = p.id
@@ -419,7 +419,7 @@ export class ReportsService {
           a.stopsaat as donus,
           a.siptar as tarih,
           COALESCE(MAX(o.mustid), NULL) as mustid,
-          COALESCE(MAX(m.adi), NULL) as musteri_adi,
+          COALESCE(MAX(m.adi || ' ' || COALESCE(m.soyadi, '')), NULL) as musteri_adi,
           'closed' as status
       FROM ads_adisyon a
       LEFT JOIN personel p ON a.garsonno = p.id
@@ -449,7 +449,7 @@ export class ReportsService {
             a.donsaat as donus,
             a.actar as tarih,
             a.mustid as mustid,
-            COALESCE(m.adi, NULL) as musteri_adi,
+            COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
             'open' as status
         FROM ads_acik a
         LEFT JOIN personel p ON a.garsonno = p.id
@@ -466,7 +466,7 @@ export class ReportsService {
             a.stopsaat as donus,
             a.siptar as tarih,
             COALESCE(MAX(o.mustid), NULL) as mustid,
-            COALESCE(MAX(m.adi), NULL) as musteri_adi,
+            COALESCE(MAX(m.adi || ' ' || COALESCE(m.soyadi, '')), NULL) as musteri_adi,
             'closed' as status
         FROM ads_adisyon a
         LEFT JOIN personel p ON a.garsonno = p.id
