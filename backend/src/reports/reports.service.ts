@@ -150,6 +150,7 @@ export class ReportsService {
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                MAX(COALESCE(a.adtur, 0)) as adtur,
                 CASE 
                   WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
                   WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Hızlı Satış'
@@ -160,8 +161,12 @@ export class ReportsService {
                 MAX(m.adi) as customer_name,
                 MAX(a.actar) as tarih,
                 MAX(a.acsaat) as acilis_saati,
+                NULL as kapanis_saati,
                 SUM(COALESCE(a.tutar, 0)) as toplam_tutar,
                 SUM(COALESCE(a.iskonto, 0)) as toplam_iskonto,
+                NULL as toplam_otutar,
+                NULL as payment_name,
+                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = MAX(CAST(a.sipyer AS INTEGER))) as sipyer_name,
                 json_agg(json_build_object(
                     'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
                     'quantity', COALESCE(a.miktar, 1),
@@ -170,11 +175,7 @@ export class ReportsService {
                     'ack1', a.ack1,
                     'ack2', a.ack2,
                     'ack3', a.ack3,
-                    'notes', (
-                        SELECT json_agg(am.aciklama)
-                        FROM ads_mesaj am
-                        WHERE am.kasa = $1 AND am.adsno = $2 AND am.pluid = a.pluid
-                    )
+                    'sturu', a.sturu
                 )) as items
             FROM ads_acik a
             LEFT JOIN personel p ON a.sip_ekleyen = p.id
@@ -189,23 +190,36 @@ export class ReportsService {
         const query = `
             SELECT 
                 o.adsno,
+                MAX(COALESCE(o.adtur, 0)) as adtur,
                 MAX(COALESCE(a.masano, 0)) as masano,
                 CASE 
                   WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
                   ELSE 'Adisyon'
                 END as type_label,
                 MAX(p.adi) as garson,
+                MAX(m.adi) as customer_name,
                 MAX(o.raptar) as tarih,
+                MAX(a.acsaat) as acilis_saati,
+                MAX(a.kapsaat) as kapanis_saati,
+                SUM(COALESCE(o.iskonto, 0)) as toplam_iskonto,
                 SUM(COALESCE(o.otutar, 0)) as toplam_tutar,
+                MAX(od.odmname) as payment_name,
+                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = MAX(CAST(a.sipyer AS INTEGER))) as sipyer_name,
                 json_agg(json_build_object(
                     'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
                     'quantity', a.miktar,
-                    'price', a.tutar,
-                    'total', a.tutar
+                    'price', a.bfiyat,
+                    'total', a.tutar,
+                    'ack1', a.ack1,
+                    'ack2', a.ack2,
+                    'ack3', a.ack3,
+                    'sturu', a.sturu
                 )) as items
             FROM ads_odeme o
             LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
             LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN ads_musteri m ON o.mustid = m.id
+            LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN product pr ON a.pluid = pr.plu
             WHERE o.kasa = $1 AND o.adsno = $2
             GROUP BY o.adsno

@@ -117,16 +117,12 @@ function OrderDetailContent() {
     return '';
   };
 
-  const getTotalAmount = () => {
-    if (!orderData) return 0;
-    // For open orders, items have 'total' field. For closed orders, items have 'total' too (mapped from tutar).
-    // The top-level 'toplam_tutar' is also available and usually more accurate for the whole order sum.
-    if (orderData.toplam_tutar) return orderData.toplam_tutar;
-    
-    if (orderData.items) {
-        return orderData.items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
-    }
-    return 0;
+  const getItemsSubtotal = () => {
+    if (!orderData || !orderData.items) return 0;
+    return orderData.items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+  };
+  const getTotalPaid = () => {
+    return orderData?.toplam_tutar || 0;
   };
 
   const paymentLabel = (orderData?.payment_name || (orderData?.order_type === 'open' ? t('payment_not_received') : t('unspecified'))) as string;
@@ -216,7 +212,7 @@ function OrderDetailContent() {
                         </div>
                     )}
 
-                    {orderData?.sipyer && (
+                    {(orderData?.sipyer || orderData?.sipyer_name) && (
                          <div className="flex items-center space-x-2">
                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
                                 <MapPin className="w-4 h-4 text-indigo-200" />
@@ -224,7 +220,7 @@ function OrderDetailContent() {
                             <div>
                                 <p className="text-xs text-indigo-200">{t('order_place')}</p>
                                 <p className="text-sm font-semibold">
-                                    {(orderData.sipyer === 2) ? 'Paket' : ((orderData.sipyer === 1 && Number(orderData.masano) === 99999) ? 'Hızlı Satış' : 'Adisyon')}
+                                    {orderData.sipyer_name || ((orderData.sipyer === 2) ? 'Paket' : ((orderData.sipyer === 1 && Number(orderData.masano) === 99999) ? 'Hızlı Satış' : 'Adisyon'))}
                                 </p>
                             </div>
                         </div>
@@ -339,7 +335,7 @@ function OrderDetailContent() {
             <div className="space-y-3">
                 <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">{t('subtotal')}</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(getTotalAmount())}</span>
+                    <span className="font-bold text-gray-900">{formatCurrency(getItemsSubtotal())}</span>
                 </div>
                 {orderData?.toplam_iskonto > 0 && (
                     <div className="flex justify-between items-center text-emerald-600">
@@ -350,7 +346,7 @@ function OrderDetailContent() {
                 <div className="border-t border-gray-100 my-3"></div>
                 <div className="flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-900">{t('total_paid')}</span>
-                    <span className="text-2xl font-bold text-indigo-600">{formatCurrency(getTotalAmount() - (orderData?.toplam_iskonto || 0))}</span>
+                    <span className="text-2xl font-bold text-indigo-600">{formatCurrency(getTotalPaid())}</span>
                 </div>
             </div>
         </div>
