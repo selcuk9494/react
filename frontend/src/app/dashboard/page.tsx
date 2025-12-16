@@ -372,8 +372,8 @@ export default function Dashboard() {
             <p className="text-teal-50 text-sm font-medium mb-3 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
             <h2 className={clsx(
               "font-black mb-3 tracking-tight drop-shadow-sm transition-all",
-              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 100000000 ? "text-3xl" : 
-              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 1000000 ? "text-4xl" : "text-5xl"
+              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 100000000 ? "text-2xl" : 
+              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 1000000 ? "text-3xl" : "text-4xl"
             )}>
               {formatCurrency(
                 (data?.kapali_adisyon_toplam || 0) + 
