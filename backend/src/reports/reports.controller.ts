@@ -62,9 +62,10 @@ export class ReportsController {
     @Request() req,
     @Query('adsno') adsno: string,
     @Query('status') status: 'open' | 'closed',
+    @Query('adtur') adtur?: number,
     @Query('date') date?: string,
   ) {
-    return this.reportsService.getOrderDetails(req.user, adsno, status, date);
+    return this.reportsService.getOrderDetails(req.user, adsno, status, date, adtur);
   }
 
   // Path-param variant to match legacy clients
@@ -73,11 +74,12 @@ export class ReportsController {
   async getOrderDetailLegacy(
     @Request() req,
     @Query('order_type') orderType: 'open' | 'closed' = 'closed',
+    @Query('adtur') adtur?: number,
     @Query('date') date?: string,
   ) {
     // Note: Nest will inject params via Request object for path param; extract safely
     const id = req.params?.id;
-    return this.reportsService.getOrderDetails(req.user, id, orderType, date);
+    return this.reportsService.getOrderDetails(req.user, id, orderType, date, adtur);
   }
 
   @UseGuards(JwtAuthGuard)

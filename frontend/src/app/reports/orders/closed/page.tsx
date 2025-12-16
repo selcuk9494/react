@@ -285,7 +285,7 @@ function ClosedOrdersContent() {
             {orders.map((order, idx) => (
                 <button
                     key={idx}
-                    onClick={() => router.push(`/reports/orders/detail?id=${order.id || order.adsno}&type=closed`)}
+                    onClick={() => router.push(`/reports/orders/detail?id=${order.id || order.adsno}&type=closed${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
                     className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition text-left group"
                 >
                     <div className="flex justify-between items-center mb-3">

@@ -99,6 +99,7 @@ export class ReportsService {
             const query = `
                 SELECT 
                     o.adsno,
+                    MAX(COALESCE(o.adtur, 0)) as adtur,
                     MAX(COALESCE(a.masano, 0)) as masano,
                     CASE 
                       WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
@@ -120,6 +121,7 @@ export class ReportsService {
             const query = `
                 SELECT 
                     o.adsno,
+                    MAX(COALESCE(o.adtur, 0)) as adtur,
                     MAX(COALESCE(a.masano, 0)) as masano,
                     CASE 
                       WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
@@ -141,7 +143,7 @@ export class ReportsService {
     }
   }
 
-  async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string) {
+  async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string, adtur?: number) {
     const { pool, kasa_no } = await this.getBranchPool(user);
 
     if (status === 'open') {
@@ -181,10 +183,10 @@ export class ReportsService {
             LEFT JOIN personel p ON a.sip_ekleyen = p.id
             LEFT JOIN ads_musteri m ON a.mustid = m.id
             LEFT JOIN product pr ON a.pluid = pr.plu
-            WHERE a.kasa = $1 AND a.adsno = $2
+            WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
             GROUP BY a.adsno, a.sipyer
         `;
-        const rows = await this.db.executeQuery(pool, query, [kasa_no, adsno]);
+        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
         return rows[0] || null;
     } else {
         const query = `
@@ -221,10 +223,10 @@ export class ReportsService {
             LEFT JOIN ads_musteri m ON o.mustid = m.id
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN product pr ON a.pluid = pr.plu
-            WHERE o.kasa = $1 AND o.adsno = $2
+            WHERE o.kasa = $1 AND o.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
             GROUP BY o.adsno
         `;
-        const rows = await this.db.executeQuery(pool, query, [kasa_no, adsno]);
+        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
         return rows[0] || null;
     }
   }

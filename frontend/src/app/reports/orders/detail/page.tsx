@@ -52,7 +52,9 @@ function OrderDetailContent() {
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrderData(response.data);
+      const payload = response.data || {};
+      payload.order_type = type;
+      setOrderData(payload);
     } catch (error) {
       console.error('Fetch order detail error:', error);
       // alert(t('error_loading_data'));
@@ -173,7 +175,7 @@ function OrderDetailContent() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                    {(orderData?.masa_no !== undefined && orderData?.masa_no !== null && orderData.masa_no !== 99999) && (
+                    {((orderData?.masa_no ?? orderData?.masano) !== undefined && (orderData?.masa_no ?? orderData?.masano) !== null && (orderData?.masa_no ?? orderData?.masano) !== 99999) && (
                         <div className="flex items-center space-x-2">
                             <div className="p-1.5 bg-indigo-500/30 rounded-lg">
                                 {/* Restaurant Icon alternative */}
@@ -182,8 +184,8 @@ function OrderDetailContent() {
                                 </svg>
                             </div>
                             <div>
-                                <p className="text-xs text-indigo-200">{t('table_no_label').replace(':','')}</p>
-                                <p className="text-sm font-semibold">{orderData.masa_no === 0 ? t('order_type_paket') : `Masa ${orderData.masa_no}`}</p>
+                              <p className="text-xs text-indigo-200">{t('table_no_label').replace(':','')}</p>
+                              <p className="text-sm font-semibold">{(orderData?.masa_no ?? orderData?.masano) === 0 ? t('order_type_paket') : `Masa ${(orderData?.masa_no ?? orderData?.masano)}`}</p>
                             </div>
                         </div>
                     )}
