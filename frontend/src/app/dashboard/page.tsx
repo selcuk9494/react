@@ -451,18 +451,18 @@ export default function Dashboard() {
                         onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=0'); }}
                         className="bg-orange-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-orange-100 transition"
                     >
-                        <div className="flex items-center justify-between w-full">
+                        <div>
                             <span className="text-xs font-bold text-orange-700 block mb-0.5">{t('order_type_adisyon')}</span>
                             <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-orange-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
-                            </span>
-                            <span className="text-[10px] text-orange-700 bg-orange-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                                %{data?.dagilim?.adisyon.acik_yuzde || 0}
-                            </span>
-                        </div>
+                        <span className="text-xs text-orange-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                            {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
+                        </span>
+                        {typeof data?.dagilim?.adisyon.acik_yuzde !== 'undefined' && (
+                          <span className="ml-2 text-[10px] text-orange-700 bg-orange-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                            %{data?.dagilim?.adisyon.acik_yuzde}
+                          </span>
+                        )}
                     </div>
                     
                     {(data?.dagilim?.paket.acik_toplam || 0) > 0 && (
@@ -470,18 +470,18 @@ export default function Dashboard() {
                             onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=1'); }}
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
-                            <div className="flex items-center justify-between w-full">
+                            <div>
                                 <span className="text-xs font-bold text-amber-700 block mb-0.5">{t('order_type_paket')}</span>
                                 <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.paket.acik_toplam || 0)}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                    {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
-                                </span>
-                                <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                                    %{data?.dagilim?.paket.acik_yuzde || 0}
-                                </span>
-                            </div>
+                            <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                                {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
+                            </span>
+                            {typeof data?.dagilim?.paket.acik_yuzde !== 'undefined' && (
+                              <span className="ml-2 text-[10px] text-amber-700 bg-amber-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                                %{data?.dagilim?.paket.acik_yuzde}
+                              </span>
+                            )}
                         </div>
                     )}
 

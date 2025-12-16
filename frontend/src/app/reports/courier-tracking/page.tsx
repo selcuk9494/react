@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Bike, Search, Clock, User } from 'lucide-react';
+import { Bike, Search, Clock } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as RC2, PieChart, Pie, Cell, Legend, ResponsiveContainer } from 'recharts';
 
 interface CourierRow {
   adsno: number;
@@ -28,6 +29,8 @@ export default function CourierTrackingReport() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [courierFilter, setCourierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
+  const [durationFilter, setDurationFilter] = useState<'all'|'lt15'|'15to30'|'gt30'>('all');
 
   useEffect(() => {
     if (!token) return;
@@ -86,7 +89,48 @@ export default function CourierTrackingReport() {
   };
 
   const filteredData = data
-    .filter(r => courierFilter ? (r.kurye || '').toLowerCase().includes(courierFilter.toLowerCase()) : true);
+    .filter(r => courierFilter ? (r.kurye || '').toLowerCase().includes(courierFilter.toLowerCase()) : true)
+    .filter(r => statusFilter === 'all' ? true : r.status === statusFilter)
+    .filter(r => {
+      const d = getDuration(r);
+      if (durationFilter === 'lt15') return d < 15;
+      if (durationFilter === '15to30') return d >= 15 && d <= 30;
+      if (durationFilter === 'gt30') return d > 30;
+      return true;
+    });
+
+  const statusAgg = [
+    { name: t('on_road'), key: 'open', value: filteredData.filter(r => r.status === 'open').length, color: '#3b82f6' },
+    { name: t('returned'), key: 'closed', value: filteredData.filter(r => r.status === 'closed').length, color: '#10b981' },
+  ];
+
+  const buckets = [
+    { label: '<10', range: [0, 9] },
+    { label: '10-20', range: [10, 20] },
+    { label: '20-30', range: [21, 30] },
+    { label: '30-45', range: [31, 45] },
+    { label: '45+', range: [46, 10000] },
+  ];
+  const histogram = buckets.map(b => ({
+    name: b.label,
+    value: filteredData.filter(r => {
+      const d = getDuration(r);
+      return d >= b.range[0] && d <= b.range[1];
+    }).length
+  }));
+
+  const courierStatsMap: Record<string, { count: number; total: number }> = {};
+  filteredData.forEach(r => {
+    const k = r.kurye || '-';
+    const d = getDuration(r);
+    if (!courierStatsMap[k]) courierStatsMap[k] = { count: 0, total: 0 };
+    courierStatsMap[k].count += 1;
+    courierStatsMap[k].total += d;
+  });
+  const courierAvg = Object.entries(courierStatsMap)
+    .map(([name, s]) => ({ name, value: s.count ? Math.round(s.total / s.count) : 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -115,6 +159,37 @@ export default function CourierTrackingReport() {
                 onChange={(e) => setCourierFilter(e.target.value)}
               />
             </div>
+            <div className="flex items-center gap-2">
+              {[
+                { id: 'all', label: t('filter_title') },
+                { id: 'open', label: t('on_road') },
+                { id: 'closed', label: t('returned') },
+              ].map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setStatusFilter(b.id as any)}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { id: 'all', label: t('duration') },
+                { id: 'lt15', label: '<15' },
+                { id: '15to30', label: '15-30' },
+                { id: 'gt30', label: '>30' },
+              ].map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setDurationFilter(b.id as any)}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${durationFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
           </div>
           {loading ? (
             <div className="flex justify-center py-12">
@@ -126,7 +201,47 @@ export default function CourierTrackingReport() {
               <p className="text-gray-500">{t('not_found')}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('status')}</h4>
+                  <div className="h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={statusAgg} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2}>
+                          {statusAgg.map((entry, index) => <Cell key={`s-${index}`} fill={entry.color} />)}
+                        </Pie>
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('duration')}</h4>
+                  <div className="h-40">
+                    <RC2 width="100%" height="100%">
+                      <BarChart data={histogram}>
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Bar dataKey="value" fill="#6366f1" />
+                      </BarChart>
+                    </RC2>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('average_duration')}</h4>
+                  <div className="h-40">
+                    <RC2 width="100%" height="100%">
+                      <BarChart data={courierAvg}>
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Bar dataKey="value" fill="#10b981" />
+                      </BarChart>
+                    </RC2>
+                  </div>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50/50">
                   <tr>
@@ -184,6 +299,7 @@ export default function CourierTrackingReport() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
