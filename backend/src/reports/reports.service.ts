@@ -406,7 +406,7 @@ export class ReportsService {
       FROM ads_acik a
       LEFT JOIN personel p ON a.garsonno = p.id
       LEFT JOIN ads_musteri m ON a.mustid = m.id
-      WHERE a.kasa = $1 AND (a.masano = 99999 OR CAST(a.sipyer AS INTEGER) = 2) AND a.actar BETWEEN $2 AND $3
+      WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.actar BETWEEN $2 AND $3
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [kasa_no, dStart, dEnd]);
 
@@ -425,7 +425,7 @@ export class ReportsService {
       LEFT JOIN personel p ON a.garsonno = p.id
       LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
       LEFT JOIN ads_musteri m ON o.mustid = m.id
-      WHERE a.kasa = $1 AND (a.masano = 99999 OR CAST(a.sipyer AS INTEGER) = 2) AND a.siptar BETWEEN $2 AND $3
+      WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.siptar BETWEEN $2 AND $3
       GROUP BY a.adsno, p.adi, a.motcikis, a.stopsaat, a.siptar
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_no, dStart, dEnd]);
@@ -454,7 +454,7 @@ export class ReportsService {
         FROM ads_acik a
         LEFT JOIN personel p ON a.garsonno = p.id
         LEFT JOIN ads_musteri m ON a.mustid = m.id
-        WHERE a.kasa = $1 AND (a.masano = 99999 OR CAST(a.sipyer AS INTEGER) = 2)
+        WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1
         ORDER BY a.actar DESC
         LIMIT 100
       `;
