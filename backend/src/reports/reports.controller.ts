@@ -148,6 +148,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/product-groups')
+  async getProductGroups(@Request() req) {
+    return this.reportsService.getProductGroups(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Sse('stream/dashboard')
   sseDashboard(
     @Request() req,

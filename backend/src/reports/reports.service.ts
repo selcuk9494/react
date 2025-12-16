@@ -672,4 +672,14 @@ export class ReportsService {
     const rows = await this.db.executeQuery(pool, query, params);
     return rows;
   }
+
+  async getProductGroups(user: any) {
+    const { pool } = await this.getBranchPool(user);
+    const q = `
+      SELECT id, adi as name
+      FROM product_group
+      ORDER BY adi ASC
+    `;
+    return this.db.executeQuery(pool, q, []);
+  }
 }
