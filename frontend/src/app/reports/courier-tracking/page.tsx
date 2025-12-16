@@ -32,6 +32,7 @@ export default function CourierTrackingReport() {
   const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
   const [durationFilter, setDurationFilter] = useState<'all'|'lt15'|'15to30'|'gt30'>('all');
   const [viewMode, setViewMode] = useState<'trips'|'couriers'>('trips');
+  const [groupShown, setGroupShown] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!token) return;
@@ -293,7 +294,7 @@ export default function CourierTrackingReport() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-50">
-                            {group.items.slice(0, 5).map((row, idx) => {
+                            {(group.items.slice(0, groupShown[group.name] ?? 5)).map((row, idx) => {
                               const late = isLate(row);
                               const duration = getDuration(row);
                               return (
@@ -319,6 +320,16 @@ export default function CourierTrackingReport() {
                           </tbody>
                         </table>
                       </div>
+                      {(groupShown[group.name] ?? 5) < group.items.length && (
+                        <div className="mt-3 flex justify-center">
+                          <button
+                            className="px-3 py-2 rounded-lg text-xs font-bold border bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                            onClick={() => setGroupShown(prev => ({ ...prev, [group.name]: (prev[group.name] ?? 5) + 10 }))}
+                          >
+                            {t('load_more')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
