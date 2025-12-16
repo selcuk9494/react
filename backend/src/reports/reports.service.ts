@@ -472,7 +472,9 @@ export class ReportsService {
       FROM ads_acik a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_musteri m ON a.mustid = m.id
-      WHERE a.kasa = ANY($1) AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.actar BETWEEN $2 AND $3
+      WHERE a.kasa = ANY($1::int[])
+        AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
+        AND DATE(a.actar) BETWEEN $2 AND $3
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [kasa_nos, dStart, dEnd]);
     
@@ -482,13 +484,15 @@ export class ReportsService {
           per.adi as kurye,
           a.motcikis as cikis,
           a.stopsaat as donus,
-          a.siptar as tarih,
+          COALESCE(a.stoptar, a.siptar) as tarih,
           COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
           'closed' as status
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_musteri m ON a.mustid = m.id
-      WHERE a.kasa = ANY($1) AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.siptar BETWEEN $2 AND $3
+      WHERE a.kasa = ANY($1::int[])
+        AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
+        AND (DATE(a.siptar) BETWEEN $2 AND $3 OR DATE(a.stoptar) BETWEEN $2 AND $3)
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_nos, dStart, dEnd]);
     
@@ -498,7 +502,47 @@ export class ReportsService {
       const db = new Date(b.tarih);
       return db.getTime() - da.getTime();
     });
-    return results;
+    if (results.length > 0) return results;
+
+    const fbOpenQuery = `
+      SELECT DISTINCT
+          a.adsno,
+          per.adi as kurye,
+          a.gidsaat as cikis,
+          a.donsaat as donus,
+          a.actar as tarih,
+          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          'open' as status
+      FROM ads_acik a
+      LEFT JOIN personel per ON a.garsonno = per.id
+      LEFT JOIN ads_musteri m ON a.mustid = m.id
+      WHERE a.kasa = ANY($1::int[])
+        AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
+      ORDER BY a.actar DESC
+      LIMIT 100
+    `;
+    const fbClosedQuery = `
+      SELECT DISTINCT
+          a.adsno,
+          per.adi as kurye,
+          a.motcikis as cikis,
+          a.stopsaat as donus,
+          COALESCE(a.stoptar, a.siptar) as tarih,
+          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          'closed' as status
+      FROM ads_adisyon a
+      LEFT JOIN personel per ON a.garsonno = per.id
+      LEFT JOIN ads_musteri m ON a.mustid = m.id
+      WHERE a.kasa = ANY($1::int[])
+        AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
+      ORDER BY COALESCE(a.stoptar, a.siptar) DESC
+      LIMIT 100
+    `;
+    const fbOpen = await this.db.executeQuery(pool, fbOpenQuery, [kasa_nos]);
+    const fbClosed = await this.db.executeQuery(pool, fbClosedQuery, [kasa_nos]);
+    const fbRes = [...fbOpen, ...fbClosed];
+    fbRes.sort((a, b) => new Date(b.tarih).getTime() - new Date(a.tarih).getTime());
+    return fbRes;
   }
 
   async getCancelledItems(user: any, period: string, startDate?: string, endDate?: string) {
