@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Bike, Search, Clock } from 'lucide-react';
+import { Bike } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
@@ -31,6 +31,7 @@ export default function CourierTrackingReport() {
   const [courierFilter, setCourierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
   const [durationFilter, setDurationFilter] = useState<'all'|'lt15'|'15to30'|'gt30'>('all');
+  const [viewMode, setViewMode] = useState<'trips'|'couriers'>('trips');
 
   useEffect(() => {
     if (!token) return;
@@ -131,6 +132,16 @@ export default function CourierTrackingReport() {
     .map(([name, s]) => ({ name, value: s.count ? Math.round(s.total / s.count) : 0 }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
+  const courierNames = Array.from(new Set(filteredData.map(r => r.kurye || '-'))).sort((a, b) => a.localeCompare(b));
+  const groupedByCourier: Array<{ name: string; items: CourierRow[]; avg: number; count: number; open: number; closed: number }> =
+    courierNames.map(name => {
+      const items = filteredData.filter(r => (r.kurye || '-') === name);
+      const total = items.reduce((acc, r) => acc + getDuration(r), 0);
+      const avg = items.length ? Math.round(total / items.length) : 0;
+      const open = items.filter(r => r.status === 'open').length;
+      const closed = items.filter(r => r.status === 'closed').length;
+      return { name, items, avg, count: items.length, open, closed };
+    }).filter(g => g.count > 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -146,18 +157,32 @@ export default function CourierTrackingReport() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pt-[140px]">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-            <div className="relative flex-1">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center">
-                <Search className="w-4 h-4 text-gray-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Kurye adı"
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center gap-3">
+            <div className="flex items-center">
+              <select
+                className="px-3 py-2 rounded-lg text-xs font-bold border bg-white border-gray-200 text-gray-600 min-w-[180px]"
                 value={courierFilter}
                 onChange={(e) => setCourierFilter(e.target.value)}
-              />
+              >
+                <option value="">{t('courier')}</option>
+                {courierNames.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { id: 'trips', label: 'Detay' },
+                { id: 'couriers', label: 'Kurye Bazlı' },
+              ].map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setViewMode(b.id as any)}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${viewMode === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                >
+                  {b.label}
+                </button>
+              ))}
             </div>
             <div className="flex items-center gap-2">
               {[
@@ -241,65 +266,123 @@ export default function CourierTrackingReport() {
                   </div>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-50/50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('courier')}</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-50">
-                  {filteredData.map((row, index) => {
-                    const late = isLate(row);
-                    const duration = getDuration(row);
-                    return (
-                      <tr 
-                        key={`${row.adsno}-${index}`} 
-                        className={`transition-colors duration-150 hover:bg-gray-50 ${late ? 'bg-red-50/50 hover:bg-red-50' : ''}`}
-                      >
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${late ? 'text-red-900' : 'text-gray-900'}`}>
-                          {row.adsno}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${late ? 'text-red-900' : 'text-gray-700'}`}>
-                          {row.kurye || '-'}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
-                          {formatTime(row.cikis)}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
-                          {formatTime(row.donus)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full shadow-sm ${
-                            late ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {duration} dk
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          {row.status === 'open' ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
-                              {t('on_road')}
+              {viewMode === 'couriers' ? (
+                <div className="space-y-4">
+                  {groupedByCourier.map(group => (
+                    <div key={group.name} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-900">{group.name}</h5>
+                          <p className="text-xs text-gray-500">{group.count} kayıt • ort {group.avg} dk • {group.open} yolda • {group.closed} döndü</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg font-bold">{group.open} {t('on_road')}</span>
+                          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg font-bold">{group.closed} {t('returned')}</span>
+                          <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg font-bold">{group.avg} dk</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                          <thead className="bg-gray-50/50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
+                              <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-50">
+                            {group.items.slice(0, 5).map((row, idx) => {
+                              const late = isLate(row);
+                              const duration = getDuration(row);
+                              return (
+                                <tr key={`${group.name}-${row.adsno}-${idx}`} className={`hover:bg-gray-50 ${late ? 'bg-red-50/50 hover:bg-red-50' : ''}`}>
+                                  <td className="px-4 py-3 text-sm font-bold text-gray-900">{row.adsno}</td>
+                                  <td className="px-4 py-3 text-sm text-center text-gray-500">{formatTime(row.cikis)}</td>
+                                  <td className="px-4 py-3 text-sm text-center text-gray-500">{formatTime(row.donus)}</td>
+                                  <td className="px-4 py-3 text-sm text-center">
+                                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-bold rounded-full ${late ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                                      {duration} dk
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-right">
+                                    {row.status === 'open' ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700">{t('on_road')}</span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700">{t('returned')}</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('courier')}</th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
+                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-50">
+                    {filteredData.map((row, index) => {
+                      const late = isLate(row);
+                      const duration = getDuration(row);
+                      return (
+                        <tr 
+                          key={`${row.adsno}-${index}`} 
+                          className={`transition-colors duration-150 hover:bg-gray-50 ${late ? 'bg-red-50/50 hover:bg-red-50' : ''}`}
+                        >
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${late ? 'text-red-900' : 'text-gray-900'}`}>
+                            {row.adsno}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${late ? 'text-red-900' : 'text-gray-700'}`}>
+                            {row.kurye || '-'}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
+                            {formatTime(row.cikis)}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
+                            {formatTime(row.donus)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full shadow-sm ${
+                              late ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {duration} dk
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></span>
-                              {t('returned')}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            {row.status === 'open' ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
+                                {t('on_road')}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></span>
+                                {t('returned')}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+              )}
             </div>
           )}
         </div>
