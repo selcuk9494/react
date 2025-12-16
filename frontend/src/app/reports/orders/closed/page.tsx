@@ -62,15 +62,15 @@ function ClosedOrdersContent() {
         setLoading(true);
       }
 
-      let url = `${getApiUrl()}/reports/closed-orders?period=month&page=${page}&limit=100`;
+      let url = `${getApiUrl()}/reports/orders?status=closed&period=month&page=${page}&limit=100`;
 
       // If date filter is active
       if (startDate && endDate) {
-        url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
+        url = `${getApiUrl()}/reports/orders?status=closed&period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
       } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
          const s = searchParams.get('start_date');
          const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+         url = `${getApiUrl()}/reports/orders?status=closed&period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
          if (s) setStartDate(s);
          if (e) setEndDate(e);
       }

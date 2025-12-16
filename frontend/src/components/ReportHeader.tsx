@@ -37,7 +37,7 @@ export default function ReportHeader({
 
   return (
     <>
-      <div className="bg-white/95 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-40 shadow-sm border-b border-gray-100 transition-all duration-300">
+      <div className="bg-white/95 backdrop-blur-md px-4 pt-4 pb-2 fixed top-0 left-0 right-0 z-40 shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="flex items-center space-x-2 mb-4">
           <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
             <ArrowLeft className="w-6 h-6" />

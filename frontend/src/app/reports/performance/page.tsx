@@ -65,7 +65,7 @@ export default function PerformancePage() {
         setCustomEndDate={setCustomEndDate}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[140px]">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KPICard title={t('orders_count')} value={data.totals.orders_count} subValue={t('total_orders')} icon={<ShoppingBag className="w-5 h-5 text-blue-500" />} />

@@ -44,7 +44,7 @@ function OrderDetailContent() {
     if (!token) return;
     try {
       setLoading(true);
-      let url = `${getApiUrl()}/reports/order-detail/${id}?order_type=${type}`;
+      let url = `${getApiUrl()}/reports/order-details?adsno=${id}&status=${type}`;
       if (adtur) {
         url += `&adtur=${adtur}`;
       }

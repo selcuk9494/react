@@ -59,14 +59,14 @@ function OpenOrdersContent() {
         setLoading(true);
       }
 
-      let url = `${getApiUrl()}/reports/open-orders?period=month&page=${page}&limit=100`;
+      let url = `${getApiUrl()}/reports/orders?status=open&period=month&page=${page}&limit=100`;
 
       if (startDate && endDate) {
-        url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
+        url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
       } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
          const s = searchParams.get('start_date');
          const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+         url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
          if (s) setStartDate(s);
          if (e) setEndDate(e);
       }
