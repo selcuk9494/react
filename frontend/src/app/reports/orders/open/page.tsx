@@ -124,7 +124,9 @@ function OpenOrdersContent() {
       else if (t === 3) targetSipyer = 1;
 
       filtered = filtered.filter(o => {
-          if (o.sipyer) return o.sipyer === targetSipyer;
+          if (o.sipyer !== undefined && o.sipyer !== null) {
+              return Number(o.sipyer) === targetSipyer;
+          }
           return (o.adtur ?? -1) === t;
       });
     }
