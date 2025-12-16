@@ -118,8 +118,15 @@ function OrderDetailContent() {
   };
 
   const getTotalAmount = () => {
-    if (!orderData || !orderData.items) return 0;
-    return orderData.items.reduce((sum: number, item: any) => sum + item.toplam, 0);
+    if (!orderData) return 0;
+    // For open orders, items have 'total' field. For closed orders, items have 'total' too (mapped from tutar).
+    // The top-level 'toplam_tutar' is also available and usually more accurate for the whole order sum.
+    if (orderData.toplam_tutar) return orderData.toplam_tutar;
+    
+    if (orderData.items) {
+        return orderData.items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+    }
+    return 0;
   };
 
   const paymentLabel = (orderData?.payment_name || (orderData?.order_type === 'open' ? t('payment_not_received') : t('unspecified'))) as string;
@@ -300,12 +307,12 @@ function OrderDetailContent() {
                 {orderData && orderData.items && orderData.items.map((item: any, index: number) => (
                     <div key={index} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                         <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-base font-bold text-gray-900 flex-1">{item.urun_adi || 'Ürün'}</h3>
-                            <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency(item.toplam)}</span>
+                            <h3 className="text-base font-bold text-gray-900 flex-1">{item.product_name || 'Ürün'}</h3>
+                            <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency(item.total)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-gray-500">
                             <span>
-                                {item.miktar} {t('quantity').toLowerCase()} × {formatCurrency(item.birim_fiyat)}
+                                {item.quantity} {t('quantity').toLowerCase()} × {formatCurrency(item.price)}
                             </span>
                         </div>
                         {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (

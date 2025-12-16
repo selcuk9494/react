@@ -308,75 +308,68 @@ function OpenOrdersContent() {
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center space-x-3">
                             <Receipt className="w-6 h-6 text-amber-500" />
-                            <div>
-                                <h3 className="text-base font-bold text-gray-900">
-                                    {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
-                                </h3>
-                                {(order.sipyer || typeof order.adtur !== 'undefined') && (
-                                    <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md mt-0.5">
-                                        {order.sipyer === 3 ? t('order_type_adisyon') : 
-                                         order.sipyer === 2 ? t('order_type_paket') : 
-                                         order.sipyer === 1 ? t('order_type_hizli') :
-                                         (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
-                                    </span>
-                                )}
-                            </div>
+                            <h3 className="text-base font-bold text-gray-900">
+                                {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
+                            </h3>
+                            {(order.sipyer || typeof order.adtur !== 'undefined') && (
+                                <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                    {order.sipyer === 3 ? t('order_type_adisyon') : 
+                                     order.sipyer === 2 ? t('order_type_paket') : 
+                                     order.sipyer === 1 ? t('order_type_hizli') :
+                                     (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
+                                </span>
+                            )}
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-500 transition-colors" />
                     </div>
 
-                    <div className="flex justify-between items-center mb-3">
-                        <p className="text-xl font-bold text-amber-500">
-                            {formatCurrency(order.tutar)}
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
-                        {order.acilis_saati && (
-                            <div className="flex items-center">
-                                <Clock className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="font-medium text-gray-700">{t('opening')}: {formatTime(order.acilis_saati)}</span>
-                            </div>
-                        )}
+                    <div className="flex flex-row justify-between items-center">
+                        <div className="mr-4">
+                            <p className="text-xl font-bold text-amber-500 whitespace-nowrap">
+                                {formatCurrency(order.tutar)}
+                            </p>
+                        </div>
                         
-                        {order.sipyer && (
-                            <div className="flex items-center">
-                                <MapPin className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="font-medium text-gray-700">
-                                    {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
-                                </span>
+                        <div className="flex-1 space-y-1.5 border-l border-gray-100 pl-4">
+                            {(order.garson || order.garson_adi) && (
+                                <div className="flex items-center">
+                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
+                                </div>
+                            )}
+                            {order.acilis_saati && (
+                                <div className="flex items-center">
+                                    <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
+                                </div>
+                            )}
+                            {order.sipyer && (
+                                <div className="flex items-center">
+                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">{t('order_place')} {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}</span>
+                                </div>
+                            )}
+                            {(order.customer_name || order.mustid) && (
+                                <div className="flex items-center">
+                                    <Users className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">{t('customer')}: {order.customer_name || order.mustid}</span>
+                                </div>
+                            )}
+                            {order.acilis_saati && (
+                                <div className="flex items-center">
+                                    <Timer className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className={clsx(
+                                        "text-xs font-medium",
+                                        getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-600 font-bold" : "text-gray-600"
+                                    )}>
+                                        {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
+                                <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>
                             </div>
-                        )}
-
-                        {(order.customer_name || order.mustid) && (
-                            <div className="flex items-center col-span-2">
-                                <Users className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate font-medium text-gray-700">{t('customer')}: {order.customer_name || order.mustid}</span>
-                            </div>
-                        )}
-
-                        {order.acilis_saati && (
-                            <div className="flex items-center col-span-2">
-                                <Timer className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className={clsx(
-                                    "font-medium",
-                                    getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-600 font-bold" : "text-gray-700"
-                                )}>
-                                    {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
-                                </span>
-                            </div>
-                        )}
-
-                        {(order.garson || order.garson_adi) && (
-                            <div className="flex items-center">
-                                <User className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
-                            </div>
-                        )}
-                        
-                        <div className="flex items-center">
-                            <Calendar className="w-3 h-3 mr-1.5 text-gray-400" />
-                            <span>{formatDate(order.tarih)}</span>
                         </div>
                     </div>
                 </button>
