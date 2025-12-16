@@ -56,6 +56,15 @@ interface DashboardData {
       toplam_adet: number;
       toplam_tutar: number;
     };
+    hizli?: {
+        acik_adet: number;
+        acik_toplam: number;
+        kapali_adet: number;
+        kapali_toplam: number;
+        kapali_iskonto: number;
+        toplam_adet: number;
+        toplam_tutar: number;
+    };
   };
 }
 
@@ -407,8 +416,9 @@ export default function Dashboard() {
                             <PieChart>
                                 <Pie
                                     data={[
-                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
-                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' }, // Orange-500 for Adisyon (different from closed)
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' }, // Amber-500
+                                        { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.acik_toplam || 0, color: '#ec4899' }, // Pink-500
                                     ]}
                                     cx="50%"
                                     cy="50%"
@@ -419,8 +429,9 @@ export default function Dashboard() {
                                     stroke="none"
                                 >
                                     {[
-                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#6366f1' },
+                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' },
                                         { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.acik_toplam || 0, color: '#ec4899' },
                                     ].map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -434,13 +445,13 @@ export default function Dashboard() {
                 <div className="space-y-2 mt-2">
                     <div 
                         onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=0'); }}
-                        className="bg-indigo-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition"
+                        className="bg-orange-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-orange-100 transition"
                     >
                         <div>
-                            <span className="text-xs font-bold text-indigo-700 block mb-0.5">{t('order_type_adisyon')}</span>
+                            <span className="text-xs font-bold text-orange-700 block mb-0.5">{t('order_type_adisyon')}</span>
                             <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
                         </div>
-                        <span className="text-xs text-indigo-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                        <span className="text-xs text-orange-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
                             {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
                         </span>
                     </div>
@@ -456,6 +467,21 @@ export default function Dashboard() {
                             </div>
                             <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
                                 {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
+                            </span>
+                        </div>
+                    )}
+
+                    {data?.dagilim?.hizli && (data.dagilim.hizli.acik_toplam > 0) && (
+                        <div 
+                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=3'); }}
+                            className="bg-pink-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-pink-100 transition"
+                        >
+                            <div>
+                                <span className="text-xs font-bold text-pink-700 block mb-0.5">{t('order_type_hizli')}</span>
+                                <span className="text-sm font-bold text-gray-900">{formatCurrency(data.dagilim.hizli.acik_toplam)}</span>
+                            </div>
+                            <span className="text-xs text-pink-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                                {data.dagilim.hizli.acik_adet} {t('piece')}
                             </span>
                         </div>
                     )}
