@@ -220,12 +220,12 @@ export class ReportsService {
                     'sturu', a.sturu
                 )) as items
             FROM ads_odeme o
-            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno AND o.kasa = a.kasa AND o.adtur = a.adtur
+            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno AND o.kasa = a.kasa
             LEFT JOIN personel p ON a.garsonno = p.id
             LEFT JOIN ads_musteri m ON o.mustid = m.id
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN product pr ON a.pluid = pr.plu
-            WHERE o.kasa = $1 AND o.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
+            WHERE o.kasa = $1 AND o.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
             GROUP BY o.adsno
         `;
         const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
