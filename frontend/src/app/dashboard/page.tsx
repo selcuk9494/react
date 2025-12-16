@@ -275,7 +275,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
       {/* Header Section */}
-      <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-10 shadow-sm border-b border-gray-100 transition-all duration-300">
+      <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-40 shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center space-x-2">
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">{t('reports')}</h1>
