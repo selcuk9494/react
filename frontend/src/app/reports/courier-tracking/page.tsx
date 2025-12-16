@@ -24,7 +24,7 @@ export default function CourierTrackingReport() {
   const { t } = useI18n();
   const [data, setData] = useState<CourierRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('today');
+  const [period, setPeriod] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [courierFilter, setCourierFilter] = useState('');

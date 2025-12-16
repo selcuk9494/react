@@ -439,6 +439,55 @@ export class ReportsService {
         return db.getTime() - da.getTime(); // Descending
     });
 
+    // Fallback: if no data in selected range, fetch recent records without date filter
+    if (results.length === 0) {
+      const fbOpenQuery = `
+        SELECT DISTINCT
+            a.adsno,
+            p.adi as kurye,
+            a.gidsaat as cikis,
+            a.donsaat as donus,
+            a.actar as tarih,
+            a.mustid as mustid,
+            COALESCE(m.adi, NULL) as musteri_adi,
+            'open' as status
+        FROM ads_acik a
+        LEFT JOIN personel p ON a.garsonno = p.id
+        LEFT JOIN ads_musteri m ON a.mustid = m.id
+        WHERE a.kasa = $1 AND a.masano = 99999
+        ORDER BY a.actar DESC
+        LIMIT 100
+      `;
+      const fbClosedQuery = `
+        SELECT DISTINCT
+            a.adsno,
+            p.adi as kurye,
+            a.motcikis as cikis,
+            a.stopsaat as donus,
+            a.siptar as tarih,
+            COALESCE(MAX(o.mustid), NULL) as mustid,
+            COALESCE(MAX(m.adi), NULL) as musteri_adi,
+            'closed' as status
+        FROM ads_adisyon a
+        LEFT JOIN personel p ON a.garsonno = p.id
+        LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
+        LEFT JOIN ads_musteri m ON o.mustid = m.id
+        WHERE a.kasa = $1 AND a.masano = 99999
+        GROUP BY a.adsno, p.adi, a.motcikis, a.stopsaat, a.siptar
+        ORDER BY a.siptar DESC
+        LIMIT 100
+      `;
+      const fbOpenRows = await this.db.executeQuery(pool, fbOpenQuery, [kasa_no]);
+      const fbClosedRows = await this.db.executeQuery(pool, fbClosedQuery, [kasa_no]);
+      const fbResults = [...fbOpenRows, ...fbClosedRows];
+      fbResults.sort((a, b) => {
+          const da = new Date(a.tarih);
+          const db = new Date(b.tarih);
+          return db.getTime() - da.getTime();
+      });
+      return fbResults;
+    }
+
     return results;
   }
 
