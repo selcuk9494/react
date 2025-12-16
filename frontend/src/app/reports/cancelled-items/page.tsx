@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useRouter } from 'next/navigation';
 import { AlertCircle, XCircle, Search, Info, Clock, CheckCircle, Tag } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
@@ -12,6 +13,7 @@ import clsx from 'clsx';
 export default function CancelledItemsPage() {
   const { token } = useAuth();
   const { t, lang } = useI18n();
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('today');
@@ -149,7 +151,12 @@ export default function CancelledItemsPage() {
                         {filteredData.map((item, index) => {
                             const itemColor = colorFromName(item.product_name);
                             return (
-                                <div key={index} className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-gray-100 hover:shadow-md transition relative overflow-hidden" style={{ borderLeftColor: item.type === 'iptal' ? '#EF4444' : item.type === 'iade' ? '#F59E0B' : '#10B981' }}>
+                                <button 
+                                    key={index}
+                                    onClick={() => router.push(`/reports/orders/detail?id=${item.order_id}&type=${item.status}${typeof item.adtur !== 'undefined' ? `&adtur=${item.adtur}` : ''}`)}
+                                    className="w-full text-left bg-white rounded-2xl p-4 shadow-sm border-l-4 border-gray-100 hover:shadow-md transition relative overflow-hidden"
+                                    style={{ borderLeftColor: item.type === 'iptal' ? '#EF4444' : item.type === 'iade' ? '#F59E0B' : '#10B981' }}
+                                >
                                     <div className="flex items-start">
                                         {/* Icon */}
                                         <div className="flex-shrink-0 mr-4">
@@ -220,7 +227,7 @@ export default function CancelledItemsPage() {
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
