@@ -96,6 +96,61 @@ export default function Dashboard() {
       kasa_no: 1
   });
 
+  const [filterMasa, setFilterMasa] = useState('');
+
+  // Helper Functions from reference
+  const formatTime = (timeString: string) => {
+    if (!timeString) return '';
+    return timeString.substring(0, 5);
+  };
+
+  const getElapsed = (dateString?: string, timeString?: string) => {
+    if (!dateString || !timeString) return '';
+    const d = new Date(dateString);
+    const parts = timeString.split(':');
+    const hh = Number(parts[0] || 0);
+    const mm = Number(parts[1] || 0);
+    d.setHours(hh, mm, 0, 0);
+    const diff = Date.now() - d.getTime();
+    if (diff <= 0) return '0 dk';
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    if (hours > 0) return `${hours} sa ${minutes} dk`;
+    return `${minutes} dk`;
+  };
+
+  const getElapsedMinutes = (dateString?: string, timeString?: string) => {
+    if (!dateString || !timeString) return 0;
+    const d = new Date(dateString);
+    const parts = timeString.split(':');
+    const hh = Number(parts[0] || 0);
+    const mm = Number(parts[1] || 0);
+    d.setHours(hh, mm, 0, 0);
+    const diff = Date.now() - d.getTime();
+    if (diff <= 0) return 0;
+    return Math.floor(diff / 60000);
+  };
+
+  const getElapsedText = (dateString?: string, start?: string, end?: string, type?: string) => {
+    if (type === 'closed' && start && end && dateString) {
+      const ds = new Date(dateString);
+      const s = start.split(':');
+      const e = end.split(':');
+      const dStart = new Date(ds); dStart.setHours(Number(s[0]||0), Number(s[1]||0), 0, 0);
+      const dEnd = new Date(ds); dEnd.setHours(Number(e[0]||0), Number(e[1]||0), 0, 0);
+      let diff = dEnd.getTime() - dStart.getTime();
+      if (diff < 0) diff = 0;
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      if (hours > 0) return `${hours} sa ${minutes} dk`;
+      return `${minutes} dk`;
+    }
+    if (start && dateString) {
+      return getElapsed(dateString, start);
+    }
+    return '';
+  };
+
   // Initial fetch
   useEffect(() => {
     if (!token) return;
@@ -738,10 +793,9 @@ export default function Dashboard() {
                 <div className="p-4">
                     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                         <div className="flex items-center mb-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-500 mr-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                            </svg>
-                            <h3 className="font-bold text-gray-900">{t('filter_title')}</h3>
+                            <h3 className="font-bold text-gray-900 flex items-center">
+                                <span className="mr-2">🔍</span> {t('filter_title')}
+                            </h3>
                         </div>
                         <div className="flex space-x-3">
                             <div className="flex-1">
@@ -750,18 +804,22 @@ export default function Dashboard() {
                                     type="text" 
                                     placeholder="Örn: 5" 
                                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={filterMasa}
+                                    onChange={(e) => setFilterMasa(e.target.value)}
                                 />
                             </div>
                             <div className="flex-1">
                                 <label className="block text-xs text-gray-500 mb-1">{t('date')}:</label>
                                 <button className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-500">
                                     <Calendar className="w-4 h-4 mr-2" />
-                                    {t('select')}
+                                    {period === 'custom' ? `${new Date(customStartDate).toLocaleDateString('tr-TR')} - ${new Date(customEndDate).toLocaleDateString('tr-TR')}` : t(period)}
                                 </button>
                             </div>
                         </div>
                     </div>
-                    <p className="text-gray-500 text-sm mt-4 ml-1">{orders.length} {t('count_orders')}</p>
+                    <p className="text-gray-500 text-sm mt-4 ml-1">
+                        {orders.filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa)).length} {t('count_orders')}
+                    </p>
                 </div>
                 
                 {/* List Content */}
@@ -772,64 +830,99 @@ export default function Dashboard() {
                         </div>
                     ) : (
                         <>
-                            {orders.map((order, idx) => (
+                            {orders
+                                .filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa))
+                                .map((order, idx) => (
                                 <div 
                                     key={idx} 
                                     onClick={() => handleOrderClick(order.adsno)}
-                                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative cursor-pointer hover:shadow-md transition"
+                                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative cursor-pointer hover:shadow-md transition group"
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex items-center space-x-3">
-                                            <div className="bg-green-100 rounded-full p-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-600">
-                                                    <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-                                                </svg>
-                                            </div>
-                                            <h3 className="font-bold text-gray-900 text-lg">
-                                                {order.masano === 99999 ? t('order_type_paket') : `${t('table')} ${order.masano}`} {order.masano === 99999 ? '' : order.masano}
-                                            </h3>
-                                        </div>
-                                        <div className="flex items-center">
-                                            {order.masano === 99999 && (
-                                                <span className="bg-green-50 text-green-700 text-xs font-bold px-2 py-1 rounded-full mr-2">
-                                                    {t('order_type_paket')}
-                                                </span>
+                                            {detailType === 'open' ? (
+                                                <div className="bg-amber-100 rounded-full p-1.5">
+                                                    <CreditCard className="w-5 h-5 text-amber-600" />
+                                                </div>
+                                            ) : (
+                                                <div className="bg-emerald-100 rounded-full p-1.5">
+                                                    <div className="w-5 h-5 text-emerald-600 flex items-center justify-center font-bold text-xs">✓</div>
+                                                </div>
                                             )}
-                                            <ChevronRight className="w-5 h-5 text-gray-400" />
+                                            <div>
+                                                <h3 className="font-bold text-gray-900 text-lg">
+                                                    {order.masa_no === 99999 ? t('order_type_paket') : `${t('table')} ${order.masa_no}`}
+                                                </h3>
+                                                {typeof order.adtur !== 'undefined' && (
+                                                    <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md mt-0.5">
+                                                        {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
                                         </div>
                                     </div>
 
-                                    <div className="mb-3">
-                                        <p className="text-2xl font-bold text-green-600">{formatCurrency(parseFloat(order.tutar))}</p>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className={clsx("text-2xl font-bold", detailType === 'open' ? "text-amber-500" : "text-emerald-500")}>
+                                            {formatCurrency(parseFloat(order.tutar))}
+                                        </p>
                                     </div>
 
-                                    <div className="space-y-1 text-sm text-gray-500">
-                                        <div className="flex items-center">
-                                            <Users className="w-4 h-4 mr-2" />
-                                            <span>{t('waiter')}: {order.garson || 'Bilinmiyor'}</span>
+                                    <div className="space-y-1.5 text-sm text-gray-500">
+                                        {order.garson_adi && (
+                                            <div className="flex items-center">
+                                                <Users className="w-4 h-4 mr-2 text-gray-400" />
+                                                <span>{t('waiter')}: {order.garson_adi}</span>
+                                            </div>
+                                        )}
+                                        {order.acilis_saati && (
+                                            <div className="flex items-center">
+                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
+                                                    <span className="text-xs">🕒</span>
+                                                </div>
+                                                <span>{t('opening')}: {formatTime(order.acilis_saati)}</span>
+                                            </div>
+                                        )}
+                                        {order.sipyer && (
+                                            <div className="flex items-center">
+                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
+                                                    <span className="text-xs">📍</span>
+                                                </div>
+                                                <span>{t('order_place')} {order.sipyer}</span>
+                                            </div>
+                                        )}
+                                        {(order.adtur === 1 || order.masa_no === 0) && order.customer_name && (
+                                            <div className="flex items-center">
+                                                <Users className="w-4 h-4 mr-2 text-gray-400" />
+                                                <span>{t('customer')}: {order.customer_name}</span>
+                                            </div>
+                                        )}
+                                        {order.acilis_saati && (
+                                            <div className="flex items-center">
+                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
+                                                    <span className="text-xs">⏱️</span>
+                                                </div>
+                                                <span className={clsx(
+                                                    detailType === 'open' && getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-500 font-bold" : ""
+                                                )}>
+                                                    {detailType === 'closed' ? t('duration') : t('elapsed')}: {getElapsedText(order.tarih, order.acilis_saati, order.kapanis_saati, detailType)}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="text-xs text-gray-400 pt-1">
+                                            {new Date(order.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                         </div>
-                                        <div className="flex items-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                            </svg>
-                                            <span>{t('closing_time')}: {new Date(order.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                        <div className="flex items-center">
-                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                                            </svg>
-                                            <span>{t('order_place')} RESTORAN</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="absolute bottom-4 right-4 text-xs text-gray-400">
-                                        {new Date(order.tarih).toLocaleDateString('tr-TR')}
                                     </div>
                                 </div>
                             ))}
-                            {orders.length === 0 && (
-                                <div className="text-center py-10 text-gray-500">
+                            {orders.filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa)).length === 0 && (
+                                <div className="text-center py-10 text-gray-500 flex flex-col items-center">
+                                    <div className="bg-gray-100 p-4 rounded-full mb-3">
+                                        <span className="text-2xl">🧾</span>
+                                    </div>
                                     {t('not_found')}
                                 </div>
                             )}
@@ -858,33 +951,64 @@ export default function Dashboard() {
                 
                 <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
                      {/* Header Info Card */}
-                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4 text-center">
-                        <h3 className="text-3xl font-bold text-indigo-900 mb-1">
-                            {selectedOrder.masano === 99999 ? t('order_type_paket') : `${t('table')} ${selectedOrder.masano}`}
-                        </h3>
-                        <p className="text-gray-500 text-sm font-medium bg-gray-100 inline-block px-3 py-1 rounded-full mt-2">
-                            {t('order_no')}: #{selectedOrder.adsno}
-                        </p>
+                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                                    {selectedOrder.masano === 99999 ? t('order_type_paket') : `${t('table')} ${selectedOrder.masano}`}
+                                </h3>
+                                {typeof selectedOrder.adtur !== 'undefined' && (
+                                    <span className="inline-block bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md">
+                                        {selectedOrder.adtur===0 ? t('order_type_adisyon') : (selectedOrder.adtur===1 ? t('order_type_paket') : (selectedOrder.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-gray-400 font-medium mb-0.5 uppercase tracking-wide">{t('order_no')}</p>
+                                <p className="text-lg font-bold text-gray-900">#{selectedOrder.adsno}</p>
+                            </div>
+                        </div>
                         
-                        <div className="mt-6 grid grid-cols-3 gap-4 divide-x divide-gray-100">
-                             <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('date_label')}</p>
-                                 <p className="font-semibold text-gray-900 text-sm">
-                                     {new Date(selectedOrder.tarih).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
-                                 </p>
+                        <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                             <div className="flex items-center text-gray-600">
+                                 <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                                 <span className="font-medium">{new Date(selectedOrder.tarih).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                              </div>
-                             <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('time_label')}</p>
-                                 <p className="font-semibold text-gray-900 text-sm">
-                                     {new Date(selectedOrder.tarih).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}
-                                 </p>
+                             <div className="flex items-center text-gray-600">
+                                 <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">🕒</div>
+                                 <span className="font-medium">{t('opening')}: {formatTime(selectedOrder.acilis_saati)}</span>
                              </div>
-                              <div className="text-center">
-                                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">{t('waiter_label')}</p>
-                                 <p className="font-semibold text-gray-900 text-sm truncate px-1">
-                                     {selectedOrder.garson || '-'}
-                                 </p>
+                             <div className="flex items-center text-gray-600">
+                                 <Users className="w-4 h-4 mr-2 text-gray-400" />
+                                 <span className="font-medium truncate">{selectedOrder.garson || '-'}</span>
                              </div>
+                             <div className="flex items-center text-gray-600">
+                                 <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">📍</div>
+                                 <span className="font-medium">{selectedOrder.sipyer || 'RESTORAN'}</span>
+                             </div>
+                             {(selectedOrder.adtur === 1 || selectedOrder.masano === 0) && selectedOrder.customer_name && (
+                                 <div className="flex items-center text-gray-600 col-span-2">
+                                     <Users className="w-4 h-4 mr-2 text-gray-400" />
+                                     <span className="font-medium">{selectedOrder.customer_name}</span>
+                                 </div>
+                             )}
+                             {selectedOrder.kapanis_saati && (
+                                 <div className="flex items-center text-gray-600">
+                                     <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">🏁</div>
+                                     <span className="font-medium">{t('closing_time')}: {formatTime(selectedOrder.kapanis_saati)}</span>
+                                 </div>
+                             )}
+                             {selectedOrder.acilis_saati && (
+                                 <div className="flex items-center text-gray-600">
+                                     <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">⏱️</div>
+                                     <span className={clsx(
+                                         "font-medium",
+                                         !selectedOrder.kapanis_saati && getElapsedMinutes(selectedOrder.tarih, selectedOrder.acilis_saati) > 60 ? "text-red-500 font-bold" : ""
+                                     )}>
+                                         {selectedOrder.kapanis_saati ? t('duration') : t('elapsed')}: {getElapsedText(selectedOrder.tarih, selectedOrder.acilis_saati, selectedOrder.kapanis_saati, selectedOrder.kapanis_saati ? 'closed' : 'open')}
+                                     </span>
+                                 </div>
+                             )}
                          </div>
                       </div>
  
@@ -898,20 +1022,27 @@ export default function Dashboard() {
                          </div>
                          <div className="divide-y divide-gray-50">
                              {selectedOrder.items.map((item: any, idx: number) => (
-                                <div key={idx} className="p-4 flex justify-between items-center hover:bg-gray-50 transition">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="bg-indigo-50 text-indigo-700 w-10 h-10 flex items-center justify-center rounded-xl font-bold text-sm shadow-sm">
-                                            {item.quantity}x
+                                <div key={idx} className="p-4 hover:bg-gray-50 transition">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex items-start space-x-3">
+                                            <div className="bg-indigo-50 text-indigo-700 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm shadow-sm flex-shrink-0 mt-0.5">
+                                                {item.quantity}x
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-base">{item.product_name}</p>
+                                                {item.notes && (
+                                                    <p className="text-xs text-orange-500 font-medium mt-0.5 italic flex items-center">
+                                                        <span className="mr-1">📝</span> {item.notes}
+                                                    </p>
+                                                )}
+                                                <p className="text-xs text-gray-400 font-medium mt-0.5">
+                                                    {formatCurrency(item.total / item.quantity)} / {t('piece')}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-gray-900">{item.product_name}</p>
-                                            <p className="text-xs text-gray-500 font-medium mt-0.5">
-                                                {formatCurrency(item.total / item.quantity)} / {t('piece')}
-                                            </p>
+                                        <div className="font-bold text-gray-900 text-lg">
+                                            {formatCurrency(item.total)}
                                         </div>
-                                    </div>
-                                    <div className="font-bold text-gray-900 text-lg">
-                                        {formatCurrency(item.total)}
                                     </div>
                                 </div>
                             ))}
@@ -923,8 +1054,14 @@ export default function Dashboard() {
                         <div className="space-y-3 mb-6">
                             <div className="flex justify-between items-center">
                                  <span className="text-gray-500 font-medium">{t('subtotal')}</span>
-                                 <span className="font-bold text-gray-900">{formatCurrency(selectedOrder.toplam_tutar)}</span>
+                                 <span className="font-bold text-gray-900">{formatCurrency(selectedOrder.toplam_tutar + (selectedOrder.iskonto || 0))}</span>
                             </div>
+                            {(selectedOrder.iskonto > 0) && (
+                                <div className="flex justify-between items-center text-red-500">
+                                    <span className="font-medium flex items-center"><Tag className="w-3 h-3 mr-1"/> {t('discount')}</span>
+                                    <span className="font-bold">-{formatCurrency(selectedOrder.iskonto)}</span>
+                                </div>
+                            )}
                              <div className="flex justify-between items-center">
                                  <span className="text-gray-500 font-medium">{t('person_count')}</span>
                                  <span className="font-bold text-gray-900">{selectedOrder.kisi_sayisi}</span>
