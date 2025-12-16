@@ -62,7 +62,8 @@ function ClosedOrdersContent() {
         setLoading(true);
       }
 
-      let url = `${getApiUrl()}/reports/orders?status=closed&period=month&page=${page}&limit=100`;
+      // Use 'today' as default period for closed orders too, as 'month' might be too broad or empty if no data in month
+      let url = `${getApiUrl()}/reports/orders?status=closed&period=today&page=${page}&limit=100`;
 
       // If date filter is active
       if (startDate && endDate) {

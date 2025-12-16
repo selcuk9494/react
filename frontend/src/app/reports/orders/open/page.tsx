@@ -59,7 +59,8 @@ function OpenOrdersContent() {
         setLoading(true);
       }
 
-      let url = `${getApiUrl()}/reports/orders?status=open&period=month&page=${page}&limit=100`;
+      // Use 'today' as default period instead of 'month' to match dashboard behavior
+      let url = `${getApiUrl()}/reports/orders?status=open&period=today&page=${page}&limit=100`;
 
       if (startDate && endDate) {
         url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
@@ -69,6 +70,13 @@ function OpenOrdersContent() {
          url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
          if (s) setStartDate(s);
          if (e) setEndDate(e);
+      } else {
+         // Check for 'period' param or default to 'today'
+         // If user clicked from dashboard "Today" view, they expect today's open orders.
+         // Open orders are usually "current", so 'today' or 'all' makes sense. 
+         // 'month' might filter out older open orders if any? 
+         // Actually open orders should probably list ALL open orders regardless of date, or at least recent ones.
+         // Let's try 'today' first as that's what the user sees on dashboard.
       }
 
       const res = await axios.get(url, {
