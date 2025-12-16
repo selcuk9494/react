@@ -191,42 +191,59 @@ export class ReportsService {
         return rows[0] || null;
     } else {
         const query = `
-            SELECT 
+            WITH ad AS (
+                SELECT 
+                    adsno,
+                    MAX(COALESCE(masano, 0)) as masano,
+                    MAX(acsaat) as acsaat,
+                    MAX(kapsaat) as kapsaat,
+                    MAX(CAST(sipyer AS INTEGER)) as sipyer,
+                    MAX(garsonno) as garsonno
+                FROM ads_adisyon
+                WHERE kasa = $1 AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                GROUP BY adsno
+            ),
+            items AS (
+                SELECT 
+                    json_agg(json_build_object(
+                        'product_name', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
+                        'quantity', a.miktar,
+                        'price', a.bfiyat,
+                        'total', a.tutar,
+                        'ack1', a.ack1,
+                        'ack2', a.ack2,
+                        'ack3', a.ack3,
+                        'sturu', a.sturu,
+                        'pluid', a.pluid,
+                        'adtur', a.adtur
+                    )) as items
+                FROM ads_adisyon a
+                LEFT JOIN product p ON a.pluid = p.plu
+                WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+            )
+            SELECT
                 o.adsno,
-                MAX(COALESCE(o.adtur, 0)) as adtur,
-                MAX(COALESCE(a.masano, 0)) as masano,
-                MAX(COALESCE(a.masano, 0)) as masa_no,
-                CASE 
-                  WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
-                  ELSE 'Adisyon'
-                END as type_label,
+                COALESCE(MAX(o.adtur), 0) as adtur,
+                ad.masano as masano,
+                ad.masano as masa_no,
+                CASE WHEN ad.masano = 99999 THEN 'Paket' ELSE 'Adisyon' END as type_label,
                 MAX(p.adi) as garson,
                 MAX(m.adi) as customer_name,
                 MAX(o.raptar) as tarih,
-                MAX(a.acsaat) as acilis_saati,
-                MAX(a.kapsaat) as kapanis_saati,
+                ad.acsaat as acilis_saati,
+                ad.kapsaat as kapanis_saati,
                 SUM(COALESCE(o.iskonto, 0)) as toplam_iskonto,
                 SUM(COALESCE(o.otutar, 0)) as toplam_tutar,
                 MAX(od.odmname) as payment_name,
-                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = MAX(CAST(a.sipyer AS INTEGER))) as sipyer_name,
-                json_agg(json_build_object(
-                    'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
-                    'quantity', a.miktar,
-                    'price', a.bfiyat,
-                    'total', a.tutar,
-                    'ack1', a.ack1,
-                    'ack2', a.ack2,
-                    'ack3', a.ack3,
-                    'sturu', a.sturu
-                )) as items
+                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = ad.sipyer) as sipyer_name,
+                (SELECT items FROM items) as items
             FROM ads_odeme o
-            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno AND o.kasa = a.kasa
-            LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN ad ON ad.adsno = o.adsno
+            LEFT JOIN personel p ON ad.garsonno = p.id
             LEFT JOIN ads_musteri m ON o.mustid = m.id
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-            LEFT JOIN product pr ON a.pluid = pr.plu
-            WHERE o.kasa = $1 AND o.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
-            GROUP BY o.adsno
+            WHERE o.kasa = $1 AND o.adsno = $2
+            GROUP BY o.adsno, ad.masano, ad.acsaat, ad.kapsaat, ad.sipyer
         `;
         const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
         return rows[0] || null;
