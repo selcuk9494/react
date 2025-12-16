@@ -72,14 +72,6 @@ export default function Dashboard() {
   
   // Modals
   const [branchModalOpen, setBranchModalOpen] = useState(false);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [detailType, setDetailType] = useState<'open' | 'closed'>('open');
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
-
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Branch Management
@@ -95,8 +87,6 @@ export default function Dashboard() {
       db_password: 'KORDO',
       kasa_no: 1
   });
-
-  const [filterMasa, setFilterMasa] = useState('');
 
   // Helper Functions from reference
   const formatTime = (timeString: string) => {
@@ -188,43 +178,6 @@ export default function Dashboard() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  const openDetailModal = async (type: 'open' | 'closed', subType?: 'adisyon' | 'paket') => {
-    setDetailType(type);
-    setDetailModalOpen(true);
-    setLoadingOrders(true);
-    try {
-        let url = `${getApiUrl()}/reports/orders?status=${type}&period=${period}`;
-        if (period === 'custom') {
-            url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
-        }
-        if (subType) {
-            url += `&type=${subType}`;
-        }
-        const res = await axios.get(url, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setOrders(res.data);
-    } catch (e) {
-        console.error(e);
-    } finally {
-        setLoadingOrders(false);
-    }
-  };
-
-  const handleOrderClick = async (adsno: number) => {
-    setOrderDetailLoading(true);
-    try {
-        const res = await axios.get(`${getApiUrl()}/reports/order-details?adsno=${adsno}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setSelectedOrder(res.data);
-    } catch (e) {
-        console.error(e);
-    } finally {
-        setOrderDetailLoading(false);
-    }
-  };
-
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPeriod('custom');
@@ -274,133 +227,138 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
-      {/* Header Section */}
-      <div className="bg-white/80 backdrop-blur-md px-4 pt-4 pb-2 sticky top-0 z-40 shadow-sm border-b border-gray-100 transition-all duration-300">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">{t('reports')}</h1>
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
-            <button 
-                onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
-                className="text-xs font-bold text-gray-600 ml-2 bg-gray-100 px-2 py-1 rounded-md hover:bg-gray-200 transition ring-1 ring-gray-200"
-            >
-                {lang.toUpperCase()}
-            </button>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="relative">
+      {/* Header Section (Sticky) */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300">
+        {/* Top Part */}
+        <div className="px-4 pt-4 pb-2">
+            <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center space-x-2">
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">{t('reports')}</h1>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
                 <button 
-                    onClick={() => setSettingsOpen(!settingsOpen)}
-                    className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
+                    onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
+                    className="text-xs font-bold text-gray-600 ml-2 bg-gray-100 px-2 py-1 rounded-md hover:bg-gray-200 transition ring-1 ring-gray-200"
                 >
-                    <Settings className="w-6 h-6" />
+                    {lang.toUpperCase()}
                 </button>
-                {settingsOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 animate-in fade-in zoom-in duration-200">
-                        <div className="p-2">
-                            <button 
-                                onClick={() => {
-                                    setSettingsOpen(false);
-                                    setBranchManagementOpen(true);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
-                            >
-                                <Building className="w-4 h-4 mr-2" />
-                                {t('branch_management')}
-                            </button>
-                            <div className="h-px bg-gray-100 my-1"></div>
-                            <button 
-                                onClick={logout}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition font-medium flex items-center"
-                            >
-                                <LogOut className="w-4 h-4 mr-2" />
-                                {t('login').replace('Giriş Yap', 'Çıkış Yap').replace('Sign In', 'Logout')}
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
-            <button 
-                onClick={logout}
-                className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
-                title="Çıkış Yap"
-            >
-                <LogOut className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
+            <div className="flex items-center space-x-2">
+                <div className="relative">
+                    <button 
+                        onClick={() => setSettingsOpen(!settingsOpen)}
+                        className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
+                    >
+                        <Settings className="w-6 h-6" />
+                    </button>
+                    {settingsOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 animate-in fade-in zoom-in duration-200">
+                            <div className="p-2">
+                                <button 
+                                    onClick={() => {
+                                        setSettingsOpen(false);
+                                        setBranchManagementOpen(true);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
+                                >
+                                    <Building className="w-4 h-4 mr-2" />
+                                    {t('branch_management')}
+                                </button>
+                                <div className="h-px bg-gray-100 my-1"></div>
+                                <button 
+                                    onClick={logout}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition font-medium flex items-center"
+                                >
+                                    <LogOut className="w-4 h-4 mr-2" />
+                                    {t('login').replace('Giriş Yap', 'Çıkış Yap').replace('Sign In', 'Logout')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <button 
+                    onClick={logout}
+                    className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
+                    title="Çıkış Yap"
+                >
+                    <LogOut className="w-6 h-6" />
+                </button>
+            </div>
+            </div>
 
-        {/* Branch & Status Row */}
-        <div className="flex items-center space-x-2 mb-4">
-          <button 
-            onClick={() => setBranchModalOpen(true)}
-            className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
-          >
-            <Building className="w-4 h-4 text-gray-500" />
-            <span>
-              {user?.branches && user.branches.length > 0 && user.selected_branch !== undefined
-                ? user.branches[user.selected_branch]?.name || t('select_branch')
-                : t('no_branch')}
-            </span>
-          </button>
-          
-          <div className={clsx(
-            "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold",
-            isOffline ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-          )}>
-            <div className={clsx("w-2 h-2 rounded-full", isOffline ? "bg-red-500" : "bg-green-500")}></div>
-            <span>{isOffline ? t('offline') : t('online')}</span>
-            <ChevronDown className="w-3 h-3" />
-          </div>
+            {/* Branch & Status Row */}
+            <div className="flex items-center space-x-2 mb-2">
+            <button 
+                onClick={() => setBranchModalOpen(true)}
+                className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+            >
+                <Building className="w-4 h-4 text-gray-500" />
+                <span>
+                {user?.branches && user.branches.length > 0 && user.selected_branch !== undefined
+                    ? user.branches[user.selected_branch]?.name || t('select_branch')
+                    : t('no_branch')}
+                </span>
+            </button>
+            
+            <div className={clsx(
+                "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold",
+                isOffline ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+            )}>
+                <div className={clsx("w-2 h-2 rounded-full", isOffline ? "bg-red-500" : "bg-green-500")}></div>
+                <span>{isOffline ? t('offline') : t('online')}</span>
+                <ChevronDown className="w-3 h-3" />
+            </div>
+            </div>
         </div>
 
         {/* Date Filter Row */}
-        <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-2">
-            {[
-                { id: 'today', label: t('today') },
-                { id: 'yesterday', label: t('yesterday') },
-                { id: 'week', label: t('this_week') },
-                { id: 'last7days', label: t('last_7_days') },
-                { id: 'month', label: t('this_month') },
-                { id: 'lastmonth', label: t('last_month') },
-            ].map((p) => (
+        <div className="px-4 py-2">
+            <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
+                {[
+                    { id: 'today', label: t('today') },
+                    { id: 'yesterday', label: t('yesterday') },
+                    { id: 'week', label: t('this_week') },
+                    { id: 'last7days', label: t('last_7_days') },
+                    { id: 'month', label: t('this_month') },
+                    { id: 'lastmonth', label: t('last_month') },
+                ].map((p) => (
+                    <button
+                        key={p.id}
+                        onClick={() => setPeriod(p.id)}
+                        className={clsx(
+                            "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
+                            period === p.id 
+                                ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
+                                : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
+                        )}
+                    >
+                        {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
+                        {p.label}
+                    </button>
+                ))}
+                
                 <button
-                    key={p.id}
-                    onClick={() => setPeriod(p.id)}
+                    onClick={() => setShowCustomDateModal(true)}
                     className={clsx(
                         "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-                        period === p.id 
+                        period === 'custom' 
                             ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
                             : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
                     )}
                 >
-                    {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
-                    {p.label}
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {t('custom_date')}
                 </button>
-            ))}
-            
-            <button
-                onClick={() => setShowCustomDateModal(true)}
-                className={clsx(
-                    "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-                    period === 'custom' 
-                        ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
-                        : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-                )}
-            >
-                <Calendar className="w-4 h-4 mr-2" />
-                {t('custom_date')}
-            </button>
-        </div>
-        <div className="text-xs text-gray-500 mt-1 pl-1">
-            {period === 'custom' && customStartDate && customEndDate 
-                ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                : period === 'today' 
-                    ? new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
-                    : period === 'yesterday'
-                        ? new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
-                        : ''
-            }
+            </div>
+            <div className="text-xs text-gray-500 mt-1 pl-1">
+                {period === 'custom' && customStartDate && customEndDate 
+                    ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                    : period === 'today' 
+                        ? new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : period === 'yesterday'
+                            ? new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+                            : ''
+                }
+            </div>
         </div>
       </div>
 
@@ -433,7 +391,7 @@ export default function Dashboard() {
             {/* Açık Adisyon (Only visible if period is today) */}
             {period === 'today' && (
             <div 
-                onClick={() => openDetailModal('open')}
+                onClick={() => router.push('/reports/orders/open')}
                 className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
             >
                 <div className="flex justify-between items-start mb-2">
@@ -475,7 +433,7 @@ export default function Dashboard() {
                 {/* Details List */}
                 <div className="space-y-2 mt-2">
                     <div 
-                        onClick={(e) => { e.stopPropagation(); openDetailModal('open', 'adisyon'); }}
+                        onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=0'); }}
                         className="bg-indigo-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition"
                     >
                         <div>
@@ -489,7 +447,7 @@ export default function Dashboard() {
                     
                     {(data?.dagilim?.paket.acik_toplam || 0) > 0 && (
                         <div 
-                            onClick={(e) => { e.stopPropagation(); openDetailModal('open', 'paket'); }}
+                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=1'); }}
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
@@ -507,7 +465,7 @@ export default function Dashboard() {
 
             {/* Kapalı Adisyon */}
             <div 
-                onClick={() => openDetailModal('closed')}
+                onClick={() => router.push('/reports/orders/closed')}
                 className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
             >
                 <div className="flex justify-between items-start mb-2">
@@ -555,7 +513,7 @@ export default function Dashboard() {
                 {/* Details List */}
                 <div className="space-y-2 mt-2">
                     <div 
-                        onClick={(e) => { e.stopPropagation(); openDetailModal('closed', 'adisyon'); }}
+                        onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=0'); }}
                         className="bg-emerald-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-emerald-100 transition"
                     >
                         <div>
@@ -569,7 +527,7 @@ export default function Dashboard() {
 
                     {(data?.dagilim?.paket.kapali_toplam || 0) > 0 && (
                         <div 
-                            onClick={(e) => { e.stopPropagation(); openDetailModal('closed', 'paket'); }}
+                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=1'); }}
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
@@ -769,327 +727,6 @@ export default function Dashboard() {
                         {t('apply')}
                     </button>
                 </form>
-            </div>
-        </div>
-      )}
-
-      {/* Order Detail Modal */}
-      {detailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50">
-             <div className="bg-gray-50 w-full h-full flex flex-col animate-in slide-in-from-right duration-300">
-                {/* Modal Header */}
-                <div className="bg-white px-4 py-4 flex items-center shadow-sm z-10">
-                    <button onClick={() => setDetailModalOpen(false)} className="mr-4 text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                        </svg>
-                    </button>
-                    <h2 className="text-xl font-bold text-gray-900 flex-1 text-center mr-10">
-                        {detailType === 'open' ? t('open_orders') : t('closed_orders')}
-                    </h2>
-                </div>
-
-                {/* Filter Section */}
-                <div className="p-4">
-                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                        <div className="flex items-center mb-3">
-                            <h3 className="font-bold text-gray-900 flex items-center">
-                                <span className="mr-2">🔍</span> {t('filter_title')}
-                            </h3>
-                        </div>
-                        <div className="flex space-x-3">
-                            <div className="flex-1">
-                                <label className="block text-xs text-gray-500 mb-1">{t('table_no_label')}</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Örn: 5" 
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={filterMasa}
-                                    onChange={(e) => setFilterMasa(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <label className="block text-xs text-gray-500 mb-1">{t('date')}:</label>
-                                <button className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-500">
-                                    <Calendar className="w-4 h-4 mr-2" />
-                                    {period === 'custom' ? `${new Date(customStartDate).toLocaleDateString('tr-TR')} - ${new Date(customEndDate).toLocaleDateString('tr-TR')}` : t(period)}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <p className="text-gray-500 text-sm mt-4 ml-1">
-                        {orders.filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa)).length} {t('count_orders')}
-                    </p>
-                </div>
-                
-                {/* List Content */}
-                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
-                    {loadingOrders ? (
-                        <div className="flex justify-center py-10">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                        </div>
-                    ) : (
-                        <>
-                            {orders
-                                .filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa))
-                                .map((order, idx) => (
-                                <div 
-                                    key={idx} 
-                                    onClick={() => handleOrderClick(order.adsno)}
-                                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative cursor-pointer hover:shadow-md transition group"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center space-x-3">
-                                            {detailType === 'open' ? (
-                                                <div className="bg-amber-100 rounded-full p-1.5">
-                                                    <CreditCard className="w-5 h-5 text-amber-600" />
-                                                </div>
-                                            ) : (
-                                                <div className="bg-emerald-100 rounded-full p-1.5">
-                                                    <div className="w-5 h-5 text-emerald-600 flex items-center justify-center font-bold text-xs">✓</div>
-                                                </div>
-                                            )}
-                                            <div>
-                                                <h3 className="font-bold text-gray-900 text-lg">
-                                                    {order.masa_no === 99999 ? t('order_type_paket') : `${t('table')} ${order.masa_no}`}
-                                                </h3>
-                                                {typeof order.adtur !== 'undefined' && (
-                                                    <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md mt-0.5">
-                                                        {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-between items-center mb-3">
-                                        <p className={clsx("text-2xl font-bold", detailType === 'open' ? "text-amber-500" : "text-emerald-500")}>
-                                            {formatCurrency(parseFloat(order.tutar))}
-                                        </p>
-                                    </div>
-
-                                    <div className="space-y-1.5 text-sm text-gray-500">
-                                        {order.garson_adi && (
-                                            <div className="flex items-center">
-                                                <Users className="w-4 h-4 mr-2 text-gray-400" />
-                                                <span>{t('waiter')}: {order.garson_adi}</span>
-                                            </div>
-                                        )}
-                                        {order.acilis_saati && (
-                                            <div className="flex items-center">
-                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
-                                                    <span className="text-xs">🕒</span>
-                                                </div>
-                                                <span>{t('opening')}: {formatTime(order.acilis_saati)}</span>
-                                            </div>
-                                        )}
-                                        {order.sipyer && (
-                                            <div className="flex items-center">
-                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
-                                                    <span className="text-xs">📍</span>
-                                                </div>
-                                                <span>{t('order_place')} {order.sipyer}</span>
-                                            </div>
-                                        )}
-                                        {(order.adtur === 1 || order.masa_no === 0) && order.customer_name && (
-                                            <div className="flex items-center">
-                                                <Users className="w-4 h-4 mr-2 text-gray-400" />
-                                                <span>{t('customer')}: {order.customer_name}</span>
-                                            </div>
-                                        )}
-                                        {order.acilis_saati && (
-                                            <div className="flex items-center">
-                                                <div className="w-4 h-4 mr-2 flex items-center justify-center">
-                                                    <span className="text-xs">⏱️</span>
-                                                </div>
-                                                <span className={clsx(
-                                                    detailType === 'open' && getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-500 font-bold" : ""
-                                                )}>
-                                                    {detailType === 'closed' ? t('duration') : t('elapsed')}: {getElapsedText(order.tarih, order.acilis_saati, order.kapanis_saati, detailType)}
-                                                </span>
-                                            </div>
-                                        )}
-                                        <div className="text-xs text-gray-400 pt-1">
-                                            {new Date(order.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                            {orders.filter(o => !filterMasa || o.masa_no?.toString().includes(filterMasa)).length === 0 && (
-                                <div className="text-center py-10 text-gray-500 flex flex-col items-center">
-                                    <div className="bg-gray-100 p-4 rounded-full mb-3">
-                                        <span className="text-2xl">🧾</span>
-                                    </div>
-                                    {t('not_found')}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-             </div>
-        </div>
-      )}
-
-      {/* Order Detail Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-50">
-            <div className="bg-white w-full h-full flex flex-col animate-in slide-in-from-right duration-300">
-                 {/* Header */}
-                 <div className="bg-white px-4 py-4 flex items-center shadow-sm z-10 border-b border-gray-100">
-                    <button onClick={() => setSelectedOrder(null)} className="mr-4 text-gray-700 p-1 hover:bg-gray-100 rounded-full transition">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                        </svg>
-                    </button>
-                    <h2 className="text-xl font-bold text-gray-900 flex-1 text-center mr-10">
-                        {t('order_detail')}
-                    </h2>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                     {/* Header Info Card */}
-                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                                    {selectedOrder.masano === 99999 ? t('order_type_paket') : `${t('table')} ${selectedOrder.masano}`}
-                                </h3>
-                                {typeof selectedOrder.adtur !== 'undefined' && (
-                                    <span className="inline-block bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md">
-                                        {selectedOrder.adtur===0 ? t('order_type_adisyon') : (selectedOrder.adtur===1 ? t('order_type_paket') : (selectedOrder.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-gray-400 font-medium mb-0.5 uppercase tracking-wide">{t('order_no')}</p>
-                                <p className="text-lg font-bold text-gray-900">#{selectedOrder.adsno}</p>
-                            </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-                             <div className="flex items-center text-gray-600">
-                                 <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                                 <span className="font-medium">{new Date(selectedOrder.tarih).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                             </div>
-                             <div className="flex items-center text-gray-600">
-                                 <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">🕒</div>
-                                 <span className="font-medium">{t('opening')}: {formatTime(selectedOrder.acilis_saati)}</span>
-                             </div>
-                             <div className="flex items-center text-gray-600">
-                                 <Users className="w-4 h-4 mr-2 text-gray-400" />
-                                 <span className="font-medium truncate">{selectedOrder.garson || '-'}</span>
-                             </div>
-                             <div className="flex items-center text-gray-600">
-                                 <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">📍</div>
-                                 <span className="font-medium">{selectedOrder.sipyer || 'RESTORAN'}</span>
-                             </div>
-                             {(selectedOrder.adtur === 1 || selectedOrder.masano === 0) && selectedOrder.customer_name && (
-                                 <div className="flex items-center text-gray-600 col-span-2">
-                                     <Users className="w-4 h-4 mr-2 text-gray-400" />
-                                     <span className="font-medium">{selectedOrder.customer_name}</span>
-                                 </div>
-                             )}
-                             {selectedOrder.kapanis_saati && (
-                                 <div className="flex items-center text-gray-600">
-                                     <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">🏁</div>
-                                     <span className="font-medium">{t('closing_time')}: {formatTime(selectedOrder.kapanis_saati)}</span>
-                                 </div>
-                             )}
-                             {selectedOrder.acilis_saati && (
-                                 <div className="flex items-center text-gray-600">
-                                     <div className="w-4 h-4 mr-2 text-gray-400 flex items-center justify-center text-[10px]">⏱️</div>
-                                     <span className={clsx(
-                                         "font-medium",
-                                         !selectedOrder.kapanis_saati && getElapsedMinutes(selectedOrder.tarih, selectedOrder.acilis_saati) > 60 ? "text-red-500 font-bold" : ""
-                                     )}>
-                                         {selectedOrder.kapanis_saati ? t('duration') : t('elapsed')}: {getElapsedText(selectedOrder.tarih, selectedOrder.acilis_saati, selectedOrder.kapanis_saati, selectedOrder.kapanis_saati ? 'closed' : 'open')}
-                                     </span>
-                                 </div>
-                             )}
-                         </div>
-                      </div>
- 
-                      {/* Products List */}
-                      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-4">
-                         <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                             <h4 className="font-bold text-gray-900">{t('orders_title')}</h4>
-                             <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">
-                                 {selectedOrder.items.length} {t('item_count')}
-                             </span>
-                         </div>
-                         <div className="divide-y divide-gray-50">
-                             {selectedOrder.items.map((item: any, idx: number) => (
-                                <div key={idx} className="p-4 hover:bg-gray-50 transition">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="bg-indigo-50 text-indigo-700 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm shadow-sm flex-shrink-0 mt-0.5">
-                                                {item.quantity}x
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-base">{item.product_name}</p>
-                                                {item.notes && (
-                                                    <p className="text-xs text-orange-500 font-medium mt-0.5 italic flex items-center">
-                                                        <span className="mr-1">📝</span> {item.notes}
-                                                    </p>
-                                                )}
-                                                <p className="text-xs text-gray-400 font-medium mt-0.5">
-                                                    {formatCurrency(item.total / item.quantity)} / {t('piece')}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="font-bold text-gray-900 text-lg">
-                                            {formatCurrency(item.total)}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                     </div>
-
-                     {/* Summary Footer */}
-                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                        <div className="space-y-3 mb-6">
-                            <div className="flex justify-between items-center">
-                                 <span className="text-gray-500 font-medium">{t('subtotal')}</span>
-                                 <span className="font-bold text-gray-900">{formatCurrency(selectedOrder.toplam_tutar + (selectedOrder.iskonto || 0))}</span>
-                            </div>
-                            {(selectedOrder.iskonto > 0) && (
-                                <div className="flex justify-between items-center text-red-500">
-                                    <span className="font-medium flex items-center"><Tag className="w-3 h-3 mr-1"/> {t('discount')}</span>
-                                    <span className="font-bold">-{formatCurrency(selectedOrder.iskonto)}</span>
-                                </div>
-                            )}
-                             <div className="flex justify-between items-center">
-                                 <span className="text-gray-500 font-medium">{t('person_count')}</span>
-                                 <span className="font-bold text-gray-900">{selectedOrder.kisi_sayisi}</span>
-                            </div>
-                            {selectedOrder.odeme_yontemi && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500 font-medium">{t('payment_method')}</span>
-                                    <span className="font-bold text-gray-900">{selectedOrder.odeme_yontemi}</span>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="border-t-2 border-dashed border-gray-100 pt-4 flex justify-between items-center">
-                            <span className="text-lg font-bold text-gray-900">{t('range_label_total')}</span>
-                            <span className="text-3xl font-black text-indigo-600 tracking-tight">{formatCurrency(selectedOrder.toplam_tutar)}</span>
-                        </div>
-                     </div>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* Loading Overlay for Detail */}
-      {orderDetailLoading && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 backdrop-blur-sm">
-            <div className="bg-white p-4 rounded-2xl shadow-xl flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-                <span className="font-medium text-gray-700">{t('loading')}</span>
             </div>
         </div>
       )}

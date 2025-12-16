@@ -117,20 +117,20 @@ export default function CourierTrackingReport() {
             <p className="text-gray-500">{t('not_found')}</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('courier')}</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t('departure')}</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('status')}</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('courier')}</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-50">
                   {data.map((row, index) => {
                     const late = isLate(row);
                     const duration = getDuration(row);
@@ -138,32 +138,38 @@ export default function CourierTrackingReport() {
                     return (
                       <tr 
                         key={`${row.adsno}-${index}`} 
-                        className={late ? 'bg-red-50' : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                        className={`transition-colors duration-150 hover:bg-gray-50 ${late ? 'bg-red-50/50 hover:bg-red-50' : ''}`}
                       >
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${late ? 'text-red-900' : 'text-gray-900'}`}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${late ? 'text-red-900' : 'text-gray-900'}`}>
                           {row.adsno}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${late ? 'text-red-900' : 'text-gray-900'}`}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${late ? 'text-red-900' : 'text-gray-700'}`}>
                           {row.kurye || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center ${late ? 'text-red-900' : 'text-gray-500'}`}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
                           {formatTime(row.cikis)}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center ${late ? 'text-red-900' : 'text-gray-500'}`}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-medium ${late ? 'text-red-800' : 'text-gray-500'}`}>
                           {formatTime(row.donus)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            late ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full shadow-sm ${
+                            late ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                           }`}>
                             {duration} dk
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           {row.status === 'open' ? (
-                            <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded-md text-xs">{t('on_road')}</span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span>
+                              {t('on_road')}
+                            </span>
                           ) : (
-                            <span className="text-green-600 bg-green-100 px-2 py-1 rounded-md text-xs">{t('returned')}</span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></span>
+                              {t('returned')}
+                            </span>
                           )}
                         </td>
                       </tr>
