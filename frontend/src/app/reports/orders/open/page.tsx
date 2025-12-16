@@ -332,43 +332,49 @@ function OpenOrdersContent() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
+                        {order.acilis_saati && (
+                            <div className="flex items-center">
+                                <Clock className="w-3 h-3 mr-1.5 text-gray-400" />
+                                <span className="font-medium text-gray-700">{t('opening')}: {formatTime(order.acilis_saati)}</span>
+                            </div>
+                        )}
+                        
+                        {order.sipyer && (
+                            <div className="flex items-center">
+                                <MapPin className="w-3 h-3 mr-1.5 text-gray-400" />
+                                <span className="font-medium text-gray-700">
+                                    {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
+                                </span>
+                            </div>
+                        )}
+
+                        {(order.customer_name || order.mustid) && (
+                            <div className="flex items-center col-span-2">
+                                <Users className="w-3 h-3 mr-1.5 text-gray-400" />
+                                <span className="truncate font-medium text-gray-700">{t('customer')}: {order.customer_name || order.mustid}</span>
+                            </div>
+                        )}
+
+                        {order.acilis_saati && (
+                            <div className="flex items-center col-span-2">
+                                <Timer className="w-3 h-3 mr-1.5 text-gray-400" />
+                                <span className={clsx(
+                                    "font-medium",
+                                    getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-600 font-bold" : "text-gray-700"
+                                )}>
+                                    {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
+                                </span>
+                            </div>
+                        )}
+
                         {(order.garson || order.garson_adi) && (
                             <div className="flex items-center">
                                 <User className="w-3 h-3 mr-1.5 text-gray-400" />
                                 <span className="truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
                             </div>
                         )}
-                        {order.acilis_saati && (
-                            <div className="flex items-center">
-                                <Clock className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span>{t('opening')}: {formatTime(order.acilis_saati)}</span>
-                            </div>
-                        )}
-                        {order.sipyer && (
-                            <div className="flex items-center">
-                                <MapPin className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">
-                                    {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
-                                </span>
-                            </div>
-                        )}
-                        {(order.sipyer === 2 || order.masa_no === 99999) && (order.customer_name || order.mustid) && (
-                            <div className="flex items-center">
-                                <Users className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className="truncate">{t('customer')}: {order.customer_name || order.mustid}</span>
-                            </div>
-                        )}
-                        {order.acilis_saati && (
-                            <div className="flex items-center col-span-2">
-                                <Timer className="w-3 h-3 mr-1.5 text-gray-400" />
-                                <span className={clsx(
-                                    getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-500 font-bold" : ""
-                                )}>
-                                    {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
-                                </span>
-                            </div>
-                        )}
-                        <div className="flex items-center col-span-2">
+                        
+                        <div className="flex items-center">
                             <Calendar className="w-3 h-3 mr-1.5 text-gray-400" />
                             <span>{formatDate(order.tarih)}</span>
                         </div>
