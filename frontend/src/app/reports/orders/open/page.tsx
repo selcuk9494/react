@@ -114,11 +114,10 @@ function OpenOrdersContent() {
     if (adturParam !== null) {
       const t = Number(adturParam);
       filtered = filtered.filter(o => {
-        const sip = Number(o.sipyer);
-        const typeDerived = (sip === 2) ? 'paket' : 'adisyon';
-        if (t === 0) return typeDerived === 'adisyon';
-        if (t === 1) return typeDerived === 'paket';
-        if (t === 3) return true; // açık adisyonda hızlı satış yok: filtreyi yok say
+        const a = Number(o.adtur ?? -1);
+        if (t === 0) return a === 0;
+        if (t === 1) return a === 1 || a === 3;
+        if (t === 3) return a === 3;
         return true;
       });
       if (filtered.length === 0) {
@@ -324,9 +323,11 @@ function OpenOrdersContent() {
                             <h3 className="text-base font-bold text-gray-900">
                                 {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
                             </h3>
-                            {(order.type_label || order.sipyer) && (
+                            {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
                                 <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                    {order.type_label || (order.sipyer === 2 ? t('order_type_paket') : t('order_type_adisyon'))}
+                                    {typeof order.adtur !== 'undefined' 
+                                        ? (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))
+                                        : (order.type_label || (order.sipyer === 2 ? t('order_type_paket') : t('order_type_adisyon')))}
                                 </span>
                             )}
                         </div>
@@ -353,10 +354,14 @@ function OpenOrdersContent() {
                                     <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
                                 </div>
                             )}
-                            {(order.type_label || order.sipyer) && (
+                            {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
                                 <div className="flex items-center">
                                     <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">{t('order_place')} {order.type_label || ((order.sipyer === 2) ? 'Paket' : 'Adisyon')}</span>
+                                    <span className="text-xs text-gray-600">
+                                        {t('order_place')} {typeof order.adtur !== 'undefined' 
+                                            ? (order.adtur===0 ? 'Adisyon' : (order.adtur===1 ? 'Paket' : (order.adtur===3 ? 'Hızlı Satış' : 'Diğer')))
+                                            : (order.type_label || ((order.sipyer === 2) ? 'Paket' : 'Adisyon'))}
+                                    </span>
                                 </div>
                             )}
                             {(order.customer_name || order.mustid) && (

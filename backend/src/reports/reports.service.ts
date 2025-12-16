@@ -76,6 +76,8 @@ export class ReportsService {
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                MAX(COALESCE(a.masano, 0)) as masa_no,
+                MAX(COALESCE(a.adtur, 0)) as adtur,
                 CASE 
                   WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
                   ELSE 'Adisyon'
