@@ -682,21 +682,6 @@ export default function Dashboard() {
                     </div>
                 </button>
 
-                <button 
-                    onClick={() => router.push('/reports/product-sales?group_id=1')} 
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-cyan-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-cyan-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-cyan-600">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-                        </svg>
-                    </div>
-                    <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('product_groups')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('product_groups_desc')}</p>
-                    </div>
-                </button>
 
                 <button 
                     onClick={() => router.push('/reports/courier-tracking')}
