@@ -8,6 +8,7 @@ import { Wallet, Banknote, CreditCard as CreditCardIcon, CreditCard, AlertCircle
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 export default function PaymentTypesPage() {
   const { token } = useAuth();
@@ -93,6 +94,37 @@ export default function PaymentTypesPage() {
                     <p className="text-emerald-100 text-sm font-medium mb-2">{t('total_payment')}</p>
                     <h2 className="text-4xl font-bold tracking-tight">{formatCurrency(totalAmount)}</h2>
                     <p className="text-emerald-200 text-sm mt-2 font-medium">{data.length} {t('payment_types_count')}</p>
+                </div>
+
+                {/* Pie Chart Section */}
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 px-1">{t('distribution')}</h3>
+                    <div className="w-full h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data.map((item: any, index: number) => ({
+                                        name: item.payment_name,
+                                        value: item.total,
+                                        color: getChartColors()[index % getChartColors().length],
+                                    }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={90}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {data.map((item: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={getChartColors()[index % getChartColors().length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value: any, name: any) => [`${formatCurrency(Number(value))}`, name]} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* List Section */}

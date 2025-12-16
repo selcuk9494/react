@@ -647,7 +647,7 @@ export default function Dashboard() {
                         <CreditCard className="w-6 h-6 text-blue-600" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('payment_types')}</h4>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ödeme Raporu</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('payment_types_card_desc')}</p>
                     </div>
                 </button>
