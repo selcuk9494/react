@@ -31,15 +31,53 @@ export class ReportsController {
     return this.reportsService.getOrders(req.user, period, status, startDate, endDate, type);
   }
 
+  // Compatibility endpoints to match legacy clients
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/open-orders')
+  async getOpenOrders(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('type') type?: 'adisyon' | 'paket',
+  ) {
+    return this.reportsService.getOrders(req.user, period, 'open', startDate, endDate, type);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/closed-orders')
+  async getClosedOrders(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('type') type?: 'adisyon' | 'paket',
+  ) {
+    return this.reportsService.getOrders(req.user, period, 'closed', startDate, endDate, type);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('reports/order-details')
   async getOrderDetails(
     @Request() req,
     @Query('adsno') adsno: string,
     @Query('status') status: 'open' | 'closed',
-    @Query('date') date: string, // Needed for closed orders partitioning if used, or just to narrow down
+    @Query('date') date?: string,
   ) {
     return this.reportsService.getOrderDetails(req.user, adsno, status, date);
+  }
+
+  // Path-param variant to match legacy clients
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/order-detail/:id')
+  async getOrderDetailLegacy(
+    @Request() req,
+    @Query('order_type') orderType: 'open' | 'closed' = 'closed',
+    @Query('date') date?: string,
+  ) {
+    // Note: Nest will inject params via Request object for path param; extract safely
+    const id = req.params?.id;
+    return this.reportsService.getOrderDetails(req.user, id, orderType, date);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -76,6 +76,10 @@ export class ReportsService {
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                CASE 
+                  WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
+                  ELSE 'Adisyon'
+                END as type_label,
                 SUM(COALESCE(a.tutar, 0)) as tutar,
                 MAX(p.adi) as garson,
                 MAX(m.adi) as customer_name,
@@ -91,26 +95,53 @@ export class ReportsService {
         const rows = await this.db.executeQuery(pool, query, [kasa_no]);
         return rows;
     } else {
-        const query = `
-            SELECT 
-                o.adsno,
-                MAX(COALESCE(a.masano, 0)) as masano,
-                SUM(COALESCE(o.otutar, 0)) as tutar,
-                MAX(p.adi) as garson,
-                MAX(o.raptar) as tarih
-            FROM ads_odeme o
-            LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
-            LEFT JOIN personel p ON a.garsonno = p.id
-            WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = $3 ${typeCondition}
-            GROUP BY o.adsno
-            ORDER BY o.adsno DESC
-        `;
-        const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_no]);
-        return rows;
+        if (period === 'all') {
+            const query = `
+                SELECT 
+                    o.adsno,
+                    MAX(COALESCE(a.masano, 0)) as masano,
+                    CASE 
+                      WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
+                      ELSE 'Adisyon'
+                    END as type_label,
+                    SUM(COALESCE(o.otutar, 0)) as tutar,
+                    MAX(p.adi) as garson,
+                    MAX(o.raptar) as tarih
+                FROM ads_odeme o
+                LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
+                LEFT JOIN personel p ON a.garsonno = p.id
+                WHERE o.kasa = $1 ${typeCondition}
+                GROUP BY o.adsno
+                ORDER BY o.adsno DESC
+            `;
+            const rows = await this.db.executeQuery(pool, query, [kasa_no]);
+            return rows;
+        } else {
+            const query = `
+                SELECT 
+                    o.adsno,
+                    MAX(COALESCE(a.masano, 0)) as masano,
+                    CASE 
+                      WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
+                      ELSE 'Adisyon'
+                    END as type_label,
+                    SUM(COALESCE(o.otutar, 0)) as tutar,
+                    MAX(p.adi) as garson,
+                    MAX(o.raptar) as tarih
+                FROM ads_odeme o
+                LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
+                LEFT JOIN personel p ON a.garsonno = p.id
+                WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = $3 ${typeCondition}
+                GROUP BY o.adsno
+                ORDER BY o.adsno DESC
+            `;
+            const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_no]);
+            return rows;
+        }
     }
   }
 
-  async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date: string) {
+  async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string) {
     const { pool, kasa_no } = await this.getBranchPool(user);
 
     if (status === 'open') {
@@ -119,6 +150,12 @@ export class ReportsService {
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                CASE 
+                  WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
+                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Hızlı Satış'
+                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) < 99999 THEN 'Adisyon'
+                  ELSE 'Diğer'
+                END as type_label,
                 MAX(p.adi) as garson,
                 MAX(m.adi) as customer_name,
                 MAX(a.actar) as tarih,
@@ -153,6 +190,10 @@ export class ReportsService {
             SELECT 
                 o.adsno,
                 MAX(COALESCE(a.masano, 0)) as masano,
+                CASE 
+                  WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
+                  ELSE 'Adisyon'
+                END as type_label,
                 MAX(p.adi) as garson,
                 MAX(o.raptar) as tarih,
                 SUM(COALESCE(o.otutar, 0)) as toplam_tutar,
@@ -187,24 +228,18 @@ export class ReportsService {
       WITH acik_toplam AS (
           SELECT 
               adsno,
-              sipyer,
-              MAX(COALESCE(masano, 0)) as masano,
-              SUM(COALESCE(tutar, 0)) as adsno_toplam
+              MAX(COALESCE(adtur, CASE WHEN sipyer = 2 THEN 1 ELSE 0 END)) AS adtur,
+              SUM(COALESCE(tutar, 0)) AS adsno_toplam
           FROM ads_acik
           WHERE kasa = $1
-          GROUP BY adsno, sipyer
+          GROUP BY adsno
       )
       SELECT 
-          CASE 
-            WHEN sipyer = 3 THEN 'adisyon' 
-            WHEN sipyer = 2 THEN 'paket' 
-            WHEN sipyer = 1 THEN 'hizli' 
-            ELSE 'diger' 
-          END as tip,
-          COUNT(DISTINCT adsno) as adet,
-          COALESCE(SUM(adsno_toplam), 0) as toplam
+          adtur,
+          COUNT(DISTINCT adsno) AS adet,
+          COALESCE(SUM(adsno_toplam), 0) AS toplam
       FROM acik_toplam
-      GROUP BY tip
+      GROUP BY adtur
     `;
     const acikRows = await this.db.executeQuery(pool, acikQuery, [kasa_no]);
 
@@ -213,9 +248,8 @@ export class ReportsService {
     let acik_hizli = { adet: 0, toplam: 0 }; // Added hizli
 
     acikRows.forEach(row => {
-      if (row.tip === 'paket') acik_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
-      else if (row.tip === 'adisyon') acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
-      else if (row.tip === 'hizli') acik_hizli = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+      if (parseInt(row.adtur) === 1) acik_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+      else acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
     });
 
     // 2. Kapali Adisyonlar
@@ -255,7 +289,7 @@ export class ReportsService {
     const iptal = iptalRows[0] || { adet: 0, toplam: 0 };
 
     // Totals
-    const acik_toplam = acik_paket.toplam + acik_adisyon.toplam + acik_hizli.toplam;
+    const acik_toplam = acik_paket.toplam + acik_adisyon.toplam;
     const kapali_toplam = kapali_paket.toplam + kapali_adisyon.toplam;
     const kapali_iskonto_toplam = kapali_paket.iskonto + kapali_adisyon.iskonto;
 
@@ -275,7 +309,8 @@ export class ReportsService {
           kapali_toplam: kapali_paket.toplam,
           kapali_iskonto: kapali_paket.iskonto,
           toplam_adet: acik_paket.adet + kapali_paket.adet,
-          toplam_tutar: acik_paket.toplam + kapali_paket.toplam
+          toplam_tutar: acik_paket.toplam + kapali_paket.toplam,
+          acik_yuzde: acik_toplam > 0 ? Math.round((acik_paket.toplam / acik_toplam) * 100) : 0
         },
         adisyon: {
           acik_adet: acik_adisyon.adet,
@@ -284,16 +319,8 @@ export class ReportsService {
           kapali_toplam: kapali_adisyon.toplam,
           kapali_iskonto: kapali_adisyon.iskonto,
           toplam_adet: acik_adisyon.adet + kapali_adisyon.adet,
-          toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam
-        },
-        hizli: {
-            acik_adet: acik_hizli.adet,
-            acik_toplam: acik_hizli.toplam,
-            kapali_adet: 0, // Need to implement closed fast sales if needed
-            kapali_toplam: 0,
-            kapali_iskonto: 0,
-            toplam_adet: acik_hizli.adet,
-            toplam_tutar: acik_hizli.toplam
+          toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam,
+          acik_yuzde: acik_toplam > 0 ? Math.round((acik_adisyon.toplam / acik_toplam) * 100) : 0
         }
       }
     };

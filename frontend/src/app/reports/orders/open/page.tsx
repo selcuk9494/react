@@ -37,6 +37,7 @@ function OpenOrdersContent() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [scope, setScope] = useState<'today'|'all'>('all');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -45,6 +46,10 @@ function OpenOrdersContent() {
   useEffect(() => {
     fetchOrders(1);
   }, []);
+
+  useEffect(() => {
+    fetchOrders(1);
+  }, [scope]);
 
   useEffect(() => {
     applyFilters();
@@ -59,24 +64,17 @@ function OpenOrdersContent() {
         setLoading(true);
       }
 
-      // Use 'today' as default period instead of 'month' to match dashboard behavior
-      let url = `${getApiUrl()}/reports/orders?status=open&period=today&page=${page}&limit=100`;
+      // Scope: today or all
+      let url = `${getApiUrl()}/reports/open-orders?period=${scope === 'today' ? 'today' : 'all'}&page=${page}&limit=100`;
 
       if (startDate && endDate) {
-        url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
+        url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
       } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
          const s = searchParams.get('start_date');
          const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/orders?status=open&period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+         url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
          if (s) setStartDate(s);
          if (e) setEndDate(e);
-      } else {
-         // Check for 'period' param or default to 'today'
-         // If user clicked from dashboard "Today" view, they expect today's open orders.
-         // Open orders are usually "current", so 'today' or 'all' makes sense. 
-         // 'month' might filter out older open orders if any? 
-         // Actually open orders should probably list ALL open orders regardless of date, or at least recent ones.
-         // Let's try 'today' first as that's what the user sees on dashboard.
       }
 
       const res = await axios.get(url, {
@@ -108,27 +106,24 @@ function OpenOrdersContent() {
     if (filterMasa) {
       filtered = filtered.filter(o => 
         o.masa_no?.toString().includes(filterMasa) || 
+        o.adsno?.toString().includes(filterMasa) ||
         o.id?.toString().includes(filterMasa)
       );
     }
     const adturParam = searchParams.get('adtur');
     if (adturParam !== null) {
       const t = Number(adturParam);
-      // Map legacy adtur to sipyer if needed, or filter by both
-      // Legacy: 0=Adisyon, 1=Paket, 3=Hizli
-      // New: 3=Adisyon, 2=Paket, 1=Hizli
-      
-      let targetSipyer = -1;
-      if (t === 0) targetSipyer = 3;
-      else if (t === 1) targetSipyer = 2;
-      else if (t === 3) targetSipyer = 1;
-
       filtered = filtered.filter(o => {
-          if (o.sipyer !== undefined && o.sipyer !== null) {
-              return Number(o.sipyer) === targetSipyer;
-          }
-          return (o.adtur ?? -1) === t;
+        const sip = Number(o.sipyer);
+        const typeDerived = (sip === 2) ? 'paket' : 'adisyon';
+        if (t === 0) return typeDerived === 'adisyon';
+        if (t === 1) return typeDerived === 'paket';
+        if (t === 3) return true; // açık adisyonda hızlı satış yok: filtreyi yok say
+        return true;
       });
+      if (filtered.length === 0) {
+        filtered = [...allOrders];
+      }
     }
     setOrders(filtered);
   };
@@ -292,6 +287,24 @@ function OpenOrdersContent() {
                     {t('clear_filters')}
                 </button>
             )}
+            
+            <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-gray-500">{t('show')}:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                    <button
+                        onClick={() => setScope('today')}
+                        className={`px-3 py-1.5 text-xs font-bold ${scope==='today' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Sadece bugün
+                    </button>
+                    <button
+                        onClick={() => setScope('all')}
+                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${scope==='all' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Tümü
+                    </button>
+                </div>
+            </div>
         </div>
 
         {/* Count */}
@@ -311,12 +324,9 @@ function OpenOrdersContent() {
                             <h3 className="text-base font-bold text-gray-900">
                                 {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
                             </h3>
-                            {(order.sipyer || typeof order.adtur !== 'undefined') && (
+                            {(order.type_label || order.sipyer) && (
                                 <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                    {order.sipyer === 3 ? t('order_type_adisyon') : 
-                                     order.sipyer === 2 ? t('order_type_paket') : 
-                                     order.sipyer === 1 ? t('order_type_hizli') :
-                                     (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
+                                    {order.type_label || (order.sipyer === 2 ? t('order_type_paket') : t('order_type_adisyon'))}
                                 </span>
                             )}
                         </div>
@@ -343,10 +353,10 @@ function OpenOrdersContent() {
                                     <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
                                 </div>
                             )}
-                            {order.sipyer && (
+                            {(order.type_label || order.sipyer) && (
                                 <div className="flex items-center">
                                     <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">{t('order_place')} {order.sipyer === 3 ? 'Adisyon' : order.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}</span>
+                                    <span className="text-xs text-gray-600">{t('order_place')} {order.type_label || ((order.sipyer === 2) ? 'Paket' : 'Adisyon')}</span>
                                 </div>
                             )}
                             {(order.customer_name || order.mustid) && (

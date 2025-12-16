@@ -35,6 +35,7 @@ function ClosedOrdersContent() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [scope, setScope] = useState<'today'|'all'>('today');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -45,6 +46,10 @@ function ClosedOrdersContent() {
   useEffect(() => {
     fetchOrders(1);
   }, []);
+
+  useEffect(() => {
+    fetchOrders(1);
+  }, [scope]);
 
   // Effect to apply local filters if we were doing local filtering, 
   // but the legacy code fetches from API for date, and local for table no.
@@ -62,16 +67,19 @@ function ClosedOrdersContent() {
         setLoading(true);
       }
 
-      // Use 'today' as default period for closed orders too, as 'month' might be too broad or empty if no data in month
-      let url = `${getApiUrl()}/reports/orders?status=closed&period=today&page=${page}&limit=100`;
+      // Scope: today or all
+      let url = `${getApiUrl()}/reports/closed-orders?page=${page}&limit=100`;
+      if (scope === 'today') {
+        url = `${getApiUrl()}/reports/closed-orders?period=today&page=${page}&limit=100`;
+      }
 
       // If date filter is active
       if (startDate && endDate) {
-        url = `${getApiUrl()}/reports/orders?status=closed&period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
+        url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
       } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
          const s = searchParams.get('start_date');
          const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/orders?status=closed&period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+         url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
          if (s) setStartDate(s);
          if (e) setEndDate(e);
       }
@@ -249,6 +257,24 @@ function ClosedOrdersContent() {
                     {t('clear_filters')}
                 </button>
             )}
+            
+            <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-gray-500">{t('show')}:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                    <button
+                        onClick={() => setScope('today')}
+                        className={`px-3 py-1.5 text-xs font-bold ${scope==='today' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Sadece bugün
+                    </button>
+                    <button
+                        onClick={() => setScope('all')}
+                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${scope==='all' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Tümü
+                    </button>
+                </div>
+            </div>
         </div>
 
         {/* Count */}
@@ -268,9 +294,9 @@ function ClosedOrdersContent() {
                             <h3 className="text-base font-bold text-gray-900">
                                 {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
                             </h3>
-                            {typeof order.adtur !== 'undefined' && (
+                            {(order.type_label || typeof order.adtur !== 'undefined') && (
                                 <span className="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                    {order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer'))}
+                                    {order.type_label || (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
                                 </span>
                             )}
                         </div>

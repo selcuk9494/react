@@ -44,7 +44,7 @@ function OrderDetailContent() {
     if (!token) return;
     try {
       setLoading(true);
-      let url = `${getApiUrl()}/reports/order-details?adsno=${id}&status=${type}`;
+      let url = `${getApiUrl()}/reports/order-detail/${id}?order_type=${type}`;
       if (adtur) {
         url += `&adtur=${adtur}`;
       }
@@ -167,13 +167,10 @@ function OrderDetailContent() {
                         <p className="text-indigo-200 text-sm font-medium mb-1">{t('order_no')}</p>
                         <p className="text-3xl font-bold text-white">#{orderData?.adsno || id}</p>
                     </div>
-                    {orderData?.items && orderData.items.length > 0 && (
+                    {orderData?.type_label && (
                         <div className="bg-indigo-500/50 backdrop-blur-sm border border-indigo-400/30 px-3 py-1.5 rounded-lg">
                             <span className="text-xs font-bold text-indigo-100">
-                                {orderData.sipyer === 3 ? t('order_type_adisyon') : 
-                                 orderData.sipyer === 2 ? t('order_type_paket') : 
-                                 orderData.sipyer === 1 ? t('order_type_hizli') :
-                                 (orderData.items[0]?.adtur_label || 'Diğer')}
+                                {orderData.type_label}
                             </span>
                         </div>
                     )}
@@ -227,7 +224,7 @@ function OrderDetailContent() {
                             <div>
                                 <p className="text-xs text-indigo-200">{t('order_place')}</p>
                                 <p className="text-sm font-semibold">
-                                    {orderData.sipyer === 3 ? 'Adisyon' : orderData.sipyer === 2 ? 'Paket' : 'Hızlı Satış'}
+                                    {(orderData.sipyer === 2) ? 'Paket' : ((orderData.sipyer === 1 && Number(orderData.masano) === 99999) ? 'Hızlı Satış' : 'Adisyon')}
                                 </p>
                             </div>
                         </div>
