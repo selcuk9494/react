@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Bike } from 'lucide-react';
+import { Bike, Search, Clock, User, Filter } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
@@ -15,6 +15,8 @@ interface CourierRow {
   donus: string | null;
   tarih: string; // YYYY-MM-DD
   status: 'open' | 'closed';
+  mustid?: number | null;
+  musteri_adi?: string | null;
 }
 
 export default function CourierTrackingReport() {
@@ -25,6 +27,10 @@ export default function CourierTrackingReport() {
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [courierFilter, setCourierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
+  const [lateOnly, setLateOnly] = useState(false);
+  const [lateThreshold, setLateThreshold] = useState(30);
 
   useEffect(() => {
     if (!token) return;
@@ -84,7 +90,7 @@ export default function CourierTrackingReport() {
 
   const isLate = (row: CourierRow) => {
     const duration = getDuration(row);
-    return duration > 30;
+    return duration > lateThreshold;
   };
 
   const formatTime = (timeStr: string | null) => {
@@ -93,6 +99,12 @@ export default function CourierTrackingReport() {
     if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
     return timeStr;
   };
+
+  // Filtered data
+  const filteredData = data
+    .filter(r => statusFilter === 'all' ? true : r.status === statusFilter)
+    .filter(r => courierFilter ? (r.kurye || '').toLowerCase().includes(courierFilter.toLowerCase()) : true)
+    .filter(r => lateOnly ? isLate(r) : true);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,13 +123,68 @@ export default function CourierTrackingReport() {
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           </div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="text-center py-12">
             <Bike className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">{t('not_found')}</p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            {/* Filters */}
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center">
+                    <Search className="w-4 h-4 text-gray-400" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Kurye adı"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={courierFilter}
+                    onChange={(e) => setCourierFilter(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter==='all' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                  >
+                    Tümü
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('open')}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter==='open' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                  >
+                    Yolda
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('closed')}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter==='closed' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                  >
+                    Döndü
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                    <input type="checkbox" checked={lateOnly} onChange={(e) => setLateOnly(e.target.checked)} />
+                    Sadece gecikenler
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-24 pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={lateThreshold}
+                      onChange={(e) => setLateThreshold(parseInt(e.target.value || '30'))}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50/50">
@@ -127,11 +194,12 @@ export default function CourierTrackingReport() {
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Müşteri</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-50">
-                  {data.map((row, index) => {
+                  {filteredData.map((row, index) => {
                     const late = isLate(row);
                     const duration = getDuration(row);
                     
@@ -158,6 +226,15 @@ export default function CourierTrackingReport() {
                           }`}>
                             {duration} dk
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-gray-700 font-medium">{row.musteri_adi || '-'}</span>
+                            {row.mustid && (
+                              <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold">#{row.mustid}</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           {row.status === 'open' ? (

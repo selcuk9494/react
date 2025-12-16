@@ -400,9 +400,12 @@ export class ReportsService {
           a.gidsaat as cikis,
           a.donsaat as donus,
           a.actar as tarih,
+          a.mustid as mustid,
+          COALESCE(m.adi, NULL) as musteri_adi,
           'open' as status
       FROM ads_acik a
       LEFT JOIN personel p ON a.garsonno = p.id
+      LEFT JOIN ads_musteri m ON a.mustid = m.id
       WHERE a.kasa = $1 AND a.masano = 99999 AND a.actar BETWEEN $2 AND $3
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [kasa_no, dStart, dEnd]);
@@ -415,10 +418,15 @@ export class ReportsService {
           a.motcikis as cikis,
           a.stopsaat as donus,
           a.siptar as tarih,
+          COALESCE(MAX(o.mustid), NULL) as mustid,
+          COALESCE(MAX(m.adi), NULL) as musteri_adi,
           'closed' as status
       FROM ads_adisyon a
       LEFT JOIN personel p ON a.garsonno = p.id
+      LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
+      LEFT JOIN ads_musteri m ON o.mustid = m.id
       WHERE a.kasa = $1 AND a.masano = 99999 AND a.siptar BETWEEN $2 AND $3
+      GROUP BY a.adsno, p.adi, a.motcikis, a.stopsaat, a.siptar
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_no, dStart, dEnd]);
 
