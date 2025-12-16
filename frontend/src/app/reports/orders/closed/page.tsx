@@ -177,24 +177,24 @@ function ClosedOrdersContent() {
             
             <div className="flex space-x-3">
                 <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('table_no_label')}</label>
+                    <label className="block text-xs font-medium text-gray-900 mb-1 font-bold">{t('table_no_label')}</label>
                     <input 
                         type="text" 
                         placeholder="Örn: 5"
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition font-medium"
                         value={filterMasa}
                         onChange={(e) => setFilterMasa(e.target.value)}
                     />
                 </div>
                 <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('date')}:</label>
+                    <label className="block text-xs font-medium text-gray-900 mb-1 font-bold">{t('date')}:</label>
                     <button 
                         onClick={() => setShowDateFilter(!showDateFilter)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-700 hover:bg-gray-100 transition"
+                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-900 hover:bg-gray-50 transition font-medium"
                     >
-                        <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                        <Calendar className="w-4 h-4 mr-2 text-gray-600" />
                         <span className="truncate">
-                            {startDate ? `${new Date(startDate).toLocaleDateString()}...` : t('select')}
+                            {startDate ? `${new Date(startDate).toLocaleDateString()}` : t('select')}
                         </span>
                     </button>
                 </div>
