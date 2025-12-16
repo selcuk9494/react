@@ -467,11 +467,9 @@ export class ReportsService {
           a.gidsaat as cikis,
           a.donsaat as donus,
           a.actar as tarih,
-          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
           'open' as status
       FROM ads_acik a
       LEFT JOIN personel per ON a.garsonno = per.id
-      LEFT JOIN ads_musteri m ON a.mustid = m.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
         AND DATE(a.actar) BETWEEN $2 AND $3
@@ -485,11 +483,11 @@ export class ReportsService {
           a.motcikis as cikis,
           a.stopsaat as donus,
           COALESCE(a.stoptar, a.siptar) as tarih,
-          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          a.sipsaat as sipsaat,
+          a.stoptar as stoptar,
           'closed' as status
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
-      LEFT JOIN ads_musteri m ON a.mustid = m.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
         AND (DATE(a.siptar) BETWEEN $2 AND $3 OR DATE(a.stoptar) BETWEEN $2 AND $3)
@@ -511,11 +509,9 @@ export class ReportsService {
           a.gidsaat as cikis,
           a.donsaat as donus,
           a.actar as tarih,
-          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
           'open' as status
       FROM ads_acik a
       LEFT JOIN personel per ON a.garsonno = per.id
-      LEFT JOIN ads_musteri m ON a.mustid = m.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
       ORDER BY a.actar DESC
@@ -528,11 +524,11 @@ export class ReportsService {
           a.motcikis as cikis,
           a.stopsaat as donus,
           COALESCE(a.stoptar, a.siptar) as tarih,
-          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          a.sipsaat as sipsaat,
+          a.stoptar as stoptar,
           'closed' as status
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
-      LEFT JOIN ads_musteri m ON a.mustid = m.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
       ORDER BY COALESCE(a.stoptar, a.siptar) DESC

@@ -15,7 +15,8 @@ interface CourierRow {
   donus: string | null;
   tarih: string; 
   status: 'open' | 'closed';
-  musteri_adi?: string | null;
+  sipsaat?: string | null;
+  stoptar?: string | null;
 }
 
 export default function CourierTrackingReport() {
@@ -134,7 +135,6 @@ export default function CourierTrackingReport() {
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('departure')}</th>
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('return_time')}</th>
                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">{t('duration_min')}</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Müşteri</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">{t('status')}</th>
                   </tr>
                 </thead>
@@ -165,12 +165,6 @@ export default function CourierTrackingReport() {
                           }`}>
                             {duration} dk
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex items-center gap-2">
-                            <User className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-gray-700 font-medium">{row.musteri_adi || '-'}</span>
-                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           {row.status === 'open' ? (
