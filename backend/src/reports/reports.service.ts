@@ -74,14 +74,18 @@ export class ReportsService {
         const query = `
             SELECT 
                 a.adsno,
+                CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
                 SUM(COALESCE(a.tutar, 0)) as tutar,
                 MAX(p.adi) as garson,
-                MAX(a.actar) as tarih
+                MAX(m.adi) as customer_name,
+                MAX(a.actar) as tarih,
+                MAX(a.acsaat) as acilis_saati
             FROM ads_acik a
-            LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN personel p ON a.sip_ekleyen = p.id
+            LEFT JOIN ads_musteri m ON a.mustid = m.id
             WHERE a.kasa = $1 ${typeCondition}
-            GROUP BY a.adsno
+            GROUP BY a.adsno, a.sipyer
             ORDER BY a.adsno DESC
         `;
         const rows = await this.db.executeQuery(pool, query, [kasa_no]);
@@ -113,21 +117,34 @@ export class ReportsService {
         const query = `
             SELECT 
                 a.adsno,
+                CAST(a.sipyer AS INTEGER) as sipyer,
                 MAX(COALESCE(a.masano, 0)) as masano,
                 MAX(p.adi) as garson,
+                MAX(m.adi) as customer_name,
                 MAX(a.actar) as tarih,
+                MAX(a.acsaat) as acilis_saati,
                 SUM(COALESCE(a.tutar, 0)) as toplam_tutar,
+                SUM(COALESCE(a.iskonto, 0)) as toplam_iskonto,
                 json_agg(json_build_object(
                     'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
-                    'quantity', a.miktar,
-                    'price', a.tutar,
-                    'total', a.tutar
+                    'quantity', COALESCE(a.miktar, 1),
+                    'price', a.bfiyat,
+                    'total', a.tutar,
+                    'ack1', a.ack1,
+                    'ack2', a.ack2,
+                    'ack3', a.ack3,
+                    'notes', (
+                        SELECT json_agg(am.aciklama)
+                        FROM ads_mesaj am
+                        WHERE am.kasa = $1 AND am.adsno = $2 AND am.pluid = a.pluid
+                    )
                 )) as items
             FROM ads_acik a
-            LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN personel p ON a.sip_ekleyen = p.id
+            LEFT JOIN ads_musteri m ON a.mustid = m.id
             LEFT JOIN product pr ON a.pluid = pr.plu
             WHERE a.kasa = $1 AND a.adsno = $2
-            GROUP BY a.adsno
+            GROUP BY a.adsno, a.sipyer
         `;
         const rows = await this.db.executeQuery(pool, query, [kasa_no, adsno]);
         return rows[0] || null;
@@ -170,14 +187,20 @@ export class ReportsService {
       WITH acik_toplam AS (
           SELECT 
               adsno,
+              sipyer,
               MAX(COALESCE(masano, 0)) as masano,
               SUM(COALESCE(tutar, 0)) as adsno_toplam
           FROM ads_acik
           WHERE kasa = $1
-          GROUP BY adsno
+          GROUP BY adsno, sipyer
       )
       SELECT 
-          CASE WHEN masano = 99999 THEN 'paket' ELSE 'adisyon' END as tip,
+          CASE 
+            WHEN sipyer = 3 THEN 'adisyon' 
+            WHEN sipyer = 2 THEN 'paket' 
+            WHEN sipyer = 1 THEN 'hizli' 
+            ELSE 'diger' 
+          END as tip,
           COUNT(DISTINCT adsno) as adet,
           COALESCE(SUM(adsno_toplam), 0) as toplam
       FROM acik_toplam
@@ -187,9 +210,12 @@ export class ReportsService {
 
     let acik_paket = { adet: 0, toplam: 0 };
     let acik_adisyon = { adet: 0, toplam: 0 };
+    let acik_hizli = { adet: 0, toplam: 0 }; // Added hizli
+
     acikRows.forEach(row => {
       if (row.tip === 'paket') acik_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
-      else acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+      else if (row.tip === 'adisyon') acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+      else if (row.tip === 'hizli') acik_hizli = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
     });
 
     // 2. Kapali Adisyonlar
@@ -229,7 +255,7 @@ export class ReportsService {
     const iptal = iptalRows[0] || { adet: 0, toplam: 0 };
 
     // Totals
-    const acik_toplam = acik_paket.toplam + acik_adisyon.toplam;
+    const acik_toplam = acik_paket.toplam + acik_adisyon.toplam + acik_hizli.toplam;
     const kapali_toplam = kapali_paket.toplam + kapali_adisyon.toplam;
     const kapali_iskonto_toplam = kapali_paket.iskonto + kapali_adisyon.iskonto;
 
@@ -238,7 +264,7 @@ export class ReportsService {
       kapali_adisyon_toplam: kapali_toplam,
       kapali_iskonto_toplam: kapali_iskonto_toplam,
       iptal_toplam: parseFloat(iptal.toplam),
-      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet,
+      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet + acik_hizli.adet,
       kapali_adisyon_adet: kapali_paket.adet + kapali_adisyon.adet,
       iptal_adet: parseInt(iptal.adet),
       dagilim: {
@@ -259,6 +285,15 @@ export class ReportsService {
           kapali_iskonto: kapali_adisyon.iskonto,
           toplam_adet: acik_adisyon.adet + kapali_adisyon.adet,
           toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam
+        },
+        hizli: {
+            acik_adet: acik_hizli.adet,
+            acik_toplam: acik_hizli.toplam,
+            kapali_adet: 0, // Need to implement closed fast sales if needed
+            kapali_toplam: 0,
+            kapali_iskonto: 0,
+            toplam_adet: acik_hizli.adet,
+            toplam_tutar: acik_hizli.toplam
         }
       }
     };
