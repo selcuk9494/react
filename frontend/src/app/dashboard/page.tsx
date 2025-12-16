@@ -99,7 +99,8 @@ export default function Dashboard() {
       db_name: 'fasrest',
       db_user: 'begum',
       db_password: 'KORDO',
-      kasa_no: 1
+      kasa_no: 1,
+      kasalar: [] as number[]
   });
 
   // Helper Functions from reference
@@ -667,6 +668,20 @@ export default function Dashboard() {
                 </button>
 
                 <button 
+                    onClick={() => router.push('/reports/courier-tracking')}
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-teal-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <Bike className="w-6 h-6 text-teal-600" />
+                    </div>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('courier_tracking')}</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('courier_tracking_card_desc')}</p>
+                    </div>
+                </button>
+
+                <button 
                     onClick={() => router.push('/reports/cancelled-items')}
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
@@ -683,19 +698,6 @@ export default function Dashboard() {
                 </button>
 
 
-                <button 
-                    onClick={() => router.push('/reports/courier-tracking')}
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-teal-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <Bike className="w-6 h-6 text-teal-600" />
-                    </div>
-                    <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('courier_tracking')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('courier_tracking_card_desc')}</p>
-                    </div>
-                </button>
             </div>
         </div>
       </main>
@@ -817,7 +819,8 @@ export default function Dashboard() {
                                                 db_name: branch.db_name,
                                                 db_user: branch.db_user,
                                                 db_password: branch.db_password,
-                                                kasa_no: branch.kasa_no
+                                                kasa_no: branch.kasa_no,
+                                                kasalar: (branch.kasalar || []).filter((k: any) => typeof k === 'number')
                                             });
                                         }}
                                         className="p-2 bg-white border border-gray-200 rounded-lg text-indigo-600 hover:bg-indigo-50 transition"
@@ -843,7 +846,8 @@ export default function Dashboard() {
                                         db_name: 'fasrest',
                                         db_user: 'begum',
                                         db_password: 'KORDO',
-                                        kasa_no: 1
+                                        kasa_no: 1,
+                                        kasalar: []
                                     });
                                 }}
                                 className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
@@ -907,6 +911,65 @@ export default function Dashboard() {
                                     onChange={(e) => setBranchForm({...branchForm, kasa_no: parseInt(e.target.value)})}
                                 />
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Ek Kasa Numaraları</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    className="flex-1 border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                                    placeholder="Örn: 2,3,4"
+                                    id="extra-kasa-input"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const input = e.currentTarget;
+                                            const values = input.value.split(',')
+                                                .map(v => parseInt(v.trim()))
+                                                .filter(v => !isNaN(v));
+                                            if (values.length > 0) {
+                                                const merged = Array.from(new Set([...branchForm.kasalar, ...values]));
+                                                setBranchForm({ ...branchForm, kasalar: merged });
+                                                input.value = '';
+                                            }
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
+                                    onClick={() => {
+                                        const input = document.getElementById('extra-kasa-input') as HTMLInputElement | null;
+                                        if (!input) return;
+                                        const values = input.value.split(',')
+                                            .map(v => parseInt(v.trim()))
+                                            .filter(v => !isNaN(v));
+                                        if (values.length > 0) {
+                                            const merged = Array.from(new Set([...branchForm.kasalar, ...values]));
+                                            setBranchForm({ ...branchForm, kasalar: merged });
+                                            input.value = '';
+                                        }
+                                    }}
+                                >
+                                    Ekle
+                                </button>
+                            </div>
+                            {branchForm.kasalar.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {branchForm.kasalar.map((k, idx) => (
+                                        <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold">
+                                            Kasa {k}
+                                            <button
+                                                type="button"
+                                                className="ml-1 text-indigo-500 hover:text-indigo-700"
+                                                onClick={() => setBranchForm({...branchForm, kasalar: branchForm.kasalar.filter((x, i) => i !== idx)})}
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">{t('db_user')}</label>

@@ -82,16 +82,6 @@ export class ReportsController {
     return this.reportsService.getOrderDetails(req.user, id, orderType, date, adtur);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('reports/courier-tracking')
-  async getCourierTracking(
-    @Request() req,
-    @Query('period') period: string = 'today',
-    @Query('start_date') startDate?: string,
-    @Query('end_date') endDate?: string,
-  ) {
-    return this.reportsService.getCourierTracking(req.user, period, startDate, endDate);
-  }
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/sales-chart')
@@ -124,6 +114,17 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
   ) {
     return this.reportsService.getCancelledItems(req.user, period, startDate, endDate);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/courier-tracking')
+  async getCourierTracking(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getCourierTracking(req.user, period, startDate, endDate);
   }
 
   @UseGuards(JwtAuthGuard)

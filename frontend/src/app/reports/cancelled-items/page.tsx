@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, XCircle, Search, Info, Clock, CheckCircle, Tag } from 'lucide-react';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
@@ -72,6 +73,24 @@ export default function CancelledItemsPage() {
     .filter(i => filterType === 'all' ? true : i.type === filterType)
     .sort((a, b) => b.quantity - a.quantity);
 
+  const typeAgg: Record<string, number> = { iptal: 0, iade: 0, ikram: 0 };
+  filteredData.forEach(i => {
+    if (typeof i.quantity === 'number' && i.type && typeAgg[i.type] !== undefined) {
+      typeAgg[i.type] += i.quantity;
+    }
+  });
+  const typeData = [
+    { name: t('cancel'), value: typeAgg.iptal, color: '#EF4444' },
+    { name: t('return'), value: typeAgg.iade, color: '#F59E0B' },
+    { name: t('compliment'), value: typeAgg.ikram, color: '#10B981' },
+  ].filter(s => s.value > 0);
+
+  const topProducts = filteredData.slice(0, 6).map((i: any) => ({
+    name: i.product_name,
+    value: i.quantity || 0,
+    color: colorFromName(i.product_name)
+  })).filter(p => p.value > 0);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <ReportHeader
@@ -97,6 +116,42 @@ export default function CancelledItemsPage() {
                 <h2 className="text-4xl font-bold tracking-tight">{getTotalCancelled().toFixed(2)}</h2>
                 <p className="text-red-100 mt-1 font-medium">{t('total_cancelled_amount')}</p>
                 <p className="text-red-200 text-sm mt-1">{data.length} {t('total_cancelled_count')}</p>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-bold text-gray-900 mb-2">{t('all')}</h3>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={typeData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={80} paddingAngle={2}>
+                        {typeData.map((entry, index) => (
+                          <Cell key={`cell-type-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-bold text-gray-900 mb-2">{t('products')}</h3>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={topProducts} dataKey="value" nameKey="name" innerRadius={60} outerRadius={80} paddingAngle={2}>
+                        {topProducts.map((entry, index) => (
+                          <Cell key={`cell-prod-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
 
             {/* Search Bar */}

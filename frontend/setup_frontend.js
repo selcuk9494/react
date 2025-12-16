@@ -136,10 +136,9 @@ import { useAuthStore } from '@/store/authStore';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Kurye Takip', href: '/dashboard/courier-tracking', icon: Package },
   { name: 'Ürün Satış', href: '/dashboard/product-sales', icon: ShoppingBag },
   { name: 'Ödeme Tipleri', href: '/dashboard/payment-types', icon: CreditCard },
-  { name: 'İptal/İade', href: '/dashboard/cancelled-items', icon: XCircle },
+  { name: 'İptal, İade ve İkram', href: '/dashboard/cancelled-items', icon: XCircle },
   { name: 'Performans', href: '/dashboard/performance', icon: BarChart2 },
   { name: 'Ayarlar', href: '/dashboard/settings', icon: Settings },
 ];

@@ -73,6 +73,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_kasas (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+          kasa_no INTEGER NOT NULL
+        );
+      `);
     } catch (e) {
       console.log('Schema init error (might be okay if tables exist):', e.message);
     } finally {

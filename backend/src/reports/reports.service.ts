@@ -45,6 +45,21 @@ export class ReportsService {
     const branch = user.branches[branchIndex];
     if (!branch) throw new Error('Invalid branch selection');
 
+    // Collect kasa numbers: primary + any extras
+    let kasa_nos: number[] = [];
+    const primary = branch.kasa_no || 1;
+    kasa_nos.push(primary);
+    if (Array.isArray(branch.kasalar) && branch.kasalar.length > 0) {
+      kasa_nos = Array.from(new Set([primary, ...branch.kasalar.filter((k: any) => typeof k === 'number')]));
+    } else if (branch.id) {
+      try {
+        const mainPool = this.db.getMainPool();
+        const rows = await this.db.executeQuery(mainPool, 'SELECT kasa_no FROM branch_kasas WHERE branch_id = $1', [branch.id]);
+        const extras = rows.map((r: any) => parseInt(r.kasa_no)).filter((n: any) => !isNaN(n));
+        kasa_nos = Array.from(new Set([primary, ...extras]));
+      } catch (e) {}
+    }
+
     return {
       pool: this.db.getBranchPool({
         db_host: branch.db_host,
@@ -53,12 +68,13 @@ export class ReportsService {
         db_user: branch.db_user,
         db_password: this.decryptPassword(branch.db_password),
       }),
-      kasa_no: branch.kasa_no || 1
+      kasa_no: primary,
+      kasa_nos
     };
   }
 
   async getOrders(user: any, period: string, status: 'open' | 'closed', startDate?: string, endDate?: string, type?: 'adisyon' | 'paket') {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -146,7 +162,7 @@ export class ReportsService {
   }
 
   async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string, adtur?: number) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
 
     if (status === 'open') {
         const query = `
@@ -253,7 +269,7 @@ export class ReportsService {
   }
 
   async getDashboard(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     
     // Format dates for Postgres
@@ -268,7 +284,7 @@ export class ReportsService {
               MAX(COALESCE(adtur, CASE WHEN sipyer = 2 THEN 1 ELSE 0 END)) AS adtur,
               SUM(COALESCE(tutar, 0)) AS adsno_toplam
           FROM ads_acik
-          WHERE kasa = $1
+          WHERE kasa = ANY($1)
           GROUP BY adsno
       )
       SELECT 
@@ -278,7 +294,7 @@ export class ReportsService {
       FROM acik_toplam
       GROUP BY adtur
     `;
-    const acikRows = await this.db.executeQuery(pool, acikQuery, [kasa_no]);
+    const acikRows = await this.db.executeQuery(pool, acikQuery, [kasa_nos]);
 
     let acik_paket = { adet: 0, toplam: 0 };
     let acik_adisyon = { adet: 0, toplam: 0 };
@@ -301,10 +317,10 @@ export class ReportsService {
           LEFT JOIN (
               SELECT adsno, MAX(COALESCE(masano, 0)) as masano
               FROM ads_adisyon
-              WHERE kasa = $1
+              WHERE kasa = ANY($1)
               GROUP BY adsno
           ) am ON o.adsno = am.adsno
-          WHERE DATE(o.raptar) BETWEEN $2 AND $3 AND o.kasa = $4
+          WHERE DATE(o.raptar) BETWEEN $2 AND $3 AND o.kasa = ANY($4)
           GROUP BY o.adsno
       )
       SELECT 
@@ -315,7 +331,7 @@ export class ReportsService {
       FROM kapali_toplam
       GROUP BY adtur
     `;
-    const kapaliRows = await this.db.executeQuery(pool, kapaliQuery, [kasa_no, dStart, dEnd, kasa_no]);
+    const kapaliRows = await this.db.executeQuery(pool, kapaliQuery, [kasa_nos, dStart, dEnd, kasa_nos]);
 
     let kapali_paket = { adet: 0, toplam: 0, iskonto: 0 };
     let kapali_adisyon = { adet: 0, toplam: 0, iskonto: 0 };
@@ -386,113 +402,9 @@ export class ReportsService {
     };
   }
 
-  async getCourierTracking(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
-
-    // 1. Open Packets
-    const openQuery = `
-      SELECT DISTINCT
-          a.adsno,
-          p.adi as kurye,
-          a.gidsaat as cikis,
-          a.donsaat as donus,
-          a.actar as tarih,
-          a.mustid as mustid,
-          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
-          'open' as status
-      FROM ads_acik a
-      LEFT JOIN personel p ON a.garsonno = p.id
-      LEFT JOIN ads_musteri m ON a.mustid = m.id
-      WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.actar BETWEEN $2 AND $3
-    `;
-    const openRows = await this.db.executeQuery(pool, openQuery, [kasa_no, dStart, dEnd]);
-
-    // 2. Closed Packets
-    const closedQuery = `
-      SELECT DISTINCT
-          a.adsno,
-          p.adi as kurye,
-          a.motcikis as cikis,
-          a.stopsaat as donus,
-          a.siptar as tarih,
-          COALESCE(MAX(o.mustid), NULL) as mustid,
-          COALESCE(MAX(m.adi || ' ' || COALESCE(m.soyadi, '')), NULL) as musteri_adi,
-          'closed' as status
-      FROM ads_adisyon a
-      LEFT JOIN personel p ON a.garsonno = p.id
-      LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
-      LEFT JOIN ads_musteri m ON o.mustid = m.id
-      WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.siptar BETWEEN $2 AND $3
-      GROUP BY a.adsno, p.adi, a.motcikis, a.stopsaat, a.siptar
-    `;
-    const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_no, dStart, dEnd]);
-
-    const results = [...openRows, ...closedRows];
-    
-    // Sort logic
-    results.sort((a, b) => {
-        const da = new Date(a.tarih);
-        const db = new Date(b.tarih);
-        return db.getTime() - da.getTime(); // Descending
-    });
-
-    // Fallback: if no data in selected range, fetch recent records without date filter
-    if (results.length === 0) {
-      const fbOpenQuery = `
-        SELECT DISTINCT
-            a.adsno,
-            p.adi as kurye,
-            a.gidsaat as cikis,
-            a.donsaat as donus,
-            a.actar as tarih,
-            a.mustid as mustid,
-            COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
-            'open' as status
-        FROM ads_acik a
-        LEFT JOIN personel p ON a.garsonno = p.id
-        LEFT JOIN ads_musteri m ON a.mustid = m.id
-        WHERE a.kasa = $1 AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1
-        ORDER BY a.actar DESC
-        LIMIT 100
-      `;
-      const fbClosedQuery = `
-        SELECT DISTINCT
-            a.adsno,
-            p.adi as kurye,
-            a.motcikis as cikis,
-            a.stopsaat as donus,
-            a.siptar as tarih,
-            COALESCE(MAX(o.mustid), NULL) as mustid,
-            COALESCE(MAX(m.adi || ' ' || COALESCE(m.soyadi, '')), NULL) as musteri_adi,
-            'closed' as status
-        FROM ads_adisyon a
-        LEFT JOIN personel p ON a.garsonno = p.id
-        LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
-        LEFT JOIN ads_musteri m ON o.mustid = m.id
-        WHERE a.kasa = $1 AND a.masano = 99999
-        GROUP BY a.adsno, p.adi, a.motcikis, a.stopsaat, a.siptar
-        ORDER BY a.siptar DESC
-        LIMIT 100
-      `;
-      const fbOpenRows = await this.db.executeQuery(pool, fbOpenQuery, [kasa_no]);
-      const fbClosedRows = await this.db.executeQuery(pool, fbClosedQuery, [kasa_no]);
-      const fbResults = [...fbOpenRows, ...fbClosedRows];
-      fbResults.sort((a, b) => {
-          const da = new Date(a.tarih);
-          const db = new Date(b.tarih);
-          return db.getTime() - da.getTime();
-      });
-      return fbResults;
-    }
-
-    return results;
-  }
 
   async getSalesChart(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -502,12 +414,12 @@ export class ReportsService {
           DATE(kaptar) as tarih,
           SUM(COALESCE(tutar, 0)) as toplam
       FROM ads_adisyon
-      WHERE kaptar BETWEEN $1 AND $2 AND kasa = $3
+      WHERE kaptar BETWEEN $1 AND $2 AND kasa = ANY($3)
       GROUP BY DATE(kaptar)
       ORDER BY DATE(kaptar)
     `;
     
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_no]);
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
     return rows.map(row => ({
       tarih: format(row.tarih, 'yyyy-MM-dd'),
       toplam: parseFloat(row.toplam)
@@ -515,7 +427,7 @@ export class ReportsService {
   }
 
   async getPaymentTypes(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -528,12 +440,12 @@ export class ReportsService {
           COALESCE(od.odmno, NULL) as otip
       FROM ads_odeme o
       LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = $3
+      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = ANY($3)
       GROUP BY od.odmno, od.odmname
       ORDER BY total DESC
     `;
     
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_no]);
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
     return rows.map(row => ({
       payment_name: row.payment_name,
       total: parseFloat(row.total),
@@ -542,8 +454,55 @@ export class ReportsService {
     }));
   }
 
+  async getCourierTracking(user: any, period: string, startDate?: string, endDate?: string) {
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(period, startDate, endDate);
+    const dStart = format(start, 'yyyy-MM-dd');
+    const dEnd = format(end, 'yyyy-MM-dd');
+    
+    const openQuery = `
+      SELECT DISTINCT
+          a.adsno,
+          per.adi as kurye,
+          a.gidsaat as cikis,
+          a.donsaat as donus,
+          a.actar as tarih,
+          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          'open' as status
+      FROM ads_acik a
+      LEFT JOIN personel per ON a.garsonno = per.id
+      LEFT JOIN ads_musteri m ON a.mustid = m.id
+      WHERE a.kasa = ANY($1) AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.actar BETWEEN $2 AND $3
+    `;
+    const openRows = await this.db.executeQuery(pool, openQuery, [kasa_nos, dStart, dEnd]);
+    
+    const closedQuery = `
+      SELECT DISTINCT
+          a.adsno,
+          per.adi as kurye,
+          a.motcikis as cikis,
+          a.stopsaat as donus,
+          a.siptar as tarih,
+          COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), NULL) as musteri_adi,
+          'closed' as status
+      FROM ads_adisyon a
+      LEFT JOIN personel per ON a.garsonno = per.id
+      LEFT JOIN ads_musteri m ON a.mustid = m.id
+      WHERE a.kasa = ANY($1) AND a.masano = 99999 AND COALESCE(a.adtur, 0) = 1 AND a.siptar BETWEEN $2 AND $3
+    `;
+    const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_nos, dStart, dEnd]);
+    
+    const results = [...openRows, ...closedRows];
+    results.sort((a, b) => {
+      const da = new Date(a.tarih);
+      const db = new Date(b.tarih);
+      return db.getTime() - da.getTime();
+    });
+    return results;
+  }
+
   async getCancelledItems(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -563,9 +522,9 @@ export class ReportsService {
       FROM ads_acik a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.actar BETWEEN $1 AND $2 AND a.kasa = $3 AND a.sturu IN (1,2,4)
+      WHERE a.actar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
-    const openRows = await this.db.executeQuery(pool, openQuery, [dStart, dEnd, kasa_no]);
+    const openRows = await this.db.executeQuery(pool, openQuery, [dStart, dEnd, kasa_nos]);
 
     // Closed
     const closedQuery = `
@@ -582,9 +541,9 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3 AND a.sturu IN (1,2,4)
+      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
-    const closedRows = await this.db.executeQuery(pool, closedQuery, [dStart, dEnd, kasa_no]);
+    const closedRows = await this.db.executeQuery(pool, closedQuery, [dStart, dEnd, kasa_nos]);
 
     const results = [...openRows, ...closedRows];
     results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -592,7 +551,7 @@ export class ReportsService {
   }
 
   async getPerformance(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -604,9 +563,9 @@ export class ReportsService {
           COUNT(DISTINCT o.adsno) as orders_count,
           COALESCE(SUM(o.iskonto), 0) as total_discount
       FROM ads_odeme o
-      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = $3
+      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = ANY($3)
     `;
-    const totalsRows = await this.db.executeQuery(pool, totalsQuery, [dStart, dEnd, kasa_no]);
+    const totalsRows = await this.db.executeQuery(pool, totalsQuery, [dStart, dEnd, kasa_nos]);
     const totals = totalsRows[0] || { total_sales: 0, orders_count: 0, total_discount: 0 };
     const avg_ticket = parseFloat(totals.total_sales) / Math.max(1, parseInt(totals.orders_count));
 
@@ -618,10 +577,10 @@ export class ReportsService {
           MAX(a.kapsaat) as kapanis_saati,
           MAX(a.kaptar) as tarih
       FROM ads_adisyon a
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3
+      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
-    const durations = await this.db.executeQuery(pool, durationQuery, [dStart, dEnd, kasa_no]);
+    const durations = await this.db.executeQuery(pool, durationQuery, [dStart, dEnd, kasa_nos]);
     
     let totalMinutes = 0;
     let over60 = 0;
@@ -653,13 +612,13 @@ export class ReportsService {
           COALESCE(SUM(o.otutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
-      LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = $1
-      WHERE a.kaptar BETWEEN $2 AND $3 AND a.kasa = $4
+      LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = ANY($1)
+      WHERE a.kaptar BETWEEN $2 AND $3 AND a.kasa = ANY($4)
       GROUP BY a.garsonno
       ORDER BY total DESC
       LIMIT 10
     `;
-    const waiters = await this.db.executeQuery(pool, waitersQuery, [kasa_no, dStart, dEnd, kasa_no]);
+    const waiters = await this.db.executeQuery(pool, waitersQuery, [kasa_nos, dStart, dEnd, kasa_nos]);
 
     // Products
     const productsQuery = `
@@ -669,12 +628,12 @@ export class ReportsService {
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3
+      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
       GROUP BY p.product_name, a.pluid
       ORDER BY total DESC
       LIMIT 10
     `;
-    const products = await this.db.executeQuery(pool, productsQuery, [dStart, dEnd, kasa_no]);
+    const products = await this.db.executeQuery(pool, productsQuery, [dStart, dEnd, kasa_nos]);
 
     // Groups
     const groupsQuery = `
@@ -685,18 +644,18 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN product_group pg ON p.tip = pg.id
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3
+      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
       GROUP BY pg.adi
       ORDER BY total DESC
       LIMIT 10
     `;
-    const groups = await this.db.executeQuery(pool, groupsQuery, [dStart, dEnd, kasa_no]);
+    const groups = await this.db.executeQuery(pool, groupsQuery, [dStart, dEnd, kasa_nos]);
 
     const branchIndex = user.selected_branch || 0;
     const branchName = user.branches[branchIndex]?.name || '';
 
     return {
-        branch: { name: branchName, kasa_no },
+        branch: { name: branchName, kasa_no, kasa_nos },
         period: { start: dStart, end: dEnd },
         totals: {
             total_sales: parseFloat(totals.total_sales),
@@ -713,7 +672,7 @@ export class ReportsService {
   }
 
   async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number) {
-    const { pool, kasa_no } = await this.getBranchPool(user);
+    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
@@ -727,11 +686,11 @@ export class ReportsService {
             WITH combined_sales AS (
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_adisyon a
-                WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3
+                WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
                 UNION ALL
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_acik a
-                WHERE a.actar BETWEEN $4 AND $5 AND a.kasa = $6
+                WHERE a.actar BETWEEN $4 AND $5 AND a.kasa = ANY($6)
             )
             SELECT 
                 p.product_name as product_name,
@@ -743,7 +702,7 @@ export class ReportsService {
             GROUP BY p.product_name
             ORDER BY total DESC
         `;
-        params.push(dStart, dEnd, kasa_no, dStart, dEnd, kasa_no);
+        params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
         if (groupId) params.push(groupId);
     } else {
         // Only Closed
@@ -754,12 +713,12 @@ export class ReportsService {
                 COALESCE(SUM(a.tutar), 0) as total
             FROM ads_adisyon a
             LEFT JOIN product p ON a.pluid = p.plu
-            WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = $3
+            WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
             ${groupId ? 'AND p.tip = $4' : ''}
             GROUP BY p.product_name
             ORDER BY total DESC
         `;
-        params.push(dStart, dEnd, kasa_no);
+        params.push(dStart, dEnd, kasa_nos);
         if (groupId) params.push(groupId);
     }
 

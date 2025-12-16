@@ -7,7 +7,16 @@ export class BranchesService {
 
   async findAll(userId: string) {
     const pool = this.db.getMainPool();
-    const query = 'SELECT * FROM branches WHERE user_id = $1';
+    const query = `
+      SELECT 
+        b.*,
+        COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+      FROM branches b
+      LEFT JOIN branch_kasas k ON k.branch_id = b.id
+      WHERE b.user_id = $1
+      GROUP BY b.id
+      ORDER BY b.id
+    `;
     const res = await this.db.executeQuery(pool, query, [userId]);
     return res;
   }
@@ -30,7 +39,15 @@ export class BranchesService {
       data.kasa_no || 1
     ];
     const res = await this.db.executeQuery(pool, query, params);
-    return res[0];
+    const branch = res[0];
+    if (Array.isArray(data.kasalar)) {
+      for (const kasa of data.kasalar) {
+        if (typeof kasa === 'number' && !isNaN(kasa)) {
+          await this.db.executeQuery(pool, 'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)', [branch.id, kasa]);
+        }
+      }
+    }
+    return branch;
   }
 
   async update(userId: string, id: number, data: any) {
@@ -53,7 +70,16 @@ export class BranchesService {
       userId
     ];
     const res = await this.db.executeQuery(pool, query, params);
-    return res[0];
+    const branch = res[0];
+    await this.db.executeQuery(pool, 'DELETE FROM branch_kasas WHERE branch_id = $1', [id]);
+    if (Array.isArray(data.kasalar)) {
+      for (const kasa of data.kasalar) {
+        if (typeof kasa === 'number' && !isNaN(kasa)) {
+          await this.db.executeQuery(pool, 'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)', [id, kasa]);
+        }
+      }
+    }
+    return branch;
   }
 
   async remove(userId: string, id: number) {
