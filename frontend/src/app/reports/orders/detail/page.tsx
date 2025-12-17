@@ -306,27 +306,12 @@ function OrderDetailContent() {
             <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('products')}</h2>
             
             <div className="space-y-3">
-                {orderData && orderData.items && orderData.items.map((item: any, index: number) => {
-                    const st = Number(item.sturu ?? -1);
-                    const badge =
-                      st === 0 ? { text: 'İptal', cls: 'bg-red-100 text-red-700' } :
-                      st === 1 ? { text: 'İkram', cls: 'bg-pink-100 text-pink-700' } :
-                      st === 2 ? { text: 'İade', cls: 'bg-amber-100 text-amber-700' } : null;
-                    const containerCls =
-                      st === 0 ? 'border-red-200' :
-                      st === 1 ? 'border-pink-200' :
-                      st === 2 ? 'border-amber-200' : 'border-gray-100';
-                    return (
-                    <div key={index} className={`bg-white rounded-2xl p-4 shadow-sm border ${containerCls}`}>
+                {orderData && orderData.items && orderData.items.map((item: any, index: number) => (
+                    <div key={index} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                         <div className="flex justify-between items-start mb-2">
                             <h3 className="text-base font-bold text-gray-900 flex-1">{item.product_name || 'Ürün'}</h3>
                             <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency(item.total)}</span>
                         </div>
-                        {badge && (
-                          <div className={`inline-block ${badge.cls} text-[11px] font-bold px-2 py-0.5 rounded-md mb-2`}>
-                            {badge.text}
-                          </div>
-                        )}
                         <div className="flex justify-between items-center text-sm text-gray-500">
                             <span>
                                 {item.quantity} {t('quantity').toLowerCase()} × {formatCurrency(item.price)}
@@ -342,8 +327,8 @@ function OrderDetailContent() {
                                 ))}
                             </div>
                         )}
-                    </div>);
-                })}
+                    </div>
+                ))}
 
                 {(!orderData || !orderData.items || orderData.items.length === 0) && (
                     <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 border-dashed">
