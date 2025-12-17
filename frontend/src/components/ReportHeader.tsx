@@ -84,52 +84,45 @@ export default function ReportHeader({
               ? `${new Date(customStartDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
               : t('custom_date')}
           </button>
-          <span className="text-xs text-gray-700 font-medium ml-2 whitespace-nowrap">
-            {(() => {
-              const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-              const now = new Date();
-              if (period === 'today') return f(now);
-              if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
-              if (period === 'week') {
-                const d = new Date();
-                const day = d.getDay(); // 0..6
-                const diff = (day + 6) % 7; // make Monday start
-                const start = new Date(d); start.setDate(d.getDate() - diff);
-                const end = new Date(start); end.setDate(start.getDate() + 6);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'last7days') {
-                const end = new Date();
-                const start = new Date(); start.setDate(end.getDate() - 6);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'month') {
-                const d = new Date();
-                const start = new Date(d.getFullYear(), d.getMonth(), 1);
-                const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'lastmonth') {
-                const d = new Date();
-                const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-                const end = new Date(d.getFullYear(), d.getMonth(), 0);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'custom' && customStartDate && customEndDate) {
-                const s = new Date(customStartDate); const e = new Date(customEndDate);
-                return `${f(s)} - ${f(e)}`;
-              }
-              return '';
-            })()}
-          </span>
+          
         </div>
-        <div className="text-xs text-gray-500 mt-1 pl-1">
-          {period === 'custom' && customStartDate && customEndDate
-            ? `${new Date(customStartDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
-            : period === 'today'
-              ? new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
-              : ''
-          }
+        <div className="text-xs text-gray-700 font-medium mt-1 pl-1 whitespace-nowrap">
+          {(() => {
+            const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+            const now = new Date();
+            if (period === 'today') return f(now);
+            if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
+            if (period === 'week') {
+              const d = new Date();
+              const day = d.getDay();
+              const diff = (day + 6) % 7; // Monday start
+              const start = new Date(d); start.setDate(d.getDate() - diff);
+              const end = new Date(start); end.setDate(start.getDate() + 6);
+              return `${f(start)} - ${f(end)}`;
+            }
+            if (period === 'last7days') {
+              const end = new Date();
+              const start = new Date(); start.setDate(end.getDate() - 6);
+              return `${f(start)} - ${f(end)}`;
+            }
+            if (period === 'month') {
+              const d = new Date();
+              const start = new Date(d.getFullYear(), d.getMonth(), 1);
+              const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+              return `${f(start)} - ${f(end)}`;
+            }
+            if (period === 'lastmonth') {
+              const d = new Date();
+              const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+              const end = new Date(d.getFullYear(), d.getMonth(), 0);
+              return `${f(start)} - ${f(end)}`;
+            }
+            if (period === 'custom' && customStartDate && customEndDate) {
+              const s = new Date(customStartDate); const e = new Date(customEndDate);
+              return `${f(s)} - ${f(e)}`;
+            }
+            return '';
+          })()}
         </div>
       </div>
 
