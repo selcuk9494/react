@@ -19,6 +19,7 @@ import {
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
+import ReportHeader from '@/components/ReportHeader';
 
 function ClosedOrdersContent() {
   const { token } = useAuth();
@@ -35,7 +36,9 @@ function ClosedOrdersContent() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
-  const [scope, setScope] = useState<'today'|'all'>('today');
+  const [period, setPeriod] = useState('today');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [adturFilter, setAdturFilter] = useState<'all'|0|1|3>('all');
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,7 +53,7 @@ function ClosedOrdersContent() {
 
   useEffect(() => {
     fetchOrders(1);
-  }, [scope]);
+  }, [period, customStartDate, customEndDate]);
 
   // Effect to apply local filters if we were doing local filtering, 
   // but the legacy code fetches from API for date, and local for table no.
@@ -68,21 +71,18 @@ function ClosedOrdersContent() {
         setLoading(true);
       }
 
-      // Scope: today or all
-      let url = `${getApiUrl()}/reports/closed-orders?page=${page}&limit=100`;
-      if (scope === 'today') {
-        url = `${getApiUrl()}/reports/closed-orders?period=today&page=${page}&limit=100`;
-      }
-
-      // If date filter is active
-      if (startDate && endDate) {
-        url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
-      } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
-         const s = searchParams.get('start_date');
-         const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
-         if (s) setStartDate(s);
-         if (e) setEndDate(e);
+      let url = `${getApiUrl()}/reports/closed-orders?period=${period}&page=${page}&limit=100`;
+      if (period === 'custom') {
+        const s = customStartDate || searchParams.get('start_date') || '';
+        const e = customEndDate || searchParams.get('end_date') || '';
+        if (!s || !e) {
+          setLoading(false);
+          setLoadingMore(false);
+          return;
+        }
+        url = `${getApiUrl()}/reports/closed-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+        setCustomStartDate(s);
+        setCustomEndDate(e);
       }
 
       const res = await axios.get(url, {
@@ -189,20 +189,17 @@ function ClosedOrdersContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
-      {/* Header */}
-      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-sm border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-            <button 
-                onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-full transition text-gray-700"
-            >
-                <ArrowLeft className="w-6 h-6" />
-            </button>
-            <h1 className="text-xl font-bold text-gray-900">{t('closed_orders')}</h1>
-        </div>
-      </div>
+      <ReportHeader
+        title={t('closed_orders')}
+        period={period}
+        setPeriod={setPeriod}
+        customStartDate={customStartDate}
+        setCustomStartDate={setCustomStartDate}
+        customEndDate={customEndDate}
+        setCustomEndDate={setCustomEndDate}
+      />
 
-      <div className="p-4 max-w-3xl mx-auto w-full">
+      <div className="p-4 max-w-3xl mx-auto w-full pt-[140px]">
         {/* Filter Section */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
             <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
@@ -285,23 +282,7 @@ function ClosedOrdersContent() {
                 </button>
             )}
             
-            <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-gray-500">{t('show')}:</span>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                    <button
-                        onClick={() => setScope('today')}
-                        className={`px-3 py-1.5 text-xs font-bold ${scope==='today' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Sadece bugün
-                    </button>
-                    <button
-                        onClick={() => setScope('all')}
-                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${scope==='all' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Tümü
-                    </button>
-                </div>
-            </div>
+            {/* scope buttons removed; using global ReportHeader period controls */}
         </div>
 
         {/* Count */}
@@ -384,19 +365,19 @@ function ClosedOrdersContent() {
                             {order.acilis_saati && (
                                 <div className="flex items-center">
                                     <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
+                                    <span className="text-xs text-gray-600 font-medium">Açılış Saati: {formatTime(order.acilis_saati)}</span>
                                 </div>
                             )}
                             {order.kapanis_saati && (
                                 <div className="flex items-center">
                                     <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
+                                    <span className="text-xs text-gray-600 font-medium">Kapanış Saati: {formatTime(order.kapanis_saati)}</span>
                                 </div>
                             )}
                             <div className="flex items-center">
                                 <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className={`text-xs font-medium ${getElapsedMinutes(order.tarih, order.acilis_saati, order.kapanis_saati) > 60 ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
-                                    {t('elapsed')}: {getElapsedText(order.tarih, order.acilis_saati, order.kapanis_saati)}
+                                    Geçen Süre: {getElapsedText(order.tarih, order.acilis_saati, order.kapanis_saati)}
                                 </span>
                             </div>
                             <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
