@@ -295,8 +295,10 @@ function ClosedOrdersContent() {
                                 {`Adisyon #${order.adsno || order.id}`}
                             </h3>
                             {(order.type_label || typeof order.adtur !== 'undefined') && (
-                                <span className="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                    {order.type_label || (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
+                                <span
+                                  className={`inline-block ${order.adtur===1 ? 'bg-amber-100 text-amber-700' : (order.adtur===0 ? 'bg-emerald-100 text-emerald-700' : 'bg-pink-100 text-pink-700')} text-sm font-bold px-3 py-1 rounded-md`}
+                                >
+                                  {order.type_label || (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))}
                                 </span>
                             )}
                         </div>
@@ -311,16 +313,14 @@ function ClosedOrdersContent() {
                         </div>
                         
                         <div className="flex-1 space-y-1.5 border-l border-gray-100 pl-4">
-                             {order.garson_adi && (
+                            <div className="flex items-center">
+                                <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
+                            </div>
+                            {order.garson_adi && (
                                 <div className="flex items-center">
                                     <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                     <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson_adi}</span>
-                                </div>
-                            )}
-                            {order.kapanis_saati && (
-                                <div className="flex items-center">
-                                    <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
                                 </div>
                             )}
                             {order.acilis_saati && (
@@ -329,11 +329,12 @@ function ClosedOrdersContent() {
                                     <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
                                 </div>
                             )}
-                            <div className="flex items-center">
-                                <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
-                            </div>
-                            {/* müşteri bilgisi kaldırıldı */}
+                            {order.kapanis_saati && (
+                                <div className="flex items-center">
+                                    <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
+                                </div>
+                            )}
                             <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
                                 <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>
