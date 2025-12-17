@@ -242,7 +242,29 @@ function OpenOrdersContent() {
                         onChange={(e) => setFilterMasa(e.target.value)}
                     />
                 </div>
-                {/* tarih alanı kaldırıldı */}
+                <div className="flex-1">
+                    <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">Tip</label>
+                    <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
+                        <button
+                          onClick={() => setAdturFilter('all')}
+                          className={`px-3 py-1.5 text-xs font-bold flex-1 ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          Tümü
+                        </button>
+                        <button
+                          onClick={() => setAdturFilter(0)}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('order_type_adisyon')}
+                        </button>
+                        <button
+                          onClick={() => setAdturFilter(1)}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('order_type_paket')}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Date Filter Dropdown */}
@@ -317,30 +339,7 @@ function OpenOrdersContent() {
         {/* Count */}
         <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
 
-        {/* Type Filter */}
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-gray-500">{t('filter_title')}:</span>
-          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-            <button
-              onClick={() => setAdturFilter('all')}
-              className={`px-3 py-1.5 text-xs font-bold ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
-            >
-              Tümü
-            </button>
-            <button
-              onClick={() => setAdturFilter(0)}
-              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-            >
-              {t('order_type_adisyon')}
-            </button>
-            <button
-              onClick={() => setAdturFilter(1)}
-              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-            >
-              {t('order_type_paket')}
-            </button>
-          </div>
-        </div>
+        
         {/* List */}
         <div className="space-y-3">
             {orders.map((order, idx) => (
