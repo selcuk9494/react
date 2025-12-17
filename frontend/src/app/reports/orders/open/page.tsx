@@ -245,7 +245,7 @@ function OpenOrdersContent() {
                             <label className="block text-xs text-gray-500 mb-1">{t('start_date')}</label>
                             <input 
                                 type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm"
+                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
                             />
@@ -254,7 +254,7 @@ function OpenOrdersContent() {
                             <label className="block text-xs text-gray-500 mb-1">{t('end_date')}</label>
                             <input 
                                 type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm"
+                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
                             />
@@ -321,7 +321,7 @@ function OpenOrdersContent() {
                         <div className="flex items-center space-x-3">
                             <Receipt className="w-6 h-6 text-amber-500" />
                             <h3 className="text-base font-bold text-gray-900">
-                                {`Adisyon #${order.adsno || order.id}`}
+                                {`Adisyon No: #${order.adsno || order.id}`}
                             </h3>
                             {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
                                 <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
