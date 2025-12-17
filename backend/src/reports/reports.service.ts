@@ -198,9 +198,7 @@ export class ReportsService {
                   ELSE 'Diğer'
                 END as type_label,
                 MAX(COALESCE(p.adi, pg.adi)) as garson,
-                MAX(a.garsonno) as garsonno,
                 MAX(m.adi) as customer_name,
-                MAX(a.mustid) as mustid,
                 MAX(a.actar) as tarih,
                 MAX(a.acsaat) as acilis_saati,
                 NULL as kapanis_saati,

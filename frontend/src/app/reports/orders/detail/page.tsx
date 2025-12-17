@@ -306,46 +306,6 @@ function OrderDetailContent() {
             <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('products')}</h2>
             
             <div className="space-y-3">
-                {orderData?.order_type === 'open' && (
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Sipariş Tipi</p>
-                        <p className="text-sm font-semibold">
-                          {typeof orderData?.adtur !== 'undefined' ? (orderData.adtur===0 ? 'Adisyon' : (orderData.adtur===1 ? 'Paket' : (orderData.adtur===3 ? 'Hızlı Satış' : 'Diğer'))) : (orderData?.type_label || '-')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Masa No</p>
-                        <p className="text-sm font-semibold">{(orderData?.masa_no ?? orderData?.masano) !== undefined ? (orderData?.masa_no ?? orderData?.masano) : '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Tarih</p>
-                        <p className="text-sm font-semibold">{orderData?.tarih ? formatDate(orderData.tarih) : '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Garson No</p>
-                        <p className="text-sm font-semibold">{orderData?.garsonno ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Sipyer</p>
-                        <p className="text-sm font-semibold">{orderData?.sipyer_name || orderData?.sipyer ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Açılış</p>
-                        <p className="text-sm font-semibold">{orderData?.acilis_saati ? formatTime(orderData.acilis_saati) : '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Müşteri</p>
-                        <p className="text-sm font-semibold">{orderData?.mustid ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Geçen Süre</p>
-                        <p className="text-sm font-semibold">{getElapsedText(orderData?.tarih, orderData?.acilis_saati)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {orderData && orderData.items && orderData.items.map((item: any, index: number) => {
                     const st = Number(item.sturu ?? -1);
                     const badge =
