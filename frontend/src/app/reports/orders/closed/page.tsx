@@ -321,10 +321,12 @@ function ClosedOrdersContent() {
                         </div>
                         
                         <div className="flex-1 space-y-1.5 border-l border-gray-100 pl-4">
-                            <div className="flex items-center">
-                                <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
-                            </div>
+                            {!(order.adtur === 1 || order.masa_no === 99999) && (
+                              <div className="flex items-center">
+                                  <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                  <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
+                              </div>
+                            )}
                             {order.garson_adi && (
                                 <div className="flex items-center">
                                     <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
