@@ -156,6 +156,7 @@ function OpenOrdersContent() {
     setFilterMasa('');
     setStartDate('');
     setEndDate('');
+    setAdturFilter('all');
     fetchOrders(1);
   };
 
@@ -231,40 +232,57 @@ function OpenOrdersContent() {
                 {t('filter_title')}
             </h2>
             
-            <div className="flex space-x-3">
-                <div className="w-40">
-                    <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">{t('table_no_label')}</label>
-                    <input 
-                        type="text" 
-                        placeholder="Örn: 5"
-                        className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition font-medium"
-                        value={filterMasa}
-                        onChange={(e) => setFilterMasa(e.target.value)}
-                    />
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">{t('table_no_label')}</label>
+                <input 
+                    type="text" 
+                    placeholder="Örn: 5"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition font-medium"
+                    value={filterMasa}
+                    onChange={(e) => setFilterMasa(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">Tip</label>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
+                    <button
+                      onClick={() => setAdturFilter('all')}
+                      className={`px-3 py-1.5 text-xs font-bold flex-1 ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                      Tümü
+                    </button>
+                    <button
+                      onClick={() => setAdturFilter(0)}
+                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                      {t('order_type_adisyon')}
+                    </button>
+                    <button
+                      onClick={() => setAdturFilter(1)}
+                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                      {t('order_type_paket')}
+                    </button>
                 </div>
-                <div className="flex-1">
-                    <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">Tip</label>
-                    <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
-                        <button
-                          onClick={() => setAdturFilter('all')}
-                          className={`px-3 py-1.5 text-xs font-bold flex-1 ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
-                        >
-                          Tümü
-                        </button>
-                        <button
-                          onClick={() => setAdturFilter(0)}
-                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-                        >
-                          {t('order_type_adisyon')}
-                        </button>
-                        <button
-                          onClick={() => setAdturFilter(1)}
-                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                        >
-                          {t('order_type_paket')}
-                        </button>
-                    </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">{t('show')}:</label>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
+                    <button
+                        onClick={() => setScope('today')}
+                        className={`px-3 py-1.5 text-xs font-bold flex-1 ${scope==='today' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Sadece bugün
+                    </button>
+                    <button
+                        onClick={() => setScope('all')}
+                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${scope==='all' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                    >
+                        Tümü
+                    </button>
                 </div>
+              </div>
             </div>
 
             {/* Date Filter Dropdown */}
@@ -317,23 +335,7 @@ function OpenOrdersContent() {
                 </button>
             )}
             
-            <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-gray-500">{t('show')}:</span>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                    <button
-                        onClick={() => setScope('today')}
-                        className={`px-3 py-1.5 text-xs font-bold ${scope==='today' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Sadece bugün
-                    </button>
-                    <button
-                        onClick={() => setScope('all')}
-                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${scope==='all' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Tümü
-                    </button>
-                </div>
-            </div>
+            
         </div>
 
         {/* Count */}

@@ -158,63 +158,75 @@ export default function CourierTrackingReport() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pt-[140px]">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center gap-3">
-            <div className="flex items-center">
-              <select
-                className="px-3 py-2 rounded-lg text-xs font-bold border bg-white border-gray-200 text-gray-600 min-w-[180px]"
-                value={courierFilter}
-                onChange={(e) => setCourierFilter(e.target.value)}
-              >
-                <option value="">{t('courier')}</option>
-                {courierNames.map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              {[
-                { id: 'trips', label: 'Detay' },
-                { id: 'couriers', label: 'Kurye Bazlı' },
-              ].map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setViewMode(b.id as any)}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${viewMode === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+              <div>
+                <p className="text-[11px] font-bold text-gray-700 mb-1">{t('courier')}</p>
+                <select
+                  className="w-full px-3 py-2 rounded-lg text-xs font-bold border bg-white border-gray-200 text-gray-600"
+                  value={courierFilter}
+                  onChange={(e) => setCourierFilter(e.target.value)}
                 >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              {[
-                { id: 'all', label: t('filter_title') },
-                { id: 'open', label: t('on_road') },
-                { id: 'closed', label: t('returned') },
-              ].map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setStatusFilter(b.id as any)}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              {[
-                { id: 'all', label: t('duration') },
-                { id: 'lt15', label: '<15' },
-                { id: '15to30', label: '15-30' },
-                { id: 'gt30', label: '>30' },
-              ].map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setDurationFilter(b.id as any)}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${durationFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
-                >
-                  {b.label}
-                </button>
-              ))}
+                  <option value="">{t('courier')}</option>
+                  {courierNames.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-700 mb-1">Görünüm</p>
+                <div className="flex items-center gap-2">
+                  {[
+                    { id: 'trips', label: 'Detay' },
+                    { id: 'couriers', label: 'Kurye Bazlı' },
+                  ].map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => setViewMode(b.id as any)}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold border ${viewMode === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-700 mb-1">{t('status')}</p>
+                <div className="flex items-center gap-2">
+                  {[
+                    { id: 'all', label: t('filter_title') },
+                    { id: 'open', label: t('on_road') },
+                    { id: 'closed', label: t('returned') },
+                  ].map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => setStatusFilter(b.id as any)}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold border ${statusFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-700 mb-1">{t('duration')}</p>
+                <div className="flex items-center gap-2">
+                  {[
+                    { id: 'all', label: t('duration') },
+                    { id: 'lt15', label: '<15' },
+                    { id: '15to30', label: '15-30' },
+                    { id: 'gt30', label: '>30' },
+                  ].map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => setDurationFilter(b.id as any)}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold border ${durationFilter === b.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           {loading ? (
