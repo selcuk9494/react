@@ -219,68 +219,37 @@ function ClosedOrdersContent() {
                     />
                 </div>
                 <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-900 mb-1 font-bold">{t('date')}:</label>
-                    <button 
-                        onClick={() => setShowDateFilter(!showDateFilter)}
-                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-900 hover:bg-gray-50 transition font-medium"
-                    >
-                        <Calendar className="w-4 h-4 mr-2 text-gray-600" />
-                        <span className="truncate">
-                            {startDate ? `${new Date(startDate).toLocaleDateString()}` : t('select')}
-                        </span>
-                    </button>
+                    <label className="block text-xs font-medium text-gray-900 mb-1 font-bold">Filtrele:</label>
+                    <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
+                        <button
+                          onClick={() => setAdturFilter('all')}
+                          className={`px-3 py-1.5 text-xs font-bold flex-1 ${adturFilter==='all' ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          Tümü
+                        </button>
+                        <button
+                          onClick={() => setAdturFilter(0)}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('order_type_adisyon')}
+                        </button>
+                        <button
+                          onClick={() => setAdturFilter(1)}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('order_type_paket')}
+                        </button>
+                        <button
+                          onClick={() => setAdturFilter(3)}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===3 ? 'bg-pink-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('order_type_hizli')}
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Date Filter Dropdown */}
-            {showDateFilter && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">{t('start_date')}</label>
-                            <input 
-                                type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">{t('end_date')}</label>
-                            <input 
-                                type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                        <button 
-                            onClick={() => setShowDateFilter(false)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition"
-                        >
-                            {t('cancel')}
-                        </button>
-                        <button 
-                            onClick={handleDateSubmit}
-                            className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
-                        >
-                            {t('apply')}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {(filterMasa || (startDate && endDate)) && (
-                <button 
-                    onClick={clearFilters}
-                    className="mt-3 flex items-center text-xs font-bold text-red-500 hover:text-red-700 transition"
-                >
-                    <X className="w-3 h-3 mr-1" />
-                    {t('clear_filters')}
-                </button>
-            )}
+            {/* tarih dropdown kaldırıldı; üst menüden tarih seçimi yapılır */}
             
             {/* scope buttons removed; using global ReportHeader period controls */}
         </div>
