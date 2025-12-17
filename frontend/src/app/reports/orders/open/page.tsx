@@ -223,18 +223,7 @@ function OpenOrdersContent() {
                         onChange={(e) => setFilterMasa(e.target.value)}
                     />
                 </div>
-                <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-900 mb-1 font-bold">{t('date')}:</label>
-                    <button 
-                        onClick={() => setShowDateFilter(!showDateFilter)}
-                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-left flex items-center text-gray-900 hover:bg-gray-50 transition font-medium"
-                    >
-                        <Calendar className="w-4 h-4 mr-2 text-gray-600" />
-                        <span className="truncate">
-                            {startDate ? `${new Date(startDate).toLocaleDateString()}` : t('select')}
-                        </span>
-                    </button>
-                </div>
+                {/* tarih alanı kaldırıldı */}
             </div>
 
             {/* Date Filter Dropdown */}
