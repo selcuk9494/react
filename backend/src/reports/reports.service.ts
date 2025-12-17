@@ -97,11 +97,18 @@ export class ReportsService {
                 MAX(a.actar) as tarih,
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 MAX(a.kasa) as kasano,
-                MAX(COALESCE(o.mustid, 0)) as mustid,
-                MAX(COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), '')) as customer_name
+                MAX(COALESCE(o.mustid, a.mustid, 0)) as mustid,
+                MAX(
+                  COALESCE(
+                    mo.adi || ' ' || COALESCE(mo.soyadi, ''),
+                    ma.adi || ' ' || COALESCE(ma.soyadi, ''),
+                    ''
+                  )
+                ) as customer_name
             FROM ads_acik a
             LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
-            LEFT JOIN ads_musteri m ON o.mustid = m.id
+            LEFT JOIN ads_musteri mo ON o.mustid = mo.id
+            LEFT JOIN ads_musteri ma ON a.mustid = ma.id
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
         const params: any[] = [kasa_nos];
@@ -125,11 +132,18 @@ export class ReportsService {
                     MAX(a.actar) as tarih,
                     MAX(COALESCE(a.adtur, 0)) as adtur,
                     MAX(a.kasa) as kasano,
-                    MAX(COALESCE(o.mustid, 0)) as mustid,
-                    MAX(COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), '')) as customer_name
+                    MAX(COALESCE(o.mustid, a.mustid, 0)) as mustid,
+                    MAX(
+                      COALESCE(
+                        mo.adi || ' ' || COALESCE(mo.soyadi, ''),
+                        ma.adi || ' ' || COALESCE(ma.soyadi, ''),
+                        ''
+                      )
+                    ) as customer_name
                 FROM ads_acik a
                 LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
-                LEFT JOIN ads_musteri m ON o.mustid = m.id
+                LEFT JOIN ads_musteri mo ON o.mustid = mo.id
+                LEFT JOIN ads_musteri ma ON a.mustid = ma.id
                 WHERE a.kasa = ANY($1)
                 GROUP BY a.adsno
                 ORDER BY a.adsno DESC
@@ -147,11 +161,18 @@ export class ReportsService {
                         MAX(a.actar) as tarih,
                         MAX(COALESCE(a.adtur, 0)) as adtur,
                         MAX(a.kasa) as kasano,
-                        MAX(COALESCE(o.mustid, 0)) as mustid,
-                        MAX(COALESCE(m.adi || ' ' || COALESCE(m.soyadi, ''), '')) as customer_name
+                        MAX(COALESCE(o.mustid, a.mustid, 0)) as mustid,
+                        MAX(
+                          COALESCE(
+                            mo.adi || ' ' || COALESCE(mo.soyadi, ''),
+                            ma.adi || ' ' || COALESCE(ma.soyadi, ''),
+                            ''
+                          )
+                        ) as customer_name
                     FROM ads_acik a
                     LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
-                    LEFT JOIN ads_musteri m ON o.mustid = m.id
+                    LEFT JOIN ads_musteri mo ON o.mustid = mo.id
+                    LEFT JOIN ads_musteri ma ON a.mustid = ma.id
                     WHERE a.kasa = $1
                     GROUP BY a.adsno
                     ORDER BY a.adsno DESC
