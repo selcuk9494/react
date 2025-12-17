@@ -38,6 +38,7 @@ function OpenOrdersContent() {
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [scope, setScope] = useState<'today'|'all'>('all');
+  const [adturFilter, setAdturFilter] = useState<'all'|0|1>('all');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -53,7 +54,7 @@ function OpenOrdersContent() {
 
   useEffect(() => {
     applyFilters();
-  }, [filterMasa, allOrders]);
+  }, [filterMasa, allOrders, adturFilter]);
 
   const fetchOrders = async (page = 1, append = false) => {
     if (!token) return;
@@ -110,18 +111,36 @@ function OpenOrdersContent() {
         o.id?.toString().includes(filterMasa)
       );
     }
-    const adturParam = searchParams.get('adtur');
-    if (adturParam !== null) {
-      const t = Number(adturParam);
+    const pickType = (o:any) => {
+      if (typeof o.adtur !== 'undefined') return Number(o.adtur);
+      if (typeof o.sipyer !== 'undefined') {
+        const s = Number(o.sipyer);
+        if (s === 2) return 1; // Paket
+        return 0; // Adisyon varsayılan
+      }
+      return -1;
+    };
+    if (adturFilter !== 'all') {
       filtered = filtered.filter(o => {
-        const a = Number(o.adtur ?? -1);
-        if (t === 0) return a === 0;
-        if (t === 1) return a === 1 || a === 3;
-        if (t === 3) return a === 3;
+        const a = pickType(o);
+        if (adturFilter === 0) return a === 0;
+        if (adturFilter === 1) return a === 1;
         return true;
       });
-      if (filtered.length === 0) {
-        filtered = [...allOrders];
+    } else {
+      const adturParam = searchParams.get('adtur');
+      if (adturParam !== null) {
+        const t = Number(adturParam);
+        filtered = filtered.filter(o => {
+          const a = pickType(o);
+          if (t === 0) return a === 0;
+          if (t === 1) return a === 1;
+          if (t === 3) return a === 3;
+          return true;
+        });
+        if (filtered.length === 0) {
+          filtered = [...allOrders];
+        }
       }
     }
     setOrders(filtered);
@@ -298,6 +317,30 @@ function OpenOrdersContent() {
         {/* Count */}
         <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
 
+        {/* Type Filter */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-xs text-gray-500">{t('filter_title')}:</span>
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setAdturFilter('all')}
+              className={`px-3 py-1.5 text-xs font-bold ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              Tümü
+            </button>
+            <button
+              onClick={() => setAdturFilter(0)}
+              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              {t('order_type_adisyon')}
+            </button>
+            <button
+              onClick={() => setAdturFilter(1)}
+              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+            >
+              {t('order_type_paket')}
+            </button>
+          </div>
+        </div>
         {/* List */}
         <div className="space-y-3">
             {orders.map((order, idx) => (
