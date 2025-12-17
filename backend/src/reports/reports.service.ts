@@ -87,7 +87,7 @@ export class ReportsService {
     }
 
     if (status === 'open') {
-        const query = `
+        let query = `
             SELECT 
                 a.adsno,
                 CAST(a.sipyer AS INTEGER) as sipyer,
@@ -104,13 +104,20 @@ export class ReportsService {
                 MAX(a.actar) as tarih,
                 MAX(a.acsaat) as acilis_saati
             FROM ads_acik a
-            LEFT JOIN personel p ON a.sip_ekleyen = p.id
+            LEFT JOIN personel p ON a.garsonno = p.id
             LEFT JOIN ads_musteri m ON a.mustid = m.id
-            WHERE a.kasa = $1 ${typeCondition}
+            WHERE a.kasa = ANY($1::int[]) ${typeCondition}
+        `;
+        const params: any[] = [kasa_nos];
+        if (period !== 'all') {
+            query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
+            params.push(dStart, dEnd);
+        }
+        query += `
             GROUP BY a.adsno, a.sipyer
             ORDER BY a.adsno DESC
         `;
-        const rows = await this.db.executeQuery(pool, query, [kasa_no]);
+        const rows = await this.db.executeQuery(pool, query, params);
         return rows;
     } else {
         if (period === 'all') {
