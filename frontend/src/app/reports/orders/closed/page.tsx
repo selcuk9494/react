@@ -36,6 +36,7 @@ function ClosedOrdersContent() {
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [scope, setScope] = useState<'today'|'all'>('today');
+  const [adturFilter, setAdturFilter] = useState<'all'|0|1|3>('all');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -56,7 +57,7 @@ function ClosedOrdersContent() {
   // Legacy: fetchOrders fetches from API. applyFilters filters locally by masa_no.
   useEffect(() => {
     applyFilters();
-  }, [filterMasa, allOrders]);
+  }, [filterMasa, allOrders, adturFilter]);
 
   const fetchOrders = async (page = 1, append = false) => {
     if (!token) return;
@@ -117,10 +118,14 @@ function ClosedOrdersContent() {
         o.id?.toString().includes(filterMasa)
       );
     }
-    const adturParam = searchParams.get('adtur');
-    if (adturParam !== null) {
-      const t = Number(adturParam);
-      filtered = filtered.filter(o => (o.adtur ?? -1) === t);
+    if (adturFilter !== 'all') {
+      filtered = filtered.filter(o => (o.adtur ?? -1) === adturFilter);
+    } else {
+      const adturParam = searchParams.get('adtur');
+      if (adturParam !== null) {
+        const t = Number(adturParam);
+        filtered = filtered.filter(o => (o.adtur ?? -1) === t);
+      }
     }
     setOrders(filtered);
   };
@@ -150,6 +155,28 @@ function ClosedOrdersContent() {
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  const getElapsedMinutes = (dateString?: string, start?: string, end?: string) => {
+    if (!dateString || !start || !end) return 0;
+    const d = new Date(dateString);
+    const sParts = start.split(':');
+    const eParts = end.split(':');
+    const sh = Number(sParts[0] || 0);
+    const sm = Number(sParts[1] || 0);
+    const eh = Number(eParts[0] || 0);
+    const em = Number(eParts[1] || 0);
+    const ds = new Date(d); ds.setHours(sh, sm, 0, 0);
+    const de = new Date(d); de.setHours(eh, em, 0, 0);
+    let diff = de.getTime() - ds.getTime();
+    if (diff < 0) diff += 24 * 3600000;
+    return Math.floor(diff / 60000);
+  };
+  const getElapsedText = (dateString?: string, start?: string, end?: string) => {
+    const mins = getElapsedMinutes(dateString, start, end);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) return `${h} sa ${m} dk`;
+    return `${m} dk`;
   };
 
   if (loading && !allOrders.length) {
@@ -280,6 +307,37 @@ function ClosedOrdersContent() {
         {/* Count */}
         <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
 
+        {/* Type Filter */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-xs text-gray-500">{t('filter_title')}:</span>
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setAdturFilter('all')}
+              className={`px-3 py-1.5 text-xs font-bold ${adturFilter==='all' ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+            >
+              Tümü
+            </button>
+            <button
+              onClick={() => setAdturFilter(0)}
+              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              {t('order_type_adisyon')}
+            </button>
+            <button
+              onClick={() => setAdturFilter(1)}
+              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
+            >
+              {t('order_type_paket')}
+            </button>
+            <button
+              onClick={() => setAdturFilter(3)}
+              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===3 ? 'bg-pink-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              {t('order_type_hizli')}
+            </button>
+          </div>
+        </div>
+
         {/* List */}
         <div className="space-y-3">
             {orders.map((order, idx) => (
@@ -335,6 +393,12 @@ function ClosedOrdersContent() {
                                     <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
                                 </div>
                             )}
+                            <div className="flex items-center">
+                                <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                <span className={`text-xs font-medium ${getElapsedMinutes(order.tarih, order.acilis_saati, order.kapanis_saati) > 60 ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                                    {t('elapsed')}: {getElapsedText(order.tarih, order.acilis_saati, order.kapanis_saati)}
+                                </span>
+                            </div>
                             <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
                                 <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>
