@@ -368,14 +368,6 @@ function OpenOrdersContent() {
                                     </span>
                                 </div>
                             )}
-                            {(typeof order.mustid !== 'undefined' || order.customer_name) && (
-                                <div className="flex items-center">
-                                    <Users className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 truncate">
-                                        {t('customer')}: {order.customer_name || '-'}{typeof order.mustid !== 'undefined' ? ` (#${order.mustid})` : ''}
-                                    </span>
-                                </div>
-                            )}
                             {order.acilis_saati && (
                                 <div className="flex items-center">
                                     <Timer className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
