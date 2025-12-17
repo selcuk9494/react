@@ -321,7 +321,9 @@ function OpenOrdersContent() {
                         <div className="flex items-center space-x-3">
                             <Receipt className="w-6 h-6 text-amber-500" />
                             <h3 className="text-base font-bold text-gray-900">
-                                {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
+                                {order.masa_no && order.masa_no !== 99999 
+                                  ? `${t('table')} ${order.masa_no}` 
+                                  : `Adisyon #${order.adsno || order.id}`}
                             </h3>
                             {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
                                 <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
@@ -348,6 +350,12 @@ function OpenOrdersContent() {
                                     <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
                                 </div>
                             )}
+                            {(order.masa_no && order.masa_no !== 99999) && (
+                                <div className="flex items-center">
+                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">Masa Numarası: {order.masa_no}</span>
+                                </div>
+                            )}
                             {order.acilis_saati && (
                                 <div className="flex items-center">
                                     <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
@@ -367,7 +375,7 @@ function OpenOrdersContent() {
                             {(order.customer_name || order.mustid) && (
                                 <div className="flex items-center">
                                     <Users className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 truncate">{t('customer')}: {order.customer_name || order.mustid}</span>
+                                    <span className="text-xs text-gray-600 truncate">Müşteri Adı: {order.customer_name || order.mustid}</span>
                                 </div>
                             )}
                             {order.acilis_saati && (
