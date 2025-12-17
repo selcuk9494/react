@@ -161,9 +161,11 @@ export class ReportsService {
                 MAX(a.kaptar) as tarih,
                 MAX(a.kapsaat) as kapanis_saati,
                 MAX(a.acsaat) as acilis_saati,
-                MAX(p.adi) as garson_adi
+                MAX(p.adi) as garson_adi,
+                COALESCE(MAX(o.mustid), MAX(a.mustid)) as mustid
             FROM ads_adisyon a
             LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
         const params: any[] = [kasa_nos];
@@ -185,46 +187,86 @@ export class ReportsService {
 
     if (status === 'open') {
         const query = `
-            SELECT 
-                a.adsno,
-                CAST(a.sipyer AS INTEGER) as sipyer,
-                MAX(COALESCE(a.masano, 0)) as masano,
-                MAX(COALESCE(a.masano, 0)) as masa_no,
-                MAX(COALESCE(a.adtur, 0)) as adtur,
+            WITH ainfo AS (
+                SELECT 
+                    adsno,
+                    MAX(COALESCE(masano, 0)) as masano,
+                    MAX(CAST(sipyer AS INTEGER)) as sipyer,
+                    MAX(COALESCE(adtur, CASE WHEN sipyer = 2 THEN 1 WHEN sipyer = 1 AND masano = 99999 THEN 3 ELSE 0 END)) as adtur,
+                    MAX(actar) as tarih,
+                    MAX(acsaat) as acsaat,
+                    MAX(garsonno) as garsonno
+                FROM ads_acik
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                GROUP BY adsno
+            ),
+            items_acik AS (
+                SELECT 
+                    COALESCE(json_agg(json_build_object(
+                        'urun_adi', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
+                        'miktar', COALESCE(a.miktar, 1),
+                        'birim_fiyat', a.bfiyat,
+                        'toplam', a.tutar,
+                        'ack1', a.ack1,
+                        'ack2', a.ack2,
+                        'ack3', a.ack3,
+                        'sturu', a.sturu
+                    )), '[]'::json) as items
+                FROM ads_acik a
+                LEFT JOIN product p ON a.plu = p.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+            ),
+            items_adisyon AS (
+                SELECT 
+                    COALESCE(json_agg(json_build_object(
+                        'urun_adi', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
+                        'miktar', a.miktar,
+                        'birim_fiyat', a.bfiyat,
+                        'toplam', a.tutar,
+                        'ack1', a.ack1,
+                        'ack2', a.ack2,
+                        'ack3', a.ack3,
+                        'sturu', a.sturu
+                    )), '[]'::json) as items
+                FROM ads_adisyon a
+                LEFT JOIN product p ON a.plu = p.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+            )
+            SELECT
+                ainfo.adsno,
+                ainfo.adtur as adtur,
+                ainfo.masano as masano,
+                ainfo.masano as masa_no,
+                ainfo.sipyer as sipyer,
                 CASE 
-                  WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
-                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Hızlı Satış'
-                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) < 99999 THEN 'Adisyon'
+                  WHEN ainfo.sipyer = 1 THEN 'Hızlı Satış'
+                  WHEN ainfo.sipyer = 2 THEN 'Paket'
+                  WHEN ainfo.sipyer = 3 THEN 'Adisyon'
                   ELSE 'Diğer'
-                END as type_label,
+                END as sipyer_name,
                 MAX(p.adi) as garson,
                 MAX(m.adi) as customer_name,
-                MAX(a.actar) as tarih,
-                MAX(a.acsaat) as acilis_saati,
+                MAX(a.mustid) as mustid,
+                ainfo.tarih as tarih,
+                ainfo.acsaat as acilis_saati,
                 NULL as kapanis_saati,
-                SUM(COALESCE(a.tutar, 0)) as toplam_tutar,
-                SUM(COALESCE(a.iskonto, 0)) as toplam_iskonto,
-                NULL as toplam_otutar,
-                NULL as payment_name,
-                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = MAX(CAST(a.sipyer AS INTEGER))) as sipyer_name,
-                json_agg(json_build_object(
-                    'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
-                    'quantity', COALESCE(a.miktar, 1),
-                    'price', a.bfiyat,
-                    'total', a.tutar,
-                    'ack1', a.ack1,
-                    'ack2', a.ack2,
-                    'ack3', a.ack3,
-                    'sturu', a.sturu
-                )) as items
-            FROM ads_acik a
-            LEFT JOIN personel p ON a.sip_ekleyen = p.id
+                COALESCE(SUM(a.iskonto), 0) as toplam_iskonto,
+                COALESCE(SUM(a.tutar), 0) as toplam_tutar,
+                COALESCE(MAX(od.odmname), NULL) as payment_name,
+                (SELECT CASE 
+                    WHEN json_array_length(items_acik.items) = 0 THEN items_adisyon.items 
+                    ELSE items_acik.items 
+                 END) as items
+            FROM ainfo
+            LEFT JOIN ads_acik a ON a.adsno = ainfo.adsno AND a.kasa = ANY($1)
+            LEFT JOIN personel p ON ainfo.garsonno = p.id
             LEFT JOIN ads_musteri m ON a.mustid = m.id
-            LEFT JOIN product pr ON a.pluid = pr.plu
-            WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
-            GROUP BY a.adsno, a.sipyer
+            LEFT JOIN ads_odeme o ON o.adsno = ainfo.adsno AND o.kasa = ANY($1)
+            LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
+            GROUP BY ainfo.adsno, ainfo.masano, ainfo.sipyer, ainfo.acsaat, ainfo.tarih, ainfo.adtur
         `;
-        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
+        const params = typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno];
+        const rows = await this.db.executeQuery(pool, query, params);
         return rows[0] || null;
     } else {
         const query = `
@@ -236,6 +278,7 @@ export class ReportsService {
                     MAX(kapsaat) as kapsaat,
                     MAX(CAST(sipyer AS INTEGER)) as sipyer,
                     MAX(garsonno) as garsonno,
+                    MAX(COALESCE(mustid, 0)) as mustid,
                     MAX(COALESCE(adtur, 0)) as adtur
                 FROM ads_adisyon
                 WHERE kasa = $1 AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
@@ -244,7 +287,7 @@ export class ReportsService {
             items AS (
                 SELECT 
                     COALESCE(json_agg(json_build_object(
-                        'product_name', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
+                        'product_name', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
                         'quantity', a.miktar,
                         'price', a.bfiyat,
                         'total', a.tutar,
@@ -252,11 +295,11 @@ export class ReportsService {
                         'ack2', a.ack2,
                         'ack3', a.ack3,
                         'sturu', a.sturu,
-                        'pluid', a.pluid,
+                        'plu', a.plu,
                         'adtur', a.adtur
                     )), '[]'::json) as items
                 FROM ads_adisyon a
-                LEFT JOIN product p ON a.pluid = p.plu
+                LEFT JOIN product p ON a.plu = p.plu
                 WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
             )
             SELECT
@@ -273,6 +316,7 @@ export class ReportsService {
                 COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
                 COALESCE(SUM(o.otutar), 0) as toplam_tutar,
                 COALESCE(MAX(od.odmname), NULL) as payment_name,
+                COALESCE(MAX(o.mustid), ad.mustid) as mustid,
                 (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = ad.sipyer) as sipyer_name,
                 (SELECT items FROM items) as items
             FROM ad

@@ -281,22 +281,33 @@ function OrderDetailContent() {
                         </div>
                     </div>
 
-                    {orderData?.acilis_saati && (
-                         <div className="flex items-center space-x-2 col-span-2">
-                             <div className="p-1.5 bg-indigo-500/30 rounded-lg">
-                                <Timer className="w-4 h-4 text-indigo-200" />
+                        {orderData?.acilis_saati && (
+                            <div className="flex items-center space-x-2 col-span-2">
+                                <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                    <Timer className="w-4 h-4 text-indigo-200" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-indigo-200">{orderData?.order_type === 'closed' ? t('duration') : t('elapsed')}</p>
+                                    <p className={clsx(
+                                        "text-sm font-semibold",
+                                        !orderData.kapanis_saati && getElapsedMinutes(orderData.tarih, orderData.acilis_saati) > 60 ? "text-red-300 font-bold" : ""
+                                    )}>
+                                        {getElapsedText(orderData?.tarih, orderData?.acilis_saati, orderData?.kapanis_saati, orderData?.order_type)}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs text-indigo-200">{orderData?.order_type === 'closed' ? t('duration') : t('elapsed')}</p>
-                                <p className={clsx(
-                                    "text-sm font-semibold",
-                                    !orderData.kapanis_saati && getElapsedMinutes(orderData.tarih, orderData.acilis_saati) > 60 ? "text-red-300 font-bold" : ""
-                                )}>
-                                    {getElapsedText(orderData?.tarih, orderData?.acilis_saati, orderData?.kapanis_saati, orderData?.order_type)}
-                                </p>
+                        )}
+                        {typeof orderData?.mustid !== 'undefined' && (
+                            <div className="flex items-center space-x-2 col-span-2">
+                                <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                    <Users className="w-4 h-4 text-indigo-200" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-indigo-200">Müşteri</p>
+                                    <p className="text-sm font-semibold">{orderData.mustid}</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </div>
             </div>
         </div>
@@ -309,12 +320,12 @@ function OrderDetailContent() {
                 {orderData && orderData.items && orderData.items.map((item: any, index: number) => (
                     <div key={index} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                         <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-base font-bold text-gray-900 flex-1">{item.product_name || 'Ürün'}</h3>
-                            <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency(item.total)}</span>
+                            <h3 className="text-base font-bold text-gray-900 flex-1">{item.product_name || item.urun_adi || 'Ürün'}</h3>
+                            <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency((item.total ?? item.toplam) || 0)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-gray-500">
                             <span>
-                                {item.quantity} {t('quantity').toLowerCase()} × {formatCurrency(item.price)}
+                                {(item.quantity ?? item.miktar) || 1} {t('quantity').toLowerCase()} × {formatCurrency((item.price ?? item.birim_fiyat) || 0)}
                             </span>
                         </div>
                         {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (

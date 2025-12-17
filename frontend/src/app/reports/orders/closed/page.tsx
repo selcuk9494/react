@@ -264,7 +264,7 @@ function ClosedOrdersContent() {
             {orders.map((order, idx) => (
                 <button
                     key={idx}
-                    onClick={() => router.push(`/reports/orders/detail?id=${order.id || order.adsno}&type=closed${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
+                    onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=closed${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
                     className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition text-left group"
                 >
                     <div className="flex justify-between items-center mb-3">
@@ -302,6 +302,12 @@ function ClosedOrdersContent() {
                                 <div className="flex items-center">
                                     <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                     <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson_adi}</span>
+                                </div>
+                            )}
+                            {typeof order.mustid !== 'undefined' && (
+                                <div className="flex items-center">
+                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">Müşteri: {order.mustid}</span>
                                 </div>
                             )}
                             {order.acilis_saati && (
