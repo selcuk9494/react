@@ -203,7 +203,7 @@ export class ReportsService {
             items_acik AS (
                 SELECT 
                     COALESCE(json_agg(json_build_object(
-                        'urun_adi', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
+                        'urun_adi', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
                         'miktar', COALESCE(a.miktar, 1),
                         'birim_fiyat', a.bfiyat,
                         'toplam', a.tutar,
@@ -213,13 +213,13 @@ export class ReportsService {
                         'sturu', a.sturu
                     )), '[]'::json) as items
                 FROM ads_acik a
-                LEFT JOIN product p ON a.plu = p.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+                LEFT JOIN product p ON a.pluid = p.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2
             ),
             items_adisyon AS (
                 SELECT 
                     COALESCE(json_agg(json_build_object(
-                        'urun_adi', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
+                        'urun_adi', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
                         'miktar', a.miktar,
                         'birim_fiyat', a.bfiyat,
                         'toplam', a.tutar,
@@ -229,8 +229,8 @@ export class ReportsService {
                         'sturu', a.sturu
                     )), '[]'::json) as items
                 FROM ads_adisyon a
-                LEFT JOIN product p ON a.plu = p.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+                LEFT JOIN product p ON a.pluid = p.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2
             )
             SELECT
                 ainfo.adsno,
@@ -281,13 +281,13 @@ export class ReportsService {
                     MAX(COALESCE(mustid, 0)) as mustid,
                     MAX(COALESCE(adtur, 0)) as adtur
                 FROM ads_adisyon
-                WHERE kasa = $1 AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
             ),
             items AS (
                 SELECT 
                     COALESCE(json_agg(json_build_object(
-                        'product_name', COALESCE(p.product_name, CAST(a.plu AS VARCHAR)),
+                        'product_name', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
                         'quantity', a.miktar,
                         'price', a.bfiyat,
                         'total', a.tutar,
@@ -295,12 +295,12 @@ export class ReportsService {
                         'ack2', a.ack2,
                         'ack3', a.ack3,
                         'sturu', a.sturu,
-                        'plu', a.plu,
+                        'pluid', a.pluid,
                         'adtur', a.adtur
                     )), '[]'::json) as items
                 FROM ads_adisyon a
-                LEFT JOIN product p ON a.plu = p.plu
-                WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
+                LEFT JOIN product p ON a.pluid = p.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2
             )
             SELECT
                 ad.adsno,
@@ -320,13 +320,13 @@ export class ReportsService {
                 (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = ad.sipyer) as sipyer_name,
                 (SELECT items FROM items) as items
             FROM ad
-            LEFT JOIN ads_odeme o ON o.adsno = ad.adsno AND o.kasa = $1
+            LEFT JOIN ads_odeme o ON o.adsno = ad.adsno AND o.kasa = ANY($1)
             LEFT JOIN personel p ON ad.garsonno = p.id
             LEFT JOIN ads_musteri m ON o.mustid = m.id
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             GROUP BY ad.adsno, ad.masano, ad.acsaat, ad.kapsaat, ad.sipyer, ad.adtur
         `;
-        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_no, adsno, adtur] : [kasa_no, adsno]);
+        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno]);
         return rows[0] || null;
     }
   }
