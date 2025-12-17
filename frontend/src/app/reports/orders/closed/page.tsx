@@ -257,36 +257,7 @@ function ClosedOrdersContent() {
         {/* Count */}
         <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
 
-        {/* Type Filter */}
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-gray-500">{t('filter_title')}:</span>
-          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-            <button
-              onClick={() => setAdturFilter('all')}
-              className={`px-3 py-1.5 text-xs font-bold ${adturFilter==='all' ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
-            >
-              Tümü
-            </button>
-            <button
-              onClick={() => setAdturFilter(0)}
-              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-            >
-              {t('order_type_adisyon')}
-            </button>
-            <button
-              onClick={() => setAdturFilter(1)}
-              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-            >
-              {t('order_type_paket')}
-            </button>
-            <button
-              onClick={() => setAdturFilter(3)}
-              className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${adturFilter===3 ? 'bg-pink-600 text-white' : 'bg-white text-gray-700'}`}
-            >
-              {t('order_type_hizli')}
-            </button>
-          </div>
-        </div>
+        {/* Tip filtre çubuğu kaldırıldı */}
 
         {/* List */}
         <div className="space-y-3">
