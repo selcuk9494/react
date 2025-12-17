@@ -192,12 +192,12 @@ export class ReportsService {
                 MAX(COALESCE(a.masano, 0)) as masa_no,
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 CASE 
+                  WHEN CAST(a.sipyer AS INTEGER) = 1 THEN 'Hızlı Satış'
                   WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
-                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Hızlı Satış'
-                  WHEN CAST(a.sipyer AS INTEGER) = 1 AND MAX(COALESCE(a.masano, 0)) < 99999 THEN 'Adisyon'
+                  WHEN CAST(a.sipyer AS INTEGER) = 3 THEN 'Adisyon'
                   ELSE 'Diğer'
                 END as type_label,
-                MAX(p.adi) as garson,
+                MAX(COALESCE(p.adi, pg.adi)) as garson,
                 MAX(m.adi) as customer_name,
                 MAX(a.actar) as tarih,
                 MAX(a.acsaat) as acilis_saati,
@@ -205,8 +205,13 @@ export class ReportsService {
                 SUM(COALESCE(a.tutar, 0)) as toplam_tutar,
                 SUM(COALESCE(a.iskonto, 0)) as toplam_iskonto,
                 NULL as toplam_otutar,
-                NULL as payment_name,
-                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = MAX(CAST(a.sipyer AS INTEGER))) as sipyer_name,
+                COALESCE(MAX(od.odmname), NULL) as payment_name,
+                CASE 
+                  WHEN MAX(CAST(a.sipyer AS INTEGER)) = 1 THEN 'Hızlı Satış'
+                  WHEN MAX(CAST(a.sipyer AS INTEGER)) = 2 THEN 'Paket'
+                  WHEN MAX(CAST(a.sipyer AS INTEGER)) = 3 THEN 'Adisyon'
+                  ELSE 'Diğer'
+                END as sipyer_name,
                 json_agg(json_build_object(
                     'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
                     'quantity', COALESCE(a.miktar, 1),
@@ -215,11 +220,15 @@ export class ReportsService {
                     'ack1', a.ack1,
                     'ack2', a.ack2,
                     'ack3', a.ack3,
-                    'sturu', a.sturu
+                    'sturu', a.sturu,
+                    'pluid', a.pluid
                 )) as items
             FROM ads_acik a
-            LEFT JOIN personel p ON a.sip_ekleyen = p.id
+            LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN personel pg ON a.sip_ekleyen = pg.id
             LEFT JOIN ads_musteri m ON a.mustid = m.id
+            LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = $1
+            LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN product pr ON a.pluid = pr.plu
             WHERE a.kasa = $1 AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
             GROUP BY a.adsno, a.sipyer
