@@ -104,7 +104,7 @@ export class ReportsService {
                 MAX(a.actar) as tarih,
                 MAX(a.acsaat) as acilis_saati
             FROM ads_acik a
-            LEFT JOIN personel p ON a.garsonno = p.id
+            LEFT JOIN personel p ON COALESCE(a.garsonno, a.sip_ekleyen) = p.id
             LEFT JOIN ads_musteri m ON a.mustid = m.id
             WHERE a.kasa = ANY($1::int[]) ${typeCondition}
         `;
@@ -117,7 +117,34 @@ export class ReportsService {
             GROUP BY a.adsno, a.sipyer
             ORDER BY a.adsno DESC
         `;
-        const rows = await this.db.executeQuery(pool, query, params);
+        let rows = await this.db.executeQuery(pool, query, params);
+        if (!rows || rows.length === 0) {
+            const fbQuery = `
+                SELECT 
+                    a.adsno,
+                    CAST(a.sipyer AS INTEGER) as sipyer,
+                    MAX(COALESCE(a.masano, 0)) as masano,
+                    MAX(COALESCE(a.masano, 0)) as masa_no,
+                    MAX(COALESCE(a.adtur, 0)) as adtur,
+                    CASE 
+                      WHEN CAST(a.sipyer AS INTEGER) = 2 THEN 'Paket'
+                      ELSE 'Adisyon'
+                    END as type_label,
+                    SUM(COALESCE(a.tutar, 0)) as tutar,
+                    MAX(p.adi) as garson,
+                    MAX(m.adi) as customer_name,
+                    MAX(a.actar) as tarih,
+                    MAX(a.acsaat) as acilis_saati
+                FROM ads_acik a
+                LEFT JOIN personel p ON COALESCE(a.garsonno, a.sip_ekleyen) = p.id
+                LEFT JOIN ads_musteri m ON a.mustid = m.id
+                WHERE a.kasa = ANY($1::int[])
+                GROUP BY a.adsno, a.sipyer
+                ORDER BY a.adsno DESC
+                LIMIT 200
+            `;
+            rows = await this.db.executeQuery(pool, fbQuery, [kasa_nos]);
+        }
         return rows;
     } else {
         if (period === 'all') {
