@@ -292,7 +292,7 @@ function ClosedOrdersContent() {
                         <div className="flex items-center space-x-3">
                             <CheckCircle className="w-6 h-6 text-emerald-500" />
                             <h3 className="text-base font-bold text-gray-900">
-                                {order.masa_no && order.masa_no !== 99999 ? `Masa ${order.masa_no}` : `Sipariş #${order.adsno || order.id}`}
+                                {`Adisyon #${order.adsno || order.id}`}
                             </h3>
                             {(order.type_label || typeof order.adtur !== 'undefined') && (
                                 <span className="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
@@ -323,12 +323,10 @@ function ClosedOrdersContent() {
                                     <span className="text-xs text-gray-600 font-medium">{t('closing')}: {formatTime(order.kapanis_saati)}</span>
                                 </div>
                             )}
-                            {order.sipyer && (
-                                <div className="flex items-center">
-                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">{t('order_place')} {order.sipyer}</span>
-                                </div>
-                            )}
+                            <div className="flex items-center">
+                                <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                <span className="text-xs text-gray-600 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
+                            </div>
                             <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
                                 <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>

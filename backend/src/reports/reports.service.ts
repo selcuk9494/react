@@ -150,51 +150,32 @@ export class ReportsService {
         }
         return rows;
     } else {
-        if (period === 'all') {
-            const query = `
-                SELECT 
-                    o.adsno,
-                    MAX(COALESCE(o.adtur, 0)) as adtur,
-                    MAX(COALESCE(a.masano, 0)) as masano,
-                    CASE 
-                      WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
-                      ELSE 'Adisyon'
-                    END as type_label,
-                    SUM(COALESCE(o.otutar, 0)) as tutar,
-                    MAX(p.adi) as garson,
-                    MAX(o.raptar) as tarih
-                FROM ads_odeme o
-                LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
-                LEFT JOIN personel p ON a.garsonno = p.id
-                WHERE o.kasa = $1 ${typeCondition}
-                GROUP BY o.adsno
-                ORDER BY o.adsno DESC
-            `;
-            const rows = await this.db.executeQuery(pool, query, [kasa_no]);
-            return rows;
-        } else {
-            const query = `
-                SELECT 
-                    o.adsno,
-                    MAX(COALESCE(o.adtur, 0)) as adtur,
-                    MAX(COALESCE(a.masano, 0)) as masano,
-                    CASE 
-                      WHEN MAX(COALESCE(a.masano, 0)) = 99999 THEN 'Paket'
-                      ELSE 'Adisyon'
-                    END as type_label,
-                    SUM(COALESCE(o.otutar, 0)) as tutar,
-                    MAX(p.adi) as garson,
-                    MAX(o.raptar) as tarih
-                FROM ads_odeme o
-                LEFT JOIN ads_adisyon a ON o.adsno = a.adsno
-                LEFT JOIN personel p ON a.garsonno = p.id
-                WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = $3 ${typeCondition}
-                GROUP BY o.adsno
-                ORDER BY o.adsno DESC
-            `;
-            const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_no]);
-            return rows;
+        let query = `
+            SELECT 
+                a.adsno,
+                SUM(COALESCE(a.tutar, 0)) as tutar,
+                MAX(COALESCE(a.masano, 0)) as masano,
+                MAX(COALESCE(a.masano, 0)) as masa_no,
+                MAX(COALESCE(a.adtur, 0)) as adtur,
+                CAST(MAX(COALESCE(a.sipyer, 0)) AS INTEGER) as sipyer,
+                MAX(a.kaptar) as tarih,
+                MAX(a.kapsaat) as kapanis_saati,
+                MAX(p.adi) as garson_adi
+            FROM ads_adisyon a
+            LEFT JOIN personel p ON a.garsonno = p.id
+            WHERE a.kasa = ANY($1) ${typeCondition}
+        `;
+        const params: any[] = [kasa_nos];
+        if (period !== 'all') {
+            query += ` AND DATE(a.kaptar) BETWEEN $2 AND $3`;
+            params.push(dStart, dEnd);
         }
+        query += `
+            GROUP BY a.adsno
+            ORDER BY a.adsno DESC
+        `;
+        const rows = await this.db.executeQuery(pool, query, params);
+        return rows;
     }
   }
 
