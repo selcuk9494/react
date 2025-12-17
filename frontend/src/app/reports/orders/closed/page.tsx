@@ -331,7 +331,7 @@ function ClosedOrdersContent() {
                             )}
                             <div className="flex items-center">
                                 <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                <span className="text-xs text-gray-600 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
+                                <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
                             </div>
                             {/* müşteri bilgisi kaldırıldı */}
                             <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
