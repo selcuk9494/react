@@ -329,7 +329,7 @@ function OrderDetailContent() {
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Sipyer</p>
-                        <p className="text-sm font-semibold">{orderData?.sipyer_name || orderData?.sipyer ?? '-'}</p>
+                        <p className="text-sm font-semibold">{orderData?.sipyer_name ?? orderData?.sipyer ?? '-'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Açılış</p>
