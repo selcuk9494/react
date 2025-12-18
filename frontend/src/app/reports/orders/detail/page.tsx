@@ -445,22 +445,31 @@ function OrderDetailContent() {
         </div>
 
         {/* Summary Card */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">{t('subtotal')}</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(getItemsSubtotal())}</span>
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-6 shadow-xl border-2 border-gray-200">
+            <div className="space-y-4">
+                <div className="flex justify-between items-center pb-3">
+                    <span className="text-gray-600 font-semibold flex items-center gap-2">
+                        <ShoppingBasket className="w-5 h-5" />
+                        {t('subtotal')}
+                    </span>
+                    <span className="text-lg font-bold text-gray-900">{formatCurrency(getItemsSubtotal())}</span>
                 </div>
                 {orderData?.toplam_iskonto > 0 && (
-                    <div className="flex justify-between items-center text-emerald-600">
-                        <span className="font-medium flex items-center"><Tag className="w-4 h-4 mr-1.5"/> {t('discount')}</span>
-                        <span className="font-bold">-{formatCurrency(orderData.toplam_iskonto)}</span>
+                    <div className="flex justify-between items-center pb-3 bg-emerald-50 -mx-6 px-6 py-3 rounded-xl border-l-4 border-emerald-500">
+                        <span className="font-semibold flex items-center gap-2 text-emerald-700">
+                            <Tag className="w-5 h-5"/> 
+                            {t('discount')}
+                        </span>
+                        <span className="text-lg font-bold text-emerald-600">-{formatCurrency(orderData.toplam_iskonto)}</span>
                     </div>
                 )}
-                <div className="border-t border-gray-100 my-3"></div>
-                <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-900">{t('total_paid')}</span>
-                    <span className="text-2xl font-bold text-indigo-600">{formatCurrency(getTotalPaid())}</span>
+                <div className="border-t-2 border-dashed border-gray-300 my-4"></div>
+                <div className="flex justify-between items-center bg-indigo-600 -mx-6 -mb-6 px-6 py-5 rounded-b-3xl">
+                    <span className="text-lg font-bold text-white flex items-center gap-2">
+                        <CreditCard className="w-6 h-6" />
+                        {t('total_paid')}
+                    </span>
+                    <span className="text-3xl font-black text-white drop-shadow-lg">{formatCurrency(getTotalPaid())}</span>
                 </div>
             </div>
         </div>
