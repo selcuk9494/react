@@ -47,9 +47,9 @@ function OrderDetailContent() {
 
   // Close share menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e: Event) => {
+    const handleClickOutside = (e) => {
       if (showShareMenu) {
-        const target = e.target as HTMLElement;
+        const target = e.target;
         if (!target.closest('.share-menu-container')) {
           setShowShareMenu(false);
         }
