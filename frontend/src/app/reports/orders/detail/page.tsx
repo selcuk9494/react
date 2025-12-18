@@ -444,9 +444,12 @@ function OrderDetailContent() {
                 })}
 
                 {(!orderData || !orderData.items || orderData.items.length === 0) && (
-                    <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 border-dashed">
-                        <ShoppingBasket className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-500 text-sm">{t('no_products')}</p>
+                    <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl border-2 border-dashed border-gray-300">
+                        <div className="bg-white rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center shadow-md">
+                            <ShoppingBasket className="w-10 h-10 text-gray-400" />
+                        </div>
+                        <p className="text-gray-600 text-lg font-semibold">{t('no_products')}</p>
+                        <p className="text-gray-400 text-sm mt-1">Bu adisyonda henüz ürün bulunmuyor</p>
                     </div>
                 )}
             </div>
