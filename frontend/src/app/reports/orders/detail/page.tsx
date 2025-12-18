@@ -291,7 +291,7 @@ function OrderDetailContent() {
             
             {/* Share Menu Dropdown */}
             {showShareMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border-2 border-indigo-100 overflow-hidden z-50 animate-in fade-in zoom-in duration-200">
+                <div className="share-menu-container absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border-2 border-indigo-100 overflow-hidden z-50 animate-in fade-in zoom-in duration-200">
                     <div className="p-2">
                         <button
                             onClick={shareWhatsApp}
