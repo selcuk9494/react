@@ -47,16 +47,15 @@ function OrderDetailContent() {
 
   // Close share menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (showShareMenu) {
-        const target = e.target;
-        if (!target.closest('.share-menu-container')) {
-          setShowShareMenu(false);
-        }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!showShareMenu) return;
+      const target = e.target as HTMLElement | null;
+      if (target && !target.closest('.share-menu-container')) {
+        setShowShareMenu(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside as EventListener);
+    return () => document.removeEventListener('mousedown', handleClickOutside as EventListener);
   }, [showShareMenu]);
 
   const fetchOrderDetail = async () => {

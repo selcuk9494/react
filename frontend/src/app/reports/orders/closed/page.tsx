@@ -290,7 +290,7 @@ function ClosedOrdersContent() {
                     <div className="flex flex-row justify-between items-center">
                         <div className="mr-4">
                             <p className="text-2xl font-black text-emerald-600 whitespace-nowrap drop-shadow-sm">
-                                {formatCurrency(order.tutar)}
+                                {formatCurrency(Math.max(0, Number(order.tutar || 0) - Number(order.iskonto || 0)))}
                             </p>
                         </div>
                         
