@@ -372,7 +372,7 @@ function OpenOrdersContent() {
 
                     <div className="flex flex-row justify-between items-center">
                         <div className="mr-4">
-                            <p className="text-xl font-bold text-amber-500 whitespace-nowrap">
+                            <p className="text-2xl font-black text-amber-600 whitespace-nowrap drop-shadow-sm">
                                 {formatCurrency(order.tutar)}
                             </p>
                         </div>
