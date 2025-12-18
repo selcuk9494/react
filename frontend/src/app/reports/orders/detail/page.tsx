@@ -29,6 +29,7 @@ function OrderDetailContent() {
 
   const [orderData, setOrderData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [customerName, setCustomerName] = useState('');
 
   const id = searchParams.get('id');
   const type = searchParams.get('type') || 'closed';
@@ -62,6 +63,27 @@ function OrderDetailContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const fetchCustomer = async () => {
+      try {
+        if (!token) return;
+        if (!orderData?.mustid) return;
+        if (orderData?.customer_name) {
+          setCustomerName(orderData.customer_name);
+          return;
+        }
+        const res = await axios.get(`${getApiUrl()}/reports/customer?id=${orderData.mustid}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const full = res.data?.full_name || res.data?.first_name || '';
+        if (full) setCustomerName(full);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchCustomer();
+  }, [orderData?.mustid]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat(lang === 'tr' ? 'tr-TR' : 'en-US', { style: 'currency', currency: 'TRY' }).format(val);
@@ -299,13 +321,13 @@ function OrderDetailContent() {
                         )}
                         {typeof orderData?.mustid !== 'undefined' && (
                             <div className="flex items-center space-x-2 col-span-2">
-                                <div className="p-1.5 bg-indigo-500/30 rounded-lg">
-                                    <Users className="w-4 h-4 text-indigo-200" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-indigo-200">Müşteri</p>
-                                    <p className="text-sm font-semibold">{orderData.mustid}</p>
-                                </div>
+                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                <Users className="w-4 h-4 text-indigo-200" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-indigo-200">Müşteri</p>
+                                <p className="text-sm font-semibold">{customerName || orderData.customer_name || orderData.mustid}</p>
+                              </div>
                             </div>
                         )}
                 </div>

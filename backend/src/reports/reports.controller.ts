@@ -82,6 +82,24 @@ export class ReportsController {
     return this.reportsService.getOrderDetails(req.user, id, orderType, date, adtur);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/customer')
+  async getCustomer(
+    @Request() req,
+    @Query('id') id: number,
+  ) {
+    return this.reportsService.getCustomerById(req.user, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/order-debug')
+  async debugOrder(
+    @Request() req,
+    @Query('adsno') adsno: string,
+  ) {
+    return this.reportsService.debugOrderCheck(req.user, adsno);
+  }
+
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/sales-chart')

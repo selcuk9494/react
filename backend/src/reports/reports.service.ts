@@ -331,6 +331,61 @@ export class ReportsService {
     }
   }
 
+  async debugOrderCheck(user: any, adsno: string) {
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const openCountQuery = `SELECT COUNT(*)::int as count FROM ads_acik WHERE adsno = $2 AND kasa = ANY($1)`;
+    const closedCountQuery = `SELECT COUNT(*)::int as count FROM ads_adisyon WHERE adsno = $2 AND kasa = ANY($1)`;
+    const openItemsQuery = `
+      SELECT a.pluid, a.miktar, a.bfiyat, a.tutar, a.sturu, a.ack1, a.actar, a.acsaat
+      FROM ads_acik a
+      WHERE a.adsno = $2 AND a.kasa = ANY($1)
+      ORDER BY a.actar DESC
+      LIMIT 5
+    `;
+    const closedItemsQuery = `
+      SELECT a.pluid, a.miktar, a.bfiyat, a.tutar, a.sturu, a.ack1, a.kaptar, a.kapsaat
+      FROM ads_adisyon a
+      WHERE a.adsno = $2 AND a.kasa = ANY($1)
+      ORDER BY a.kaptar DESC
+      LIMIT 5
+    `;
+    const openCount = await this.db.executeQuery(pool, openCountQuery, [kasa_nos, adsno]);
+    const closedCount = await this.db.executeQuery(pool, closedCountQuery, [kasa_nos, adsno]);
+    const openItems = await this.db.executeQuery(pool, openItemsQuery, [kasa_nos, adsno]);
+    const closedItems = await this.db.executeQuery(pool, closedItemsQuery, [kasa_nos, adsno]);
+    return {
+      adsno,
+      kasa_nos,
+      open: {
+        count: openCount[0]?.count ?? 0,
+        sample_items: openItems,
+      },
+      closed: {
+        count: closedCount[0]?.count ?? 0,
+        sample_items: closedItems,
+      },
+    };
+  }
+
+  async getCustomerById(user: any, id: number) {
+    const { pool } = await this.getBranchPool(user);
+    const q = `
+      SELECT id, adi, COALESCE(soyadi, '') as soyadi
+      FROM ads_musteri
+      WHERE id = $1
+      LIMIT 1
+    `;
+    const rows = await this.db.executeQuery(pool, q, [id]);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      first_name: r.adi,
+      last_name: r.soyadi,
+      full_name: `${r.adi}${r.soyadi ? ' ' + r.soyadi : ''}`,
+    };
+  }
+
   async getDashboard(user: any, period: string, startDate?: string, endDate?: string) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
