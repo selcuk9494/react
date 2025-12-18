@@ -361,6 +361,9 @@ interface I18nContextType {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (k: string) => string;
+  formatCurrency: (amount: number) => string;
+  formatDate: (date: string | Date) => string;
+  formatTime: (time: string) => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
