@@ -406,7 +406,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full pt-[200px]">
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: user?.days_left !== undefined ? '240px' : '200px' }}>
         {/* Main Summary Card */}
         <div className="bg-gradient-to-br from-[#2aa290] via-[#249685] to-[#1f7a6c] rounded-3xl p-5 text-white shadow-xl shadow-[#2aa290]/30 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
