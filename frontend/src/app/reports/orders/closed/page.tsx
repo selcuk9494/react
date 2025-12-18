@@ -289,7 +289,7 @@ function ClosedOrdersContent() {
 
                     <div className="flex flex-row justify-between items-center">
                         <div className="mr-4">
-                            <p className="text-xl font-bold text-emerald-600 whitespace-nowrap">
+                            <p className="text-2xl font-black text-emerald-600 whitespace-nowrap drop-shadow-sm">
                                 {formatCurrency(order.tutar)}
                             </p>
                         </div>
