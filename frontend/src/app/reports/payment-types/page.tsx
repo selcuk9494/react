@@ -90,15 +90,21 @@ export default function PaymentTypesPage() {
         ) : (
             <>
                 {/* Total Summary Card */}
-                <div className="bg-[#10B981] rounded-2xl p-6 text-center text-white shadow-lg shadow-emerald-100">
-                    <p className="text-emerald-100 text-sm font-medium mb-2">{t('total_payment')}</p>
-                    <h2 className="text-4xl font-bold tracking-tight">{formatCurrency(totalAmount)}</h2>
-                    <p className="text-emerald-200 text-sm mt-2 font-medium">{data.length} {t('payment_types_count')}</p>
+                <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 -mr-20 -mt-20 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
+                    <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-40 h-40 bg-teal-400 opacity-20 rounded-full blur-3xl"></div>
+                    <div className="relative z-10">
+                        <p className="text-emerald-100 text-sm font-bold mb-3 uppercase tracking-wide">💰 {t('total_payment')}</p>
+                        <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalAmount)}</h2>
+                        <p className="text-emerald-200 text-base mt-4 font-semibold">{data.length} {t('payment_types_count')}</p>
+                    </div>
                 </div>
 
                 {/* Pie Chart Section */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 px-1">{t('distribution')}</h3>
+                <div className="bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-6 shadow-xl border-2 border-indigo-100">
+                    <h3 className="text-xl font-black text-indigo-900 mb-4 px-1 flex items-center gap-2">
+                        📊 {t('distribution')}
+                    </h3>
                     <div className="w-full h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
