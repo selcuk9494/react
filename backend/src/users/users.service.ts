@@ -7,7 +7,12 @@ export class UsersService {
 
   async findOne(email: string): Promise<any> {
     const pool = this.db.getMainPool();
-    const res = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const res = await pool.query(`
+      SELECT *, 
+             EXTRACT(DAY FROM (expiry_date - CURRENT_DATE))::INTEGER as days_left
+      FROM users 
+      WHERE email = $1
+    `, [email]);
     if (res.rows.length === 0) return null;
     
     const user = res.rows[0];
