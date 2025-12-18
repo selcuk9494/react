@@ -79,7 +79,7 @@ const dict: Record<Lang, Record<string, string>> = {
     daily_details: 'Günlük Detaylar',
     no_data_selected_range: 'Seçili tarih aralığında veri bulunamadı',
     filter_title: 'Filtrele',
-    table_no_label: 'Masa No:',
+    table_no_label: 'Masa Numarası:',
     select: 'Seç',
     clear_filters: 'Filtreleri Temizle',
     open_orders_title: 'Açık Adisyonlar',
