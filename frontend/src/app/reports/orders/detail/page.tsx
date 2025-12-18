@@ -265,6 +265,51 @@ function OrderDetailContent() {
             </button>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">{t('order_detail')}</h1>
         </div>
+        
+        {/* Share Button */}
+        <div className="relative">
+            <button 
+                onClick={() => setShowShareMenu(!showShareMenu)}
+                className="p-2.5 hover:bg-indigo-50 rounded-xl transition-all duration-200 text-indigo-600 hover:shadow-md active:scale-95"
+            >
+                <Share2 className="w-6 h-6" />
+            </button>
+            
+            {/* Share Menu Dropdown */}
+            {showShareMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border-2 border-indigo-100 overflow-hidden z-50 animate-in fade-in zoom-in duration-200">
+                    <div className="p-2">
+                        <button
+                            onClick={shareWhatsApp}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-50 rounded-xl transition-all duration-200 text-left group"
+                        >
+                            <div className="bg-green-500 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                                <MessageCircle className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-900 text-sm">WhatsApp</p>
+                                <p className="text-xs text-gray-500">Mesaj olarak paylaş</p>
+                            </div>
+                        </button>
+                        
+                        <div className="h-px bg-gray-100 my-2"></div>
+                        
+                        <button
+                            onClick={sharePDF}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 rounded-xl transition-all duration-200 text-left group"
+                        >
+                            <div className="bg-red-500 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                                <FileText className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-900 text-sm">PDF / Yazdır</p>
+                                <p className="text-xs text-gray-500">PDF olarak kaydet</p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
       </div>
 
       <div className="p-4 max-w-3xl mx-auto w-full">
