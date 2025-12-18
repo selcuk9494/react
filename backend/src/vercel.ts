@@ -10,7 +10,17 @@ let app: any;
 const bootstrap = async () => {
   if (!app) {
     app = await NestFactory.create(AppModule, adapter);
-    app.enableCors();
+    
+    // Enable CORS for frontend domains
+    app.enableCors({
+      origin: [
+        'http://localhost:3000',
+        'https://react-kmfo.vercel.app',
+        /\.vercel\.app$/,  // Allow all vercel.app subdomains
+      ],
+      credentials: true,
+    });
+    
     await app.init();
   }
   return app;
