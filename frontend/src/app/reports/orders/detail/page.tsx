@@ -339,29 +339,61 @@ function OrderDetailContent() {
             <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('products')}</h2>
             
             <div className="space-y-3">
-                {orderData && orderData.items && orderData.items.map((item: any, index: number) => (
-                    <div key={index} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-base font-bold text-gray-900 flex-1">{item.product_name || item.urun_adi || 'Ürün'}</h3>
-                            <span className="text-base font-bold text-emerald-600 ml-4">{formatCurrency((item.total ?? item.toplam) || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-gray-500">
-                            <span>
-                                {(item.quantity ?? item.miktar) || 1} {t('quantity').toLowerCase()} × {formatCurrency((item.price ?? item.birim_fiyat) || 0)}
-                            </span>
-                        </div>
-                        {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (
-                            <div className="mt-3 pt-3 border-t border-gray-100">
-                                {item.ack1 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack1}</p>}
-                                {item.ack2 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack2}</p>}
-                                {item.ack3 && <p className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {item.ack3}</p>}
-                                {item.notes && item.notes.map((note: string, i: number) => (
-                                    <p key={i} className="text-xs text-amber-500 italic flex items-center"><span className="mr-1">•</span> {note}</p>
-                                ))}
+                {orderData && orderData.items && orderData.items.map((item: any, index: number) => {
+                    // sturu: 0 = iptal (kırmızı), 1 = ikram (mavi), 2 = iade (turuncu), diğer = normal
+                    const sturu = item.sturu ?? 0;
+                    const isIptal = sturu === 4 || sturu === 0; // İptal
+                    const isIkram = sturu === 1; // İkram
+                    const isIade = sturu === 2; // İade
+                    
+                    const borderColor = isIptal ? 'border-red-300 bg-red-50' : 
+                                       isIkram ? 'border-blue-300 bg-blue-50' : 
+                                       isIade ? 'border-orange-300 bg-orange-50' : 
+                                       'border-gray-100';
+                    
+                    const textColor = isIptal ? 'text-red-700' : 
+                                     isIkram ? 'text-blue-700' : 
+                                     isIade ? 'text-orange-700' : 
+                                     'text-gray-900';
+                    
+                    const priceColor = isIptal ? 'text-red-600' : 
+                                      isIkram ? 'text-blue-600' : 
+                                      isIade ? 'text-orange-600' : 
+                                      'text-emerald-600';
+                    
+                    return (
+                        <div key={index} className={clsx("bg-white rounded-2xl p-4 shadow-sm border", borderColor)}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex-1">
+                                    <h3 className={clsx("text-base font-bold", textColor, isIptal && "line-through")}>
+                                        {item.product_name || item.urun_adi || 'Ürün'}
+                                    </h3>
+                                    {isIptal && <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full mt-1 inline-block">İPTAL</span>}
+                                    {isIkram && <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full mt-1 inline-block">İKRAM</span>}
+                                    {isIade && <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full mt-1 inline-block">İADE</span>}
+                                </div>
+                                <span className={clsx("text-base font-bold ml-4", priceColor, isIptal && "line-through")}>
+                                    {formatCurrency((item.total ?? item.toplam) || 0)}
+                                </span>
                             </div>
-                        )}
-                    </div>
-                ))}
+                            <div className={clsx("flex justify-between items-center text-sm", isIptal ? "text-red-500" : "text-gray-500")}>
+                                <span>
+                                    {(item.quantity ?? item.miktar) || 1} {t('quantity').toLowerCase()} × {formatCurrency((item.price ?? item.birim_fiyat) || 0)}
+                                </span>
+                            </div>
+                            {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                    {item.ack1 && <p className="text-xs text-amber-600 italic flex items-center"><span className="mr-1">📝</span> {item.ack1}</p>}
+                                    {item.ack2 && <p className="text-xs text-amber-600 italic flex items-center"><span className="mr-1">📝</span> {item.ack2}</p>}
+                                    {item.ack3 && <p className="text-xs text-amber-600 italic flex items-center"><span className="mr-1">📝</span> {item.ack3}</p>}
+                                    {item.notes && item.notes.map((note: string, i: number) => (
+                                        <p key={i} className="text-xs text-amber-600 italic flex items-center"><span className="mr-1">📝</span> {note}</p>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
 
                 {(!orderData || !orderData.items || orderData.items.length === 0) && (
                     <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 border-dashed">
