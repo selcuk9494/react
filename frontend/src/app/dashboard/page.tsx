@@ -282,7 +282,7 @@ export default function Dashboard() {
                                         if (inputPassword === expectedPassword) {
                                             setBranchManagementOpen(true);
                                         } else if (inputPassword !== null) {
-                                            alert('Hatalı şifre! Şifre formatı: GünAyYıl9@@');
+                                            alert('Hatalı şifre!');
                                         }
                                     }}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
