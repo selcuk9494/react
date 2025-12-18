@@ -32,6 +32,7 @@ function OrderDetailContent() {
 
   const [orderData, setOrderData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const [customerName, setCustomerName] = useState('');
 
   const id = searchParams.get('id');
