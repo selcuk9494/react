@@ -636,8 +636,42 @@ function OrderDetailContent() {
 
 export default function OrderDetailPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
-      <OrderDetailContent />
-    </Suspense>
+    <>
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print-content, .print-content * {
+            visibility: visible;
+          }
+          .print-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .bg-gradient-to-br,
+          .bg-gradient-to-br * {
+            background: white !important;
+            color: black !important;
+          }
+          .shadow-2xl, .shadow-xl, .shadow-lg, .shadow-md {
+            box-shadow: none !important;
+          }
+          .border-indigo-600, .border-emerald-600 {
+            border-color: #000 !important;
+          }
+        }
+      `}</style>
+      
+      <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
+        <OrderDetailContent />
+      </Suspense>
+    </>
   );
 }
