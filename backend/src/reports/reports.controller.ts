@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Request, UseGuards, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Query, Request, UseGuards, Sse, MessageEvent, Param } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { interval, Observable, from, map, switchMap } from 'rxjs';
