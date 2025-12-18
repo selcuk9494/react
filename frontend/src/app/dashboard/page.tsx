@@ -242,8 +242,25 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
+      {/* Subscription Banner */}
+      {user?.days_left !== undefined && (
+        <div className={`px-4 py-2.5 text-center font-bold text-sm ${
+          user.days_left <= 3 
+            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+            : user.days_left <= 7
+            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+        }`}>
+          {user.days_left > 0 
+            ? `⏰ Kullanım süreniz ${user.days_left} gün sonra dolacak` 
+            : user.days_left === 0
+            ? '⚠️ Kullanım süreniz bugün doluyor!'
+            : '❌ Kullanım süreniz doldu'}
+        </div>
+      )}
+      
       {/* Header Section (Fixed) */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300">
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300" style={{ top: user?.days_left !== undefined ? '40px' : '0' }}>
         {/* Top Part */}
         <div className="px-4 pt-4 pb-2">
             <div className="flex justify-between items-center mb-4">
