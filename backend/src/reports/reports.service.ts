@@ -166,10 +166,13 @@ export class ReportsService {
                 MAX(a.kapsaat) as kapanis_saati,
                 MAX(a.acsaat) as acilis_saati,
                 MAX(p.adi) as garson_adi,
-                COALESCE(MAX(o.mustid), MAX(a.mustid)) as mustid
+                COALESCE(MAX(o.mustid), MAX(a.mustid)) as mustid,
+                COALESCE(SUM(o.iskonto), 0) as iskonto,
+                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
             FROM ads_adisyon a
             LEFT JOIN personel p ON a.garsonno = p.id
             LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
+            LEFT JOIN ads_musteri m ON COALESCE(o.mustid, a.mustid) = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
         const params: any[] = [kasa_nos];
