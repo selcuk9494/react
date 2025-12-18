@@ -241,39 +241,45 @@ export default function CourierTrackingReport() {
           ) : (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('status')}</h4>
-                  <div className="h-40">
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl p-6 shadow-lg border-2 border-indigo-100">
+                  <h4 className="text-lg font-black text-indigo-900 mb-4 flex items-center gap-2">
+                    📊 {t('status')}
+                  </h4>
+                  <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={statusAgg} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2}>
+                        <Pie data={statusAgg} dataKey="value" nameKey="name" innerRadius={60} outerRadius={85} paddingAngle={4}>
                           {statusAgg.map((entry, index) => <Cell key={`s-${index}`} fill={entry.color} />)}
                         </Pie>
-                        <Legend />
+                        <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('duration')}</h4>
-                  <div className="h-40">
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-3xl p-6 shadow-lg border-2 border-blue-100">
+                  <h4 className="text-lg font-black text-blue-900 mb-4 flex items-center gap-2">
+                    ⏱️ {t('duration')}
+                  </h4>
+                  <div className="h-48">
                     <RC2 width="100%" height="100%">
                       <BarChart data={histogram}>
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Bar dataKey="value" fill="#6366f1" />
+                        <XAxis dataKey="name" style={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        <YAxis style={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </RC2>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-2">{t('average_duration')}</h4>
-                  <div className="h-40">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-6 shadow-lg border-2 border-emerald-100">
+                  <h4 className="text-lg font-black text-emerald-900 mb-4 flex items-center gap-2">
+                    📈 {t('average_duration')}
+                  </h4>
+                  <div className="h-48">
                     <RC2 width="100%" height="100%">
                       <BarChart data={courierAvg}>
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Bar dataKey="value" fill="#10b981" />
+                        <XAxis dataKey="name" style={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        <YAxis style={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </RC2>
                   </div>
