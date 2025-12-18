@@ -383,8 +383,36 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
   const t = (k: string) => dict[lang][k] ?? k;
 
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (date: string | Date): string => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const formatTime = (time: string): string => {
+    if (!time) return '';
+    // Time format: HH:MM:SS
+    const parts = time.split(':');
+    if (parts.length >= 2) {
+      return `${parts[0]}:${parts[1]}`;
+    }
+    return time;
+  };
+
   return (
-    <I18nContext.Provider value={{ lang, setLang, t }}>
+    <I18nContext.Provider value={{ lang, setLang, t, formatCurrency, formatDate, formatTime }}>
       {children}
     </I18nContext.Provider>
   );
