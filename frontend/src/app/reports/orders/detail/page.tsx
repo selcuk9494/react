@@ -43,7 +43,21 @@ function OrderDetailContent() {
     if (id) {
         fetchOrderDetail();
     }
-  }, [id, type]);
+  }, [id, type, adtur]);
+
+  // Close share menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showShareMenu) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.share-menu-container')) {
+          setShowShareMenu(false);
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showShareMenu]);
 
   const fetchOrderDetail = async () => {
     if (!token) return;
