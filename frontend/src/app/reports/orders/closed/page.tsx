@@ -266,7 +266,7 @@ function ClosedOrdersContent() {
                 <button
                     key={idx}
                     onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=closed${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
-                    className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition text-left group"
+                    className="w-full bg-gradient-to-br from-white to-emerald-50/30 rounded-3xl p-5 shadow-md border-2 border-emerald-100 hover:shadow-xl hover:border-emerald-300 transition-all duration-200 text-left group"
                 >
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center space-x-3">
