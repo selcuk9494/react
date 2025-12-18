@@ -333,7 +333,15 @@ function OrderDetailContent() {
 
         {/* Products Section */}
         <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('products')}</h2>
+            <div className="flex items-center gap-3 mb-5 px-1">
+                <ShoppingBasket className="w-6 h-6 text-indigo-600" />
+                <h2 className="text-2xl font-black text-gray-900">{t('products')}</h2>
+                {orderData?.items && (
+                    <span className="ml-auto bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full text-sm">
+                        {orderData.items.length} ürün
+                    </span>
+                )}
+            </div>
             
             <div className="space-y-3">
                 {orderData && Array.isArray(orderData.items) && orderData.items.length > 0 && orderData.items.map((item: any, index: number) => {
