@@ -73,12 +73,11 @@ export class ReportsController {
   @Get('reports/order-detail/:id')
   async getOrderDetailLegacy(
     @Request() req,
+    @Param('id') id: string,
     @Query('order_type') orderType: 'open' | 'closed' = 'closed',
     @Query('adtur') adtur?: number,
     @Query('date') date?: string,
   ) {
-    // Note: Nest will inject params via Request object for path param; extract safely
-    const id = req.params?.id;
     return this.reportsService.getOrderDetails(req.user, id, orderType, date, adtur);
   }
 
