@@ -326,7 +326,7 @@ function OrderDetailContent() {
         </div>
       </div>
 
-      <div className="p-4 max-w-3xl mx-auto w-full">
+      <div className="p-4 max-w-3xl mx-auto w-full print-content">
         {/* Info Card */}
         <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-6 shadow-2xl mb-6 text-white relative overflow-hidden">
              {/* Decorative Background Elements */}
