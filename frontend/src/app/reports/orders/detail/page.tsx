@@ -347,9 +347,9 @@ function OrderDetailContent() {
             
             <div className="space-y-3">
                 {orderData && Array.isArray(orderData.items) && orderData.items.length > 0 && orderData.items.map((item: any, index: number) => {
-                    // sturu: 0 = iptal (kırmızı), 1 = ikram (mavi), 2 = iade (turuncu), diğer = normal
+                    // sturu: 4 = iptal (kırmızı), 1 = ikram (mavi), 2 = iade (turuncu), diğer = normal
                     const sturu = item.sturu ?? 0;
-                    const isIptal = sturu === 4 || sturu === 0; // İptal
+                    const isIptal = sturu === 4; // İptal
                     const isIkram = sturu === 1; // İkram
                     const isIade = sturu === 2; // İade
                     
