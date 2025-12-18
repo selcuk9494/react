@@ -91,13 +91,17 @@ export class ReportsService {
             SELECT 
                 a.adsno,
                 SUM(COALESCE(a.tutar, 0)) as tutar,
+                SUM(COALESCE(a.iskonto, 0)) as iskonto,
                 MAX(COALESCE(a.masano, 0)) as masano,
                 MAX(COALESCE(a.masano, 0)) as masa_no,
                 MAX(a.acsaat) as acilis_saati,
                 MAX(a.actar) as tarih,
                 MAX(COALESCE(a.adtur, 0)) as adtur,
-                MAX(a.kasa) as kasano
+                MAX(a.kasa) as kasano,
+                MAX(a.mustid) as mustid,
+                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
             FROM ads_acik a
+            LEFT JOIN ads_musteri m ON a.mustid = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
         const params: any[] = [kasa_nos];
