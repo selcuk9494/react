@@ -145,11 +145,15 @@ function OrderDetailContent() {
   };
 
   const getItemsSubtotal = () => {
-    if (!orderData || !orderData.items) return 0;
-    return orderData.items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+    if (!orderData || !orderData.items || !Array.isArray(orderData.items)) return 0;
+    return orderData.items.reduce((sum: number, item: any) => {
+      const itemTotal = item.total || item.toplam || 0;
+      return sum + Number(itemTotal);
+    }, 0);
   };
+  
   const getTotalPaid = () => {
-    return orderData?.toplam_tutar || 0;
+    return Number(orderData?.toplam_tutar || 0);
   };
 
   const paymentLabel = (orderData?.payment_name || (orderData?.order_type === 'open' ? t('payment_not_received') : t('unspecified'))) as string;
