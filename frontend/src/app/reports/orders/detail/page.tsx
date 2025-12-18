@@ -160,6 +160,88 @@ function OrderDetailContent() {
     return Number(orderData?.toplam_tutar || 0);
   };
 
+  const generateShareText = () => {
+    if (!orderData) return '';
+    
+    let text = `🧾 *Adisyon Detayı*\n\n`;
+    text += `📋 Adisyon No: #${orderData.adsno}\n`;
+    text += `📅 Tarih: ${formatDate(orderData.tarih)}\n`;
+    
+    if (orderData.masano) {
+      text += `🪑 Masa: ${orderData.masano === 99999 ? 'Paket' : orderData.masano}\n`;
+    }
+    
+    if (orderData.garson) {
+      text += `👤 Garson: ${orderData.garson}\n`;
+    }
+    
+    if (orderData.customer_name) {
+      text += `👥 Müşteri: ${orderData.customer_name}\n`;
+    }
+    
+    if (orderData.acilis_saati) {
+      text += `🕐 Açılış: ${formatTime(orderData.acilis_saati)}\n`;
+    }
+    
+    if (orderData.kapanis_saati) {
+      text += `🕐 Kapanış: ${formatTime(orderData.kapanis_saati)}\n`;
+    }
+    
+    text += `\n*📦 Ürünler:*\n`;
+    if (orderData.items && Array.isArray(orderData.items)) {
+      orderData.items.forEach((item: any, idx: number) => {
+        const qty = item.quantity || item.miktar || 1;
+        const price = item.price || item.birim_fiyat || 0;
+        const total = item.total || item.toplam || 0;
+        const name = item.product_name || item.urun_adi || 'Ürün';
+        const sturu = item.sturu || 0;
+        
+        let statusEmoji = '';
+        if (sturu === 4) statusEmoji = '❌ ';
+        else if (sturu === 1) statusEmoji = '🎁 ';
+        else if (sturu === 2) statusEmoji = '↩️ ';
+        
+        text += `${idx + 1}. ${statusEmoji}${name}\n`;
+        text += `   ${qty}x × ${formatCurrency(price)} = ${formatCurrency(total)}\n`;
+        
+        if (item.ack1) text += `   📝 ${item.ack1}\n`;
+        if (item.ack2) text += `   📝 ${item.ack2}\n`;
+        if (item.ack3) text += `   📝 ${item.ack3}\n`;
+      });
+    }
+    
+    text += `\n*💰 Özet:*\n`;
+    text += `Ara Toplam: ${formatCurrency(getItemsSubtotal())}\n`;
+    
+    if (orderData.toplam_iskonto > 0) {
+      text += `İndirim: -${formatCurrency(orderData.toplam_iskonto)}\n`;
+    }
+    
+    text += `*Toplam: ${formatCurrency(getTotalPaid())}*\n`;
+    
+    if (orderData.payment_name) {
+      text += `\n💳 Ödeme: ${orderData.payment_name}\n`;
+    }
+    
+    text += `\n_FR Rapor - ${new Date().toLocaleString('tr-TR')}_`;
+    
+    return text;
+  };
+
+  const shareWhatsApp = () => {
+    const text = generateShareText();
+    const encodedText = encodeURIComponent(text);
+    const whatsappUrl = `https://wa.me/?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
+    setShowShareMenu(false);
+  };
+
+  const sharePDF = () => {
+    // PDF export için basit bir çözüm - window.print kullanarak
+    window.print();
+    setShowShareMenu(false);
+  };
+
   const paymentLabel = (orderData?.payment_name || (orderData?.order_type === 'open' ? t('payment_not_received') : t('unspecified'))) as string;
 
   if (loading) {
