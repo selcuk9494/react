@@ -269,7 +269,7 @@ function OrderDetailContent() {
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
       {/* Header */}
-      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-md border-b-2 border-indigo-100 flex items-center justify-between backdrop-blur-sm bg-white/95">
+      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-md border-b-2 border-indigo-100 flex items-center justify-between backdrop-blur-sm bg-white/95 no-print">
         <div className="flex items-center space-x-4">
             <button 
                 onClick={() => router.back()}
