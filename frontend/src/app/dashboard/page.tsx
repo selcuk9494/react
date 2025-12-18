@@ -248,7 +248,7 @@ export default function Dashboard() {
         <div className="px-4 pt-4 pb-2">
             <div className="flex justify-between items-center mb-4">
             <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">{t('reports')}</h1>
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">FR Rapor</h1>
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
                 <button 
                     onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
