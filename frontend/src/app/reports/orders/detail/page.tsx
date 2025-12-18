@@ -15,7 +15,10 @@ import {
   CheckCircle,
   Users,
   ShoppingBasket,
-  Tag
+  Tag,
+  Share2,
+  FileText,
+  MessageCircle
 } from 'lucide-react';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
