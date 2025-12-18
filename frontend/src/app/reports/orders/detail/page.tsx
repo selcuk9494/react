@@ -346,7 +346,7 @@ function OrderDetailContent() {
             <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('products')}</h2>
             
             <div className="space-y-3">
-                {orderData && orderData.items && orderData.items.map((item: any, index: number) => {
+                {orderData && Array.isArray(orderData.items) && orderData.items.length > 0 && orderData.items.map((item: any, index: number) => {
                     // sturu: 0 = iptal (kırmızı), 1 = ikram (mavi), 2 = iade (turuncu), diğer = normal
                     const sturu = item.sturu ?? 0;
                     const isIptal = sturu === 4 || sturu === 0; // İptal
