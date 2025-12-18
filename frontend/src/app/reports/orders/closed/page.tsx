@@ -14,7 +14,8 @@ import {
   User, 
   Clock, 
   MapPin, 
-  FileText 
+  FileText,
+  Tag 
 } from 'lucide-react';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
