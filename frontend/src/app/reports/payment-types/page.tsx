@@ -144,7 +144,8 @@ export default function PaymentTypesPage() {
                             return (
                                 <div 
                                     key={index} 
-                                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer active:scale-[0.99] transform duration-150"
+                                    className="bg-gradient-to-br from-white to-gray-50 rounded-3xl p-5 shadow-lg border-2 hover:shadow-xl hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+                                    style={{ borderColor: `${color}40` }}
                                     onClick={() => {
                                         // Not implementing navigation yet as order details page needs to be ready
                                         // router.push(...)
