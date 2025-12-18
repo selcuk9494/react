@@ -111,17 +111,23 @@ export default function CancelledItemsPage() {
         ) : (
           <>
             {/* Total Summary Card */}
-            <div className="bg-red-500 rounded-2xl p-8 text-center text-white shadow-lg shadow-red-200">
-                <XCircle className="w-12 h-12 mx-auto mb-3 text-white/90" />
-                <h2 className="text-4xl font-bold tracking-tight">{getTotalCancelled().toFixed(2)}</h2>
-                <p className="text-red-100 mt-1 font-medium">{t('total_cancelled_amount')}</p>
-                <p className="text-red-200 text-sm mt-1">{data.length} {t('total_cancelled_count')}</p>
+            <div className="bg-gradient-to-br from-red-500 via-red-600 to-pink-600 rounded-3xl p-10 text-center text-white shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-40 h-40 bg-pink-400 opacity-20 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                    <XCircle className="w-16 h-16 mx-auto mb-4 text-white drop-shadow-xl" />
+                    <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{getTotalCancelled().toFixed(2)}</h2>
+                    <p className="text-red-100 mt-3 text-lg font-bold uppercase tracking-wide">{t('total_cancelled_amount')}</p>
+                    <p className="text-red-200 text-base mt-2 font-semibold">{data.length} {t('total_cancelled_count')}</p>
+                </div>
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-2">{t('all')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-br from-white to-red-50 rounded-3xl p-6 shadow-xl border-2 border-red-100">
+                <h3 className="text-xl font-black text-red-900 mb-4 flex items-center gap-2">
+                    🎯 {t('all')}
+                </h3>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
