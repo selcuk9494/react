@@ -351,11 +351,13 @@ function OpenOrdersContent() {
                     onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=open${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
                     className="w-full bg-gradient-to-br from-white to-amber-50/30 rounded-3xl p-5 shadow-md border-2 border-amber-100 hover:shadow-xl hover:border-amber-300 transition-all duration-200 text-left group"
                 >
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center space-x-3">
-                            <Receipt className="w-6 h-6 text-amber-500" />
-                            <h3 className="text-base font-bold text-gray-900">
-                                {`Adisyon No: #${order.adsno || order.id}`}
+                            <div className="bg-amber-500 p-2 rounded-xl shadow-md">
+                                <Receipt className="w-6 h-6 text-white" />
+                            </div>
+                            <h3 className="text-lg font-black text-gray-900">
+                                #{order.adsno || order.id}
                             </h3>
                             {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
                                 <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
