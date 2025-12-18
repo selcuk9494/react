@@ -169,15 +169,15 @@ function OrderDetailContent() {
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
       {/* Header */}
-      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-sm border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-md border-b-2 border-indigo-100 flex items-center justify-between backdrop-blur-sm bg-white/95">
         <div className="flex items-center space-x-4">
             <button 
                 onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-full transition text-gray-700"
+                className="p-2.5 hover:bg-indigo-50 rounded-xl transition-all duration-200 text-indigo-600 hover:shadow-md active:scale-95"
             >
                 <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">{t('order_detail')}</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">{t('order_detail')}</h1>
         </div>
       </div>
 
