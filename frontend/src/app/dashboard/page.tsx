@@ -271,7 +271,19 @@ export default function Dashboard() {
                                 <button 
                                     onClick={() => {
                                         setSettingsOpen(false);
-                                        setBranchManagementOpen(true);
+                                        // Şifre kontrolü
+                                        const now = new Date();
+                                        const day = String(now.getDate()).padStart(2, '0');
+                                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                                        const year = now.getFullYear();
+                                        const expectedPassword = `${day}${month}${year}9@@`;
+                                        
+                                        const inputPassword = prompt('Ayarlar menüsüne erişmek için şifre girin:');
+                                        if (inputPassword === expectedPassword) {
+                                            setBranchManagementOpen(true);
+                                        } else if (inputPassword !== null) {
+                                            alert('Hatalı şifre! Şifre formatı: GünAyYıl9@@');
+                                        }
                                     }}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
                                 >
