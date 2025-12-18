@@ -263,61 +263,87 @@ export class ReportsService {
         return rows[0] || null;
     } else {
         const query = `
-            WITH ad AS (
+            WITH order_info AS (
                 SELECT 
                     adsno,
+                    MAX(COALESCE(adtur, 0)) as adtur,
                     MAX(COALESCE(masano, 0)) as masano,
-                    MAX(acsaat) as acsaat,
-                    MAX(kapsaat) as kapsaat,
-                    MAX(CAST(sipyer AS INTEGER)) as sipyer,
+                    MAX(CAST(COALESCE(sipyer, 0) AS INTEGER)) as sipyer,
                     MAX(garsonno) as garsonno,
-                    MAX(COALESCE(mustid, 0)) as mustid,
-                    MAX(COALESCE(adtur, 0)) as adtur
+                    MAX(mustid) as mustid,
+                    MAX(acsaat) as acilis_saati,
+                    MAX(kapsaat) as kapanis_saati
                 FROM ads_adisyon
                 WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
             ),
-            items AS (
+            order_items AS (
                 SELECT 
-                    COALESCE(json_agg(json_build_object(
-                        'product_name', COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)),
-                        'quantity', a.miktar,
-                        'price', a.bfiyat,
-                        'total', a.tutar,
-                        'ack1', a.ack1,
-                        'ack2', a.ack2,
-                        'ack3', a.ack3,
-                        'sturu', a.sturu,
-                        'pluid', a.pluid,
-                        'adtur', a.adtur
-                    )), '[]'::json) as items
+                    a.adsno,
+                    json_agg(
+                        json_build_object(
+                            'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
+                            'urun_adi', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
+                            'quantity', COALESCE(a.miktar, 1),
+                            'miktar', COALESCE(a.miktar, 1),
+                            'price', COALESCE(a.bfiyat, 0),
+                            'birim_fiyat', COALESCE(a.bfiyat, 0),
+                            'total', COALESCE(a.tutar, 0),
+                            'toplam', COALESCE(a.tutar, 0),
+                            'ack1', a.ack1,
+                            'ack2', a.ack2,
+                            'ack3', a.ack3,
+                            'sturu', COALESCE(a.sturu, 0),
+                            'pluid', a.pluid
+                        )
+                        ORDER BY a.kaptar, a.kapsaat
+                    ) as items
                 FROM ads_adisyon a
-                LEFT JOIN product p ON a.pluid = p.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2
+                LEFT JOIN product pr ON a.pluid = pr.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 AND a.pluid IS NOT NULL
+                GROUP BY a.adsno
+            ),
+            payment_info AS (
+                SELECT
+                    adsno,
+                    MAX(raptar) as tarih,
+                    COALESCE(SUM(iskonto), 0) as toplam_iskonto,
+                    COALESCE(SUM(otutar), 0) as toplam_tutar,
+                    MAX(mustid) as payment_mustid
+                FROM ads_odeme
+                WHERE kasa = ANY($1) AND adsno = $2
+                GROUP BY adsno
             )
             SELECT
-                ad.adsno,
-                ad.adtur as adtur,
-                ad.masano as masano,
-                ad.masano as masa_no,
-                CASE WHEN ad.masano = 99999 THEN 'Paket' ELSE 'Adisyon' END as type_label,
-                MAX(p.adi) as garson,
-                MAX(m.adi) as customer_name,
-                COALESCE(MAX(o.raptar), NULL) as tarih,
-                ad.acsaat as acilis_saati,
-                ad.kapsaat as kapanis_saati,
-                COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
-                COALESCE(SUM(o.otutar), 0) as toplam_tutar,
-                COALESCE(MAX(od.odmname), NULL) as payment_name,
-                COALESCE(MAX(o.mustid), ad.mustid) as mustid,
-                (SELECT ss.adi FROM ads_sipyer ss WHERE ss.id = ad.sipyer) as sipyer_name,
-                (SELECT items FROM items) as items
-            FROM ad
-            LEFT JOIN ads_odeme o ON o.adsno = ad.adsno AND o.kasa = ANY($1)
-            LEFT JOIN personel p ON ad.garsonno = p.id
-            LEFT JOIN ads_musteri m ON o.mustid = m.id
+                oi.adsno,
+                oi.adtur,
+                oi.masano,
+                oi.masano as masa_no,
+                oi.sipyer,
+                CASE 
+                  WHEN oi.sipyer = 1 THEN 'Hızlı Satış'
+                  WHEN oi.sipyer = 2 THEN 'Paket'
+                  WHEN oi.sipyer = 3 THEN 'Adisyon'
+                  ELSE 'Diğer'
+                END as sipyer_name,
+                p.adi as garson,
+                m.adi as customer_name,
+                COALESCE(oi.mustid, pi.payment_mustid) as mustid,
+                COALESCE(pi.tarih, CURRENT_DATE) as tarih,
+                oi.acilis_saati,
+                oi.kapanis_saati,
+                COALESCE(pi.toplam_iskonto, 0) as toplam_iskonto,
+                COALESCE(pi.toplam_tutar, 0) as toplam_tutar,
+                od.odmname as payment_name,
+                COALESCE(items.items, '[]'::json) as items
+            FROM order_info oi
+            LEFT JOIN personel p ON oi.garsonno = p.id
+            LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, 0) = m.mustid
+            LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1)
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-            GROUP BY ad.adsno, ad.masano, ad.acsaat, ad.kapsaat, ad.sipyer, ad.adtur
+            LEFT JOIN order_items items ON items.adsno = oi.adsno
+            LIMIT 1
         `;
         const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno]);
         return rows[0] || null;
