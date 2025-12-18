@@ -183,10 +183,11 @@ function OrderDetailContent() {
 
       <div className="p-4 max-w-3xl mx-auto w-full">
         {/* Info Card */}
-        <div className="bg-indigo-600 rounded-2xl p-6 shadow-lg mb-6 text-white relative overflow-hidden">
-             {/* Decorative Background Circles */}
-             <div className="absolute top-0 right-0 -mr-10 -mt-10 w-32 h-32 bg-white opacity-10 rounded-full"></div>
-             <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-32 h-32 bg-white opacity-10 rounded-full"></div>
+        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-6 shadow-2xl mb-6 text-white relative overflow-hidden">
+             {/* Decorative Background Elements */}
+             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl"></div>
+             <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-purple-400 opacity-10 rounded-full blur-2xl"></div>
+             <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-pink-400 opacity-5 rounded-full blur-xl"></div>
 
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
