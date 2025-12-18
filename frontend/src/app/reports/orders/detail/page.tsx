@@ -50,14 +50,17 @@ function OrderDetailContent() {
         url += `&adtur=${adtur}`;
       }
       
+      console.log('📡 Fetching order detail:', url);
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('✅ Order data received:', response.data);
       const payload = response.data || {};
       payload.order_type = type;
       setOrderData(payload);
-    } catch (error) {
-      console.error('Fetch order detail error:', error);
+    } catch (error: any) {
+      console.error('❌ Fetch order detail error:', error);
+      console.error('Error response:', error.response?.data);
       // alert(t('error_loading_data'));
     } finally {
       setLoading(false);
