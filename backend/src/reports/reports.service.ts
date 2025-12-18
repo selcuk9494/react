@@ -187,28 +187,25 @@ export class ReportsService {
 
     if (status === 'open') {
         const query = `
-            SELECT
-                a.adsno,
-                MAX(COALESCE(a.adtur, 0)) as adtur,
-                MAX(COALESCE(a.masano, 0)) as masano,
-                MAX(COALESCE(a.masano, 0)) as masa_no,
-                MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) as sipyer,
-                CASE 
-                  WHEN MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) = 1 THEN 'Hızlı Satış'
-                  WHEN MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) = 2 THEN 'Paket'
-                  WHEN MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) = 3 THEN 'Adisyon'
-                  ELSE 'Diğer'
-                END as sipyer_name,
-                MAX(p.adi) as garson,
-                MAX(m.adi) as customer_name,
-                MAX(a.mustid) as mustid,
-                MAX(a.actar) as tarih,
-                MAX(a.acsaat) as acilis_saati,
-                NULL as kapanis_saati,
-                COALESCE(SUM(a.iskonto), 0) as toplam_iskonto,
-                COALESCE(SUM(a.tutar), 0) as toplam_tutar,
-                COALESCE(MAX(od.odmname), NULL) as payment_name,
-                COALESCE(
+            WITH order_info AS (
+                SELECT 
+                    adsno,
+                    MAX(COALESCE(adtur, 0)) as adtur,
+                    MAX(COALESCE(masano, 0)) as masano,
+                    MAX(CAST(COALESCE(sipyer, 0) AS INTEGER)) as sipyer,
+                    MAX(garsonno) as garsonno,
+                    MAX(mustid) as mustid,
+                    MAX(actar) as tarih,
+                    MAX(acsaat) as acilis_saati,
+                    COALESCE(SUM(iskonto), 0) as toplam_iskonto,
+                    COALESCE(SUM(tutar), 0) as toplam_tutar
+                FROM ads_acik
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                GROUP BY adsno
+            ),
+            order_items AS (
+                SELECT 
+                    a.adsno,
                     json_agg(
                         json_build_object(
                             'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
@@ -226,17 +223,40 @@ export class ReportsService {
                             'pluid', a.pluid
                         )
                         ORDER BY a.actar, a.acsaat
-                    ) FILTER (WHERE a.pluid IS NOT NULL),
-                    '[]'::json
-                ) as items
-            FROM ads_acik a
-            LEFT JOIN personel p ON a.garsonno = p.id
-            LEFT JOIN product pr ON a.pluid = pr.plu
-            LEFT JOIN ads_musteri m ON a.mustid = m.id
-            LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = ANY($1)
+                    ) as items
+                FROM ads_acik a
+                LEFT JOIN product pr ON a.pluid = pr.plu
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 AND a.pluid IS NOT NULL
+                GROUP BY a.adsno
+            )
+            SELECT
+                oi.adsno,
+                oi.adtur,
+                oi.masano,
+                oi.masano as masa_no,
+                oi.sipyer,
+                CASE 
+                  WHEN oi.sipyer = 1 THEN 'Hızlı Satış'
+                  WHEN oi.sipyer = 2 THEN 'Paket'
+                  WHEN oi.sipyer = 3 THEN 'Adisyon'
+                  ELSE 'Diğer'
+                END as sipyer_name,
+                p.adi as garson,
+                m.adi as customer_name,
+                oi.mustid,
+                oi.tarih,
+                oi.acilis_saati,
+                NULL as kapanis_saati,
+                oi.toplam_iskonto,
+                oi.toplam_tutar,
+                od.odmname as payment_name,
+                COALESCE(items.items, '[]'::json) as items
+            FROM order_info oi
+            LEFT JOIN personel p ON oi.garsonno = p.id
+            LEFT JOIN ads_musteri m ON oi.mustid = m.mustid
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1)
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-            WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''}
-            GROUP BY a.adsno
+            LEFT JOIN order_items items ON items.adsno = oi.adsno
         `;
         const params = typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno];
         const rows = await this.db.executeQuery(pool, query, params);
