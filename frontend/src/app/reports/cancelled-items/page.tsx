@@ -142,8 +142,10 @@ export default function CancelledItemsPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-2">{t('products')}</h3>
+              <div className="bg-gradient-to-br from-white to-orange-50 rounded-3xl p-6 shadow-xl border-2 border-orange-100">
+                <h3 className="text-xl font-black text-orange-900 mb-4 flex items-center gap-2">
+                    📦 {t('products')}
+                </h3>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
