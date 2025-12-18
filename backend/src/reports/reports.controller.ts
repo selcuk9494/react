@@ -31,6 +31,17 @@ export class ReportsController {
     return this.reportsService.getOrders(req.user, period, status, startDate, endDate, type);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/discount')
+  async getDiscountOrders(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getDiscountOrders(req.user, period, startDate, endDate);
+  }
+
   // Compatibility endpoints to match legacy clients
   @UseGuards(JwtAuthGuard)
   @Get('reports/open-orders')
