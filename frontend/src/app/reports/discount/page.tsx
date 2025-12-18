@@ -47,13 +47,16 @@ function DiscountReportContent() {
         url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
       }
 
+      console.log('📡 Fetching discount orders:', url);
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      console.log('✅ Discount orders received:', response.data?.length || 0, 'orders');
       setOrders(response.data || []);
-    } catch (error) {
-      console.error('Fetch discount orders error:', error);
+    } catch (error: any) {
+      console.error('❌ Fetch discount orders error:', error);
+      console.error('Error response:', error.response?.data);
       setOrders([]);
     } finally {
       setLoading(false);
