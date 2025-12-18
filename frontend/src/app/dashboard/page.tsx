@@ -726,6 +726,19 @@ export default function Dashboard() {
                     </div>
                 </button>
 
+                <button 
+                    onClick={() => router.push('/reports/discount')}
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                    <div className="bg-emerald-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <Tag className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">İskonto Raporu</h4>
+                      <p className="text-xs text-gray-500 mt-1 font-medium">İndirim yapılan adisyonlar</p>
+                    </div>
+                </button>
 
             </div>
         </div>
