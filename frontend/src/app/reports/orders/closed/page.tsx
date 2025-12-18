@@ -268,11 +268,13 @@ function ClosedOrdersContent() {
                     onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=closed${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
                     className="w-full bg-gradient-to-br from-white to-emerald-50/30 rounded-3xl p-5 shadow-md border-2 border-emerald-100 hover:shadow-xl hover:border-emerald-300 transition-all duration-200 text-left group"
                 >
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center space-x-3">
-                            <CheckCircle className="w-6 h-6 text-emerald-500" />
-                            <h3 className="text-base font-bold text-gray-900">
-                                {`Adisyon No: #${order.adsno || order.id}`}
+                            <div className="bg-emerald-500 p-2 rounded-xl shadow-md">
+                                <CheckCircle className="w-6 h-6 text-white" />
+                            </div>
+                            <h3 className="text-lg font-black text-gray-900">
+                                #{order.adsno || order.id}
                             </h3>
                             {(order.type_label || typeof order.adtur !== 'undefined') && (
                                 <span
