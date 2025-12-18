@@ -382,6 +382,18 @@ function OpenOrdersContent() {
                                     <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
                                 </div>
                             )}
+                            {(order.customer_name || order.mustid) && (
+                                <div className="flex items-center">
+                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">Müşteri: {order.customer_name || order.mustid}</span>
+                                </div>
+                            )}
+                            {typeof order.iskonto !== 'undefined' && order.iskonto > 0 && (
+                                <div className="flex items-center">
+                                    <Tag className="w-3.5 h-3.5 mr-2 text-emerald-500 flex-shrink-0" />
+                                    <span className="text-xs text-emerald-600 font-semibold">İndirim: {formatCurrency(order.iskonto)}</span>
+                                </div>
+                            )}
                             <div className="flex items-center">
                                 <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className="text-base font-bold text-gray-900 truncate">Masa Numarası: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
