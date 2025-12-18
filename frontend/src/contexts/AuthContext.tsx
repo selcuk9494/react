@@ -10,6 +10,8 @@ interface User {
   email: string;
   selected_branch?: number;
   branches?: any[];
+  days_left?: number;
+  expiry_date?: string;
 }
 
 interface AuthContextType {
