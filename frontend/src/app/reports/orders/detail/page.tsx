@@ -326,17 +326,6 @@ function OrderDetailContent() {
                                 </div>
                             </div>
                         )}
-                        {typeof orderData?.mustid !== 'undefined' && (
-                            <div className="flex items-center space-x-2 col-span-2">
-                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
-                                <Users className="w-4 h-4 text-indigo-200" />
-                              </div>
-                              <div>
-                                <p className="text-xs text-indigo-200">Müşteri</p>
-                                <p className="text-sm font-semibold">{customerName || orderData.customer_name || orderData.mustid}</p>
-                              </div>
-                            </div>
-                        )}
                 </div>
             </div>
         </div>
