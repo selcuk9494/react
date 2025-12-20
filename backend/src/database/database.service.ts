@@ -59,15 +59,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      try {
-        await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP`);
-      } catch (e) {
-        console.warn('ALTER users add expiry_date failed:', e.message);
+      const colCheck = async (col: string) => {
+        const r = await client.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name=$1`,
+          [col]
+        );
+        return r.rows.length > 0;
+      };
+      const hasExpiry = await colCheck('expiry_date');
+      if (!hasExpiry) {
+        await client.query(`ALTER TABLE users ADD COLUMN expiry_date TIMESTAMP`);
       }
-      try {
-        await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE`);
-      } catch (e) {
-        console.warn('ALTER users add is_admin failed:', e.message);
+      const hasAdmin = await colCheck('is_admin');
+      if (!hasAdmin) {
+        await client.query(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`);
       }
 
       await client.query(`
