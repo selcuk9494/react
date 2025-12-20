@@ -16,6 +16,13 @@ export class AuthService {
         return 'not_found';
     }
     if (await bcrypt.compare(pass, user.password)) {
+      if (user.expiry_date) {
+        const now = new Date();
+        const exp = new Date(user.expiry_date);
+        if (exp.getTime() < now.getTime()) {
+          return 'expired';
+        }
+      }
       const { password, ...result } = user;
       return result;
     }

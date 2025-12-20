@@ -26,6 +26,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const client = await this.mainPool.connect();
       client.release();
       await this.initSchema();
+      await this.ensureSeedAdmins();
       console.log('Connected to PostgreSQL successfully.');
     } catch (e) {
       console.warn('Failed to connect to PostgreSQL, switching to MOCK mode.');
@@ -58,6 +59,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      await client.query(`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE
+      `);
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS branches (
@@ -82,6 +88,31 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       `);
     } catch (e) {
       console.log('Schema init error (might be okay if tables exist):', e.message);
+    } finally {
+      client.release();
+    }
+  }
+
+  private async ensureSeedAdmins() {
+    if (this.isMock) return;
+    const list = (this.configService.get<string>('ADMIN_EMAILS') || 'selcuk.yilmaz@microvise.net')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (list.length === 0) return;
+    const client = await this.mainPool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const email of list) {
+        await client.query(
+          `UPDATE users SET is_admin = TRUE WHERE email = $1`,
+          [email]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      console.warn('ensureSeedAdmins error:', e.message);
     } finally {
       client.release();
     }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
@@ -28,9 +29,13 @@ export class UsersService {
     try {
       await client.query('BEGIN');
       
+      const expiryDays = Number.isFinite(userData?.expiry_days) ? Number(userData.expiry_days) : 30;
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + expiryDays);
+      const isAdmin = !!userData?.is_admin;
       const userRes = await client.query(
-        'INSERT INTO users (email, password, selected_branch) VALUES ($1, $2, $3) RETURNING *',
-        [userData.email, userData.password, 0]
+        'INSERT INTO users (email, password, selected_branch, expiry_date, is_admin) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [userData.email, userData.password, 0, expiryDate, isAdmin]
       );
       const user = userRes.rows[0];
 
@@ -58,5 +63,77 @@ export class UsersService {
   async updateSelectedBranch(userId: string, branchIndex: number) {
     const pool = this.db.getMainPool();
     await pool.query('UPDATE users SET selected_branch = $1 WHERE id = $2', [branchIndex, userId]);
+  }
+
+  async findAll(): Promise<any[]> {
+    const pool = this.db.getMainPool();
+    const res = await pool.query(`
+      SELECT *,
+             EXTRACT(DAY FROM (expiry_date - CURRENT_DATE))::INTEGER as days_left
+      FROM users
+      ORDER BY created_at DESC
+    `);
+    return res.rows;
+  }
+
+  async update(userId: string, data: any): Promise<any> {
+    const pool = this.db.getMainPool();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+    if (data.email) {
+      fields.push(`email = $${idx++}`);
+      values.push(data.email);
+    }
+    if (typeof data.selected_branch === 'number') {
+      fields.push(`selected_branch = $${idx++}`);
+      values.push(data.selected_branch);
+    }
+    if (data.expiry_date) {
+      fields.push(`expiry_date = $${idx++}`);
+      values.push(new Date(data.expiry_date));
+    }
+    if (typeof data.is_admin === 'boolean') {
+      fields.push(`is_admin = $${idx++}`);
+      values.push(!!data.is_admin);
+    }
+    if (fields.length === 0) {
+      const res = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+      return res.rows[0];
+    }
+    values.push(userId);
+    const res = await pool.query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    return res.rows[0];
+  }
+
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const pool = this.db.getMainPool();
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hash, userId]);
+  }
+
+  async remove(userId: string): Promise<void> {
+    const pool = this.db.getMainPool();
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  }
+
+  async extendExpiry(userId: string, days: number): Promise<any> {
+    const pool = this.db.getMainPool();
+    const d = Number.isFinite(days) ? Number(days) : 30;
+    const res = await pool.query(
+      `UPDATE users 
+       SET expiry_date = (CASE 
+         WHEN expiry_date IS NULL OR expiry_date < CURRENT_DATE 
+         THEN CURRENT_DATE 
+         ELSE expiry_date 
+       END) + ($1::int || ' days')::interval
+       WHERE id = $2
+       RETURNING *`,
+      [d, userId]
+    );
+    return res.rows[0];
   }
 }

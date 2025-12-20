@@ -12,6 +12,7 @@ interface User {
   branches?: any[];
   days_left?: number;
   expiry_date?: string;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {

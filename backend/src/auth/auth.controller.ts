@@ -15,6 +15,9 @@ export class AuthController {
     if (result === 'wrong_password') {
         throw new UnauthorizedException('Girdiğiniz şifre hatalı');
     }
+    if (result === 'expired') {
+        throw new UnauthorizedException('Kullanım süreniz dolmuş. Lütfen yöneticinizle iletişime geçin.');
+    }
     return this.authService.login(result);
   }
 

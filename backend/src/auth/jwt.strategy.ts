@@ -19,6 +19,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
+    if (user.expiry_date) {
+      const now = new Date();
+      const exp = new Date(user.expiry_date);
+      if (exp.getTime() < now.getTime()) {
+        throw new UnauthorizedException();
+      }
+    }
     return user;
   }
 }
