@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import clsx from 'clsx';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -12,10 +13,24 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailErr, setEmailErr] = useState('');
+  const [passErr, setPassErr] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setEmailErr('');
+    setPassErr('');
+    const emailValid = /\S+@\S+\.\S+/.test(email);
+    if (!emailValid) {
+      setEmailErr('Geçerli bir e-posta girin');
+      return;
+    }
+    if (!password || password.length < 4) {
+      setPassErr('Şifre en az 4 karakter olmalı');
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
@@ -43,9 +58,9 @@ export default function LoginPage() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <input type="hidden" name="remember" value="true" />
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm space-y-3">
             <div>
-              <label htmlFor="email-address" className="sr-only">
+              <label htmlFor="email-address" className="block text-sm font-medium text-gray-800 mb-1">
                 {t('email')}
               </label>
               <input
@@ -54,27 +69,44 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder={t('email')}
+                className={clsx(
+                  "block w-full px-3 py-3 border rounded-md sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2",
+                  emailErr ? "border-red-400 focus:ring-red-500 focus:border-red-500" : "border-gray-300 focus:ring-indigo-600 focus:border-indigo-600"
+                )}
+                placeholder=""
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              {emailErr && <p className="mt-1 text-xs text-red-600">{emailErr}</p>}
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-800 mb-1">
                 {t('password')}
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder={t('password')}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  className={clsx(
+                    "block w-full px-3 py-3 border rounded-md sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 pr-12",
+                    passErr ? "border-red-400 focus:ring-red-500 focus:border-red-500" : "border-gray-300 focus:ring-indigo-600 focus:border-indigo-600"
+                  )}
+                  placeholder=""
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  {showPassword ? 'Gizle' : 'Göster'}
+                </button>
+              </div>
+              {passErr && <p className="mt-1 text-xs text-red-600">{passErr}</p>}
             </div>
           </div>
 
@@ -92,7 +124,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 disabled:opacity-50"
             >
               {loading ? '...' : isLogin ? t('login') : t('register')}
             </button>

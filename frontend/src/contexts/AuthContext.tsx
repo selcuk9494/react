@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { access_token, user } = res.data;
     setToken(access_token);
     localStorage.setItem('token', access_token);
+    document.cookie = `token=${access_token}; path=/; max-age=${30 * 24 * 60 * 60}`;
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     await fetchUser(access_token);
     router.push('/dashboard');
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { access_token, user } = res.data;
     setToken(access_token);
     localStorage.setItem('token', access_token);
+    document.cookie = `token=${access_token}; path=/; max-age=${30 * 24 * 60 * 60}`;
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     await fetchUser(access_token);
     router.push('/dashboard');
@@ -83,6 +85,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
+    document.cookie = `token=; path=/; max-age=0`;
     delete axios.defaults.headers.common['Authorization'];
     router.push('/auth/login');
   };

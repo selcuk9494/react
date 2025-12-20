@@ -7,12 +7,12 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (token) {
-      router.push('/dashboard');
+    const hasCookieToken = document.cookie.split(';').some(c => c.trim().startsWith('token='));
+    const storedToken = localStorage.getItem('token');
+    if (hasCookieToken || storedToken) {
+      router.replace('/dashboard');
     } else {
-      router.push('/auth/login');
+      router.replace('/auth/login');
     }
   }, [router]);
 

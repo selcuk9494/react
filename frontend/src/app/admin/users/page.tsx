@@ -23,6 +23,15 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newUser, setNewUser] = useState({ email: '', password: '', expiry_days: 30, is_admin: false });
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ email: string; is_admin: boolean; expiry_date?: string; password?: string }>({ email: '', is_admin: false });
+  const [addingBranchFor, setAddingBranchFor] = useState<string | null>(null);
+  const [branchForm, setBranchForm] = useState({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
+  const [editingBranchId, setEditingBranchId] = useState<number | null>(null);
+  const [editingBranchForm, setEditingBranchForm] = useState({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
+  const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
+  const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState<number | null>(null);
+  const [savingSelectedBranchUserId, setSavingSelectedBranchUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -69,91 +78,70 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Kullanıcı silinsin mi?')) return;
     await axios.delete(`${getApiUrl()}/admin/users/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    setDeleteConfirmUserId(null);
     await refresh();
   };
 
-  const handleExtend = async (id: string) => {
-    const daysStr = prompt('Kaç gün uzatılacak?', '30');
-    if (!daysStr) return;
-    const days = parseInt(daysStr, 10);
-    await axios.post(`${getApiUrl()}/admin/users/${id}/extend`, { days }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    await refresh();
+  const startEditUser = (u: AdminUser) => {
+    setEditingUserId(u.id);
+    setEditForm({ email: u.email, is_admin: !!u.is_admin, expiry_date: u.expiry_date || '' });
   };
-
-  const handlePassword = async (id: string) => {
-    const pass = prompt('Yeni şifre girin');
-    if (!pass) return;
-    await axios.post(`${getApiUrl()}/admin/users/${id}/password`, { password: pass }, {
+  const saveEditUser = async (u: AdminUser) => {
+    if (!editForm.email || !/\S+@\S+\.\S+/.test(editForm.email)) return;
+    await axios.put(`${getApiUrl()}/admin/users/${u.id}`, { email: editForm.email, is_admin: editForm.is_admin, expiry_date: editForm.expiry_date || undefined }, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    alert('Şifre güncellendi');
-  };
-
-  const handleToggleAdmin = async (u: AdminUser) => {
-    await axios.put(`${getApiUrl()}/admin/users/${u.id}`, { is_admin: !u.is_admin }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    await refresh();
-  };
-
-  const handleEmail = async (u: AdminUser) => {
-    const email = prompt('Yeni e-posta', u.email);
-    if (!email) return;
-    await axios.put(`${getApiUrl()}/admin/users/${u.id}`, { email }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    if (editForm.password && editForm.password.trim().length > 0) {
+      await axios.post(`${getApiUrl()}/admin/users/${u.id}/password`, { password: editForm.password }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+    setEditingUserId(null);
+    setEditForm({ email: '', is_admin: false, expiry_date: '', password: '' });
     await refresh();
   };
 
   const handleAddBranch = async (userId: string) => {
-    const name = prompt('Şube adı');
-    if (!name) return;
-    const db_host = prompt('DB Host');
-    if (!db_host) return;
-    const db_port = parseInt(prompt('DB Port', '5432') || '5432', 10);
-    const db_name = prompt('DB Name');
-    if (!db_name) return;
-    const db_user = prompt('DB User');
-    if (!db_user) return;
-    const db_password = prompt('DB Password');
-    if (!db_password) return;
-    const kasa_no = parseInt(prompt('Kasa No', '1') || '1', 10);
-    await axios.post(`${getApiUrl()}/admin/users/${userId}/branches`, {
-      name, db_host, db_port, db_name, db_user, db_password, kasa_no
-    }, {
+    if (!branchForm.name || !branchForm.db_host || !branchForm.db_name || !branchForm.db_user || !branchForm.db_password) return;
+    await axios.post(`${getApiUrl()}/admin/users/${userId}/branches`, branchForm, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    setAddingBranchFor(null);
+    setBranchForm({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
     await refresh();
   };
 
-  const handleUpdateBranch = async (userId: string, branch: any) => {
-    const name = prompt('Şube adı', branch.name) || branch.name;
-    const db_host = prompt('DB Host', branch.db_host) || branch.db_host;
-    const db_port = parseInt(prompt('DB Port', String(branch.db_port)) || String(branch.db_port), 10);
-    const db_name = prompt('DB Name', branch.db_name) || branch.db_name;
-    const db_user = prompt('DB User', branch.db_user) || branch.db_user;
-    const db_password = prompt('DB Password', branch.db_password) || branch.db_password;
-    const kasa_no = parseInt(prompt('Kasa No', String(branch.kasa_no || 1)) || String(branch.kasa_no || 1), 10);
-    await axios.put(`${getApiUrl()}/admin/users/${userId}/branches/${branch.id}`, {
-      name, db_host, db_port, db_name, db_user, db_password, kasa_no
-    }, {
+  const handleUpdateBranch = async (userId: string) => {
+    if (editingBranchId === null) return;
+    if (!editingBranchForm.name || !editingBranchForm.db_host || !editingBranchForm.db_name || !editingBranchForm.db_user || !editingBranchForm.db_password) return;
+    await axios.put(`${getApiUrl()}/admin/users/${userId}/branches/${editingBranchId}`, editingBranchForm, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    setEditingBranchId(null);
     await refresh();
   };
 
   const handleDeleteBranch = async (userId: string, branchId: number) => {
-    if (!confirm('Şube silinsin mi?')) return;
     await axios.delete(`${getApiUrl()}/admin/users/${userId}/branches/${branchId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    setDeleteConfirmBranchId(null);
     await refresh();
+  };
+
+  const handleSelectBranch = async (userId: string, index: number) => {
+    setSavingSelectedBranchUserId(userId);
+    try {
+      await axios.put(`${getApiUrl()}/admin/users/${userId}`, { selected_branch: index }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await refresh();
+    } finally {
+      setSavingSelectedBranchUserId(null);
+    }
   };
 
   return (
@@ -163,18 +151,18 @@ export default function AdminUsersPage() {
 
         <div className="bg-white rounded-xl p-4 shadow border">
           <h2 className="text-lg font-semibold mb-3">Yeni Kullanıcı Ekle</h2>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <input className="border rounded px-3 py-2" placeholder="E-posta" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
-            <input className="border rounded px-3 py-2" placeholder="Şifre" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
-            <input className="border rounded px-3 py-2" placeholder="Süre (gün)" type="number" value={newUser.expiry_days} onChange={e => setNewUser({ ...newUser, expiry_days: parseInt(e.target.value || '30', 10) })} />
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={newUser.is_admin} onChange={e => setNewUser({ ...newUser, is_admin: e.target.checked })} />
-              Admin
-            </label>
-            <button className="bg-indigo-600 text-white rounded px-4 py-2" onClick={handleCreateUser} disabled={creating}>
-              {creating ? 'Ekleniyor...' : 'Ekle'}
-            </button>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="E-posta" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
+              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şifre" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
+              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Süre (gün)" type="number" value={newUser.expiry_days} onChange={e => setNewUser({ ...newUser, expiry_days: parseInt(e.target.value || '30', 10) })} />
+              <label className="flex items-center gap-2 text-gray-800">
+                <input type="checkbox" checked={newUser.is_admin} onChange={e => setNewUser({ ...newUser, is_admin: e.target.checked })} />
+                Admin
+              </label>
+              <button className="bg-indigo-600 text-white rounded px-4 py-2" onClick={handleCreateUser} disabled={creating}>
+                {creating ? 'Ekleniyor...' : 'Ekle'}
+              </button>
+            </div>
         </div>
 
         {loading ? (
@@ -187,37 +175,128 @@ export default function AdminUsersPage() {
               <div key={u.id} className="bg-white rounded-xl p-4 shadow border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold">{u.email}</div>
-                    <div className="text-sm text-gray-500">
-                      Gün kalan: {u.days_left ?? '-'} | Bitiş: {u.expiry_date ? new Date(u.expiry_date).toLocaleDateString('tr-TR') : '-'}
-                    </div>
-                    <div className="text-xs text-gray-500">Admin: {u.is_admin ? 'Evet' : 'Hayır'}</div>
+                    {editingUserId === u.id ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <input className="border rounded px-3 py-2" placeholder="E-posta" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+                          <input className="border rounded px-3 py-2" placeholder="Şifre (opsiyonel)" type="password" value={editForm.password || ''} onChange={e => setEditForm({ ...editForm, password: e.target.value })} />
+                          <input className="border rounded px-3 py-2" placeholder="Bitiş Tarihi (YYYY-MM-DD)" value={editForm.expiry_date || ''} onChange={e => setEditForm({ ...editForm, expiry_date: e.target.value })} />
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={editForm.is_admin} onChange={e => setEditForm({ ...editForm, is_admin: e.target.checked })} />
+                            Admin
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => saveEditUser(u)}>Kaydet</button>
+                          <button className="px-3 py-1 rounded bg-gray-100" onClick={() => { setEditingUserId(null); setEditForm({ email: '', is_admin: false, expiry_date: '', password: '' }); }}>İptal</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-gray-900">{u.email}</div>
+                        <div className="text-sm text-gray-700">
+                          Gün kalan: {u.days_left ?? '-'} | Bitiş: {u.expiry_date ? new Date(u.expiry_date).toLocaleDateString('tr-TR') : '-'}
+                        </div>
+                        <div className="text-xs text-gray-700">Admin: {u.is_admin ? 'Evet' : 'Hayır'}</div>
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <button className="px-3 py-1 rounded bg-gray-100" onClick={() => handleEmail(u)}>E-posta</button>
-                    <button className="px-3 py-1 rounded bg-gray-100" onClick={() => handleToggleAdmin(u)}>{u.is_admin ? 'Admin Kaldır' : 'Admin Yap'}</button>
-                    <button className="px-3 py-1 rounded bg-blue-100" onClick={() => handlePassword(u.id)}>Şifre</button>
-                    <button className="px-3 py-1 rounded bg-emerald-100" onClick={() => handleExtend(u.id)}>Süre Uzat</button>
-                    <button className="px-3 py-1 rounded bg-red-100" onClick={() => handleDelete(u.id)}>Sil</button>
-                    <button className="px-3 py-1 rounded bg-indigo-200" onClick={() => handleAddBranch(u.id)}>Şube Ekle</button>
+                    {editingUserId === u.id ? (
+                      <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => { setEditingUserId(null); setEditForm({ email: '', is_admin: false, expiry_date: '', password: '' }); }}>Düzenlemeyi Kapat</button>
+                    ) : (
+                      <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => startEditUser(u)}>Düzenle</button>
+                    )}
+                    {deleteConfirmUserId === u.id ? (
+                      <>
+                        <button className="px-3 py-1 rounded bg-red-600 text-white" onClick={() => handleDelete(u.id)}>Eminim, Sil</button>
+                        <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => setDeleteConfirmUserId(null)}>Vazgeç</button>
+                      </>
+                    ) : (
+                      <button className="px-3 py-1 rounded bg-red-600 text-white" onClick={() => setDeleteConfirmUserId(u.id)}>Sil</button>
+                    )}
+                    {addingBranchFor === u.id ? (
+                      <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => { setAddingBranchFor(null); }}>Şube Ekleme İptal</button>
+                    ) : (
+                      <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => { setAddingBranchFor(u.id); }}>Şube Ekle</button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className="font-semibold mb-2">Şubeler</div>
+                  <div className="font-semibold mb-2 text-gray-900">Şubeler</div>
                   <div className="space-y-2">
                     {(u.branches || []).map((b: any) => (
                       <div key={b.id} className="border rounded p-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{b.name}</div>
-                          <div className="text-xs text-gray-500">{b.db_host}:{b.db_port} / {b.db_name} ({b.db_user})</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button className="px-3 py-1 rounded bg-gray-100" onClick={() => handleUpdateBranch(u.id, b)}>Düzenle</button>
-                          <button className="px-3 py-1 rounded bg-red-100" onClick={() => handleDeleteBranch(u.id, b.id)}>Sil</button>
-                        </div>
+                        {editingBranchId === b.id ? (
+                          <div className="w-full">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şube Adı" value={editingBranchForm.name} onChange={e => setEditingBranchForm({ ...editingBranchForm, name: e.target.value })} />
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Host" value={editingBranchForm.db_host} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_host: e.target.value })} />
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Port" type="number" value={editingBranchForm.db_port} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_port: parseInt(e.target.value || '5432', 10) })} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Name" value={editingBranchForm.db_name} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_name: e.target.value })} />
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB User" value={editingBranchForm.db_user} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_user: e.target.value })} />
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Password" type="password" value={editingBranchForm.db_password} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_password: e.target.value })} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={editingBranchForm.kasa_no} onChange={e => setEditingBranchForm({ ...editingBranchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
+                            </div>
+                            <div className="flex gap-2">
+                              <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleUpdateBranch(u.id)}>Kaydet</button>
+                              <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => { setEditingBranchId(null); }}>İptal</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <div className="font-medium text-gray-900">{b.name}</div>
+                              <div className="text-xs text-gray-700">{b.db_host}:{b.db_port} / {b.db_name} ({b.db_user})</div>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => { setEditingBranchId(b.id); setEditingBranchForm({ name: b.name, db_host: b.db_host, db_port: b.db_port, db_name: b.db_name, db_user: b.db_user, db_password: b.db_password, kasa_no: b.kasa_no || 1 }); }}>Düzenle</button>
+                              {typeof u.selected_branch === 'number' && (u.branches || []).indexOf(b) === u.selected_branch ? (
+                                <span className="px-3 py-1 rounded bg-emerald-100 text-emerald-700 text-xs font-bold">Seçili</span>
+                              ) : (
+                                <button className="px-3 py-1 rounded bg-emerald-600 text-white" disabled={savingSelectedBranchUserId === u.id} onClick={() => handleSelectBranch(u.id, (u.branches || []).indexOf(b))}>
+                                  {savingSelectedBranchUserId === u.id ? 'Seçiliyor...' : 'Seç'}
+                                </button>
+                              )}
+                              {deleteConfirmBranchId === b.id ? (
+                                <>
+                                  <button className="px-3 py-1 rounded bg-red-600 text-white" onClick={() => handleDeleteBranch(u.id, b.id)}>Eminim, Sil</button>
+                                  <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => setDeleteConfirmBranchId(null)}>Vazgeç</button>
+                                </>
+                              ) : (
+                                <button className="px-3 py-1 rounded bg-red-600 text-white" onClick={() => setDeleteConfirmBranchId(b.id)}>Sil</button>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
+                  {addingBranchFor === u.id && (
+                    <div className="mt-3 border rounded p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şube Adı" value={branchForm.name} onChange={e => setBranchForm({ ...branchForm, name: e.target.value })} />
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Host" value={branchForm.db_host} onChange={e => setBranchForm({ ...branchForm, db_host: e.target.value })} />
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Port" type="number" value={branchForm.db_port} onChange={e => setBranchForm({ ...branchForm, db_port: parseInt(e.target.value || '5432', 10) })} />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Name" value={branchForm.db_name} onChange={e => setBranchForm({ ...branchForm, db_name: e.target.value })} />
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB User" value={branchForm.db_user} onChange={e => setBranchForm({ ...branchForm, db_user: e.target.value })} />
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Password" type="password" value={branchForm.db_password} onChange={e => setBranchForm({ ...branchForm, db_password: e.target.value })} />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={branchForm.kasa_no} onChange={e => setBranchForm({ ...branchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleAddBranch(u.id)}>Kaydet</button>
+                        <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => setAddingBranchFor(null)}>İptal</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -227,4 +306,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-

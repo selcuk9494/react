@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Settings, 
   Calendar, 
@@ -158,6 +159,10 @@ export default function Dashboard() {
 
   // Initial fetch
   useEffect(() => {
+    if (!token && !loading) {
+      router.replace('/auth/login');
+      return;
+    }
     if (!token) return;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     
@@ -636,8 +641,8 @@ export default function Dashboard() {
               {t('other_reports')}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <button 
-                    onClick={() => router.push('/reports/product-sales')}
+                <Link 
+                    href="/reports/product-sales"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-orange-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -648,10 +653,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('product_sales')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('product_sales_desc')}</p>
                     </div>
-                </button>
+                </Link>
                 
-                <button 
-                    onClick={() => router.push('/reports/performance')}
+                <Link 
+                    href="/reports/performance"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-purple-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -662,10 +667,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('personnel')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('personnel_desc')}</p>
                     </div>
-                </button>
+                </Link>
 
-                <button 
-                    onClick={() => router.push('/reports/payment-types')}
+                <Link 
+                    href="/reports/payment-types"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -676,10 +681,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('payments_title')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('payment_types_card_desc')}</p>
                     </div>
-                </button>
+                </Link>
 
-                <button 
-                    onClick={() => router.push('/reports/sales-chart')}
+                <Link 
+                    href="/reports/sales-chart"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -690,10 +695,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('hourly_sales')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('hourly_sales_desc')}</p>
                     </div>
-                </button>
+                </Link>
 
-                <button 
-                    onClick={() => router.push('/reports/courier-tracking')}
+                <Link 
+                    href="/reports/courier-tracking"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -704,10 +709,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('courier_tracking')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('courier_tracking_card_desc')}</p>
                     </div>
-                </button>
+                </Link>
 
-                <button 
-                    onClick={() => router.push('/reports/cancelled-items')}
+                <Link 
+                    href="/reports/cancelled-items"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-pink-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -720,10 +725,10 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('cancelled_items')}</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">{t('cancelled_items_desc')}</p>
                     </div>
-                </button>
+                </Link>
 
-                <button 
-                    onClick={() => router.push('/reports/discount')}
+                <Link 
+                    href="/reports/discount"
                     className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -734,12 +739,12 @@ export default function Dashboard() {
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">İskonto Raporu</h4>
                       <p className="text-xs text-gray-500 mt-1 font-medium">İndirim yapılan adisyonlar</p>
                     </div>
-                </button>
+                </Link>
 
                 {user?.is_admin && (
                   <>
-                    <button 
-                      onClick={() => router.push('/admin/users')}
+                    <Link 
+                      href="/admin/users"
                       className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                     >
                       <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -750,9 +755,9 @@ export default function Dashboard() {
                         <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Admin — Kullanıcılar</h4>
                         <p className="text-xs text-gray-500 mt-1 font-medium">Ekle, düzenle, sil, süre ve şifre</p>
                       </div>
-                    </button>
-                    <button 
-                      onClick={() => router.push('/admin/branches')}
+                    </Link>
+                    <Link 
+                      href="/admin/branches"
                       className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
                     >
                       <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
@@ -763,7 +768,20 @@ export default function Dashboard() {
                         <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Admin — Şubeler</h4>
                         <p className="text-xs text-gray-500 mt-1 font-medium">Bağlantı bilgilerini düzenle ve sil</p>
                       </div>
-                    </button>
+                    </Link>
+                    <Link 
+                      href="/admin/manage"
+                      className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-amber-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+                      <div className="bg-amber-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
+                        <Settings className="w-6 h-6 text-amber-600" />
+                      </div>
+                      <div className="relative z-10">
+                        <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Admin — Tek Form</h4>
+                        <p className="text-xs text-gray-500 mt-1 font-medium">Kullanıcı ve şube tek ekranda</p>
+                      </div>
+                    </Link>
                   </>
                 )}
             </div>
