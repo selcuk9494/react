@@ -6,11 +6,11 @@ import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService, private usersService: UsersService) {
+  constructor(private configService: ConfigService, private usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production',
+      secretOrKey: (configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production'),
     });
   }
 
@@ -25,6 +25,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       if (exp.getTime() < now.getTime()) {
         throw new UnauthorizedException();
       }
+    }
+    const adminEmails = (this.configService.get<string>('ADMIN_EMAILS') || 'selcuk.yilmaz@microvise.net')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (adminEmails.includes(payload.email) && !user.is_admin) {
+      const updated = await this.usersService.update(user.id, { is_admin: true });
+      return updated || { ...user, is_admin: true };
     }
     return user;
   }

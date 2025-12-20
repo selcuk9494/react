@@ -59,11 +59,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      await client.query(`
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP,
-        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE
-      `);
+      try {
+        await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP`);
+      } catch (e) {
+        console.warn('ALTER users add expiry_date failed:', e.message);
+      }
+      try {
+        await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE`);
+      } catch (e) {
+        console.warn('ALTER users add is_admin failed:', e.message);
+      }
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS branches (

@@ -63,9 +63,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const res = await axios.post(`${API_URL}/auth/login`, { email, password: pass });
     const { access_token, user } = res.data;
     setToken(access_token);
-    setUser(user);
     localStorage.setItem('token', access_token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+    await fetchUser(access_token);
     router.push('/dashboard');
   };
 
@@ -73,9 +73,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const res = await axios.post(`${API_URL}/auth/register`, { email, password: pass });
     const { access_token, user } = res.data;
     setToken(access_token);
-    setUser(user);
     localStorage.setItem('token', access_token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+    await fetchUser(access_token);
     router.push('/dashboard');
   };
 

@@ -9,9 +9,9 @@ export const getApiUrl = () => {
   }
 
   if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3001/api`;
+    return `http://${window.location.hostname}:8001/api`;
   }
-  return 'http://localhost:3001/api';
+  return 'http://localhost:8001/api';
 };
 
 export const API_URL = getApiUrl();
