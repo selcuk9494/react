@@ -55,8 +55,6 @@ export default function CourierTrackingReport() {
       }
     };
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
   }, [token, period, customStartDate, customEndDate]);
 
   const parseDateTime = (dateStr: string, timeStr: string | null) => {

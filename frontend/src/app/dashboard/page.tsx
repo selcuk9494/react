@@ -182,11 +182,7 @@ export default function Dashboard() {
     };
     fetchData();
 
-    // Polling setup only if not custom date
-    if (period !== 'custom') {
-        const interval = setInterval(fetchData, 5000);
-        return () => clearInterval(interval);
-    }
+    // Removed polling to prevent continuous refresh
   }, [token, period, customStartDate, customEndDate]);
 
   const formatCurrency = (val: number) => {
