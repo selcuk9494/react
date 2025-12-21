@@ -35,6 +35,8 @@ interface DashboardData {
   kapali_adisyon_toplam: number;
   kapali_iskonto_toplam: number;
   iptal_toplam: number;
+  borca_atilan_toplam?: number;
+  borca_atilan_adet?: number;
   acik_adisyon_adet: number;
   kapali_adisyon_adet: number;
   iptal_adet: number;
@@ -431,6 +433,14 @@ export default function Dashboard() {
             <p className="text-teal-100 text-sm font-medium">
               {t('open_closed_total')}
             </p>
+            {!!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
+              <div className={clsx(
+                "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm",
+                period === 'today' ? "bg-amber-100 text-amber-700 border border-amber-200" : "bg-amber-200 text-amber-800 border border-amber-300 ring-2 ring-amber-400"
+              )}>
+                Borca Atılan: {formatCurrency(data.borca_atilan_toplam)}
+              </div>
+            )}
           </div>
         </div>
 

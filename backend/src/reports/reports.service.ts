@@ -500,12 +500,24 @@ export class ReportsService {
     const acik_toplam = acik_paket.toplam + acik_adisyon.toplam;
     const kapali_toplam = kapali_paket.toplam + kapali_adisyon.toplam + kapali_hizli.toplam;
     const kapali_iskonto_toplam = kapali_paket.iskonto + kapali_adisyon.iskonto;
+    
+    const debtsQuery = `
+      SELECT 
+        COALESCE(SUM(h.borcu), 0) as toplam,
+        COUNT(*) as adet
+      FROM ads_hareket h
+      WHERE h.kasano = ANY($1) AND DATE(h.islem_zamani) BETWEEN $2 AND $3
+    `;
+    const debtsRows = await this.db.executeQuery(pool, debtsQuery, [kasa_nos, dStart, dEnd]);
+    const debts = debtsRows[0] || { toplam: 0, adet: 0 };
 
     return {
       acik_adisyon_toplam: acik_toplam,
       kapali_adisyon_toplam: kapali_toplam,
       kapali_iskonto_toplam: kapali_iskonto_toplam,
       iptal_toplam: parseFloat(iptal.toplam),
+      borca_atilan_toplam: parseFloat(debts.toplam),
+      borca_atilan_adet: parseInt(debts.adet),
       acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet,
       kapali_adisyon_adet: kapali_paket.adet + kapali_adisyon.adet,
       iptal_adet: parseInt(iptal.adet),
