@@ -175,7 +175,7 @@ export default function DebtsPage() {
               </thead>
               <tbody>
                 {filteredItems.map((i, idx) => (
-                  <tr key={idx} className="border-t hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/reports/orders/detail?adsno=${encodeURIComponent(i.adsno)}&status=closed`)}>
+                  <tr key={idx} className="border-t hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/reports/orders/detail?id=${encodeURIComponent(i.adsno)}&type=closed`)}>
                     <td className="px-3 py-2 text-sm text-gray-900">{i.musteri_fullname || '-'}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
@@ -237,4 +237,3 @@ export default function DebtsPage() {
     </div>
   );
 }
-
