@@ -7,7 +7,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
-import { Calendar, BarChart2 } from 'lucide-react';
+import { Calendar, BarChart2, ArrowLeft } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface UnsoldCancelItem {
@@ -30,6 +30,15 @@ export default function UnsoldCancelsPage() {
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<UnsoldCancelItem[]>([]);
+  const [personel, setPersonel] = useState('');
+  const [personnelList, setPersonnelList] = useState<Array<{id:number; adi:string}>>([]);
+  const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+  const [startHour, setStartHour] = useState('');
+  const [endHour, setEndHour] = useState('');
+  const [minQty, setMinQty] = useState('');
+  const [maxQty, setMaxQty] = useState('');
+  const [minTotal, setMinTotal] = useState('');
+  const [maxTotal, setMaxTotal] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -43,6 +52,10 @@ export default function UnsoldCancelsPage() {
         }
         const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
         setItems(res.data || []);
+        try {
+          const per = await axios.get(`${getApiUrl()}/reports/personnel`, { headers: { Authorization: `Bearer ${token}` } });
+          setPersonnelList(per.data || []);
+        } catch(e) {}
       } catch (e) {
         console.error(e);
         setItems([]);
@@ -53,9 +66,41 @@ export default function UnsoldCancelsPage() {
     fetchData();
   }, [token, period, customStartDate, customEndDate]);
 
+  const filteredItems = useMemo(() => {
+    return items.filter(i => {
+      if (selectedPersonId && String(i.pers_id) !== selectedPersonId) return false;
+      if (personel && !(i.personel_adi || String(i.pers_id)).toLowerCase().includes(personel.toLowerCase())) return false;
+      if (startHour) {
+        try {
+          const sParts = startHour.split(':'); 
+          const sVal = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
+          const iParts = i.saat.split(':'); 
+          const iVal = parseInt(iParts[0]) * 60 + parseInt(iParts[1]);
+          if (iVal < sVal) return false;
+        } catch {}
+      }
+      if (endHour) {
+        try {
+          const eParts = endHour.split(':'); 
+          const eVal = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
+          const iParts = i.saat.split(':'); 
+          const iVal = parseInt(iParts[0]) * 60 + parseInt(iParts[1]);
+          if (iVal > eVal) return false;
+        } catch {}
+      }
+      const qty = Number(i.miktar || 0);
+      const total = Number(i.tutar || 0);
+      if (minQty && qty < Number(minQty)) return false;
+      if (maxQty && qty > Number(maxQty)) return false;
+      if (minTotal && total < Number(minTotal)) return false;
+      if (maxTotal && total > Number(maxTotal)) return false;
+      return true;
+    });
+  }, [items, personel, startHour, endHour, minQty, maxQty, minTotal, maxTotal]);
+
   const chartData = useMemo(() => {
     const map = new Map<string, { tarih: string; toplam_tutar: number; adet: number }>();
-    items.forEach(i => {
+    filteredItems.forEach(i => {
       const key = i.tarih;
       const prev = map.get(key) || { tarih: key, toplam_tutar: 0, adet: 0 };
       prev.toplam_tutar += i.tutar;
@@ -63,7 +108,7 @@ export default function UnsoldCancelsPage() {
       map.set(key, prev);
     });
     return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
-  }, [items]);
+  }, [filteredItems]);
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,11 +164,37 @@ export default function UnsoldCancelsPage() {
                 Özel Tarih
               </button>
             </div>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-2">
+              <div className="md:col-span-2 flex gap-2">
+                <input className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Personel ara (ad/id)" value={personel} onChange={e => setPersonel(e.target.value)} list="personnel-datalist" />
+                <select className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900" value={selectedPersonId} onChange={e => setSelectedPersonId(e.target.value)}>
+                  <option value="">Tümü</option>
+                  {personnelList.map(p => <option key={p.id} value={String(p.id)}>{p.adi}</option>)}
+                </select>
+                <datalist id="personnel-datalist">
+                  {personnelList.map(p => <option key={p.id} value={p.adi} />)}
+                </datalist>
+              </div>
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Başlangıç saat (HH:mm)" value={startHour} onChange={e => setStartHour(e.target.value)} />
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Bitiş saat (HH:mm)" value={endHour} onChange={e => setEndHour(e.target.value)} />
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Min miktar" value={minQty} onChange={e => setMinQty(e.target.value)} />
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Min tutar" value={minTotal} onChange={e => setMinTotal(e.target.value)} />
+            </div>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-2">
+              <span className="md:col-span-2"></span>
+              <span></span>
+              <span></span>
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Max miktar" value={maxQty} onChange={e => setMaxQty(e.target.value)} />
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Max tutar" value={maxTotal} onChange={e => setMaxTotal(e.target.value)} />
+            </div>
           </div>
         </div>
       </div>
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: '160px' }}>
+        <div className="flex items-center justify-between">
+          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+        </div>
         <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
           <div className="flex items-center mb-3">
             <BarChart2 className="w-5 h-5 text-indigo-600 mr-2" />
@@ -144,23 +215,36 @@ export default function UnsoldCancelsPage() {
 
         <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
           <h3 className="text-lg font-bold text-gray-900 mb-3">Detaylar</h3>
-          <div className="space-y-2">
-            {items.map((i, idx) => (
-              <div key={idx} className="border rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-gray-900">{i.urun_adi}</div>
-                  <div className="text-xs text-gray-700">{i.tarih} • {i.saat}</div>
-                  <div className="text-xs text-gray-700">Personel: {i.personel_adi || i.pers_id}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-gray-900">{formatCurrency(i.tutar || 0)}</div>
-                  <div className="text-xs text-gray-700">Miktar: {i.miktar}</div>
-                </div>
-              </div>
-            ))}
-            {items.length === 0 && (
-              <div className="text-sm text-gray-500">Kayıt bulunamadı.</div>
-            )}
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-100 rounded-xl overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ürün</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Personel</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Miktar</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Tutar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((i, idx) => (
+                  <tr key={idx} className="border-t">
+                    <td className="px-3 py-2 text-sm text-gray-900">{i.urun_adi}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.personel_adi || i.pers_id}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{i.miktar}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.tutar || 0)}</td>
+                  </tr>
+                ))}
+                {filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
@@ -206,4 +290,3 @@ export default function UnsoldCancelsPage() {
     </div>
   );
 }
-

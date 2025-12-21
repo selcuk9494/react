@@ -950,6 +950,16 @@ export class ReportsService {
     return this.db.executeQuery(pool, q, []);
   }
 
+  async getPersonnel(user: any) {
+    const { pool } = await this.getBranchPool(user);
+    const q = `
+      SELECT id, adi
+      FROM personel
+      ORDER BY adi ASC
+    `;
+    return this.db.executeQuery(pool, q, []);
+  }
+
   async getDiscountOrders(user: any, period: string, startDate?: string, endDate?: string) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);

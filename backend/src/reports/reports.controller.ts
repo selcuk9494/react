@@ -196,6 +196,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/personnel')
+  async getPersonnel(@Request() req) {
+    return this.reportsService.getPersonnel(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Sse('stream/dashboard')
   sseDashboard(
     @Request() req,
