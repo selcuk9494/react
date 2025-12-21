@@ -96,8 +96,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await axios.post(`${API_URL}/auth/select-branch`, { index });
       const updatedUser = { ...user, selected_branch: index };
       setUser(updatedUser);
-      // Reload page to refresh data with new branch context
-      window.location.reload();
+      if (token) {
+        await fetchUser(token);
+      }
     } catch (e) {
       console.error('Failed to select branch', e);
     }

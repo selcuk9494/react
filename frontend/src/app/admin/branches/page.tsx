@@ -68,7 +68,10 @@ export default function AdminBranchesPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-24">
-        <h1 className="text-2xl font-bold">Admin Paneli — Şube Yönetimi</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Admin Paneli — Şube Yönetimi</h1>
+          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+        </div>
         <div className="mb-2">
           <button className="bg-indigo-600 text-white rounded px-4 py-2" onClick={() => router.push('/branches/new')}>Yeni Şube</button>
         </div>
@@ -96,4 +99,3 @@ export default function AdminBranchesPage() {
     </div>
   );
 }
-

@@ -21,6 +21,39 @@ export class BranchesService {
     return res;
   }
 
+  async findById(id: number) {
+    const pool = this.db.getMainPool();
+    const query = `
+      SELECT 
+        b.*,
+        COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+      FROM branches b
+      LEFT JOIN branch_kasas k ON k.branch_id = b.id
+      WHERE b.id = $1
+      GROUP BY b.id
+      LIMIT 1
+    `;
+    const res = await this.db.executeQuery(pool, query, [id]);
+    return res[0];
+  }
+
+  async findAllGlobal() {
+    const pool = this.db.getMainPool();
+    const query = `
+      SELECT 
+        b.*,
+        u.email AS owner_email,
+        COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+      FROM branches b
+      JOIN users u ON u.id = b.user_id
+      LEFT JOIN branch_kasas k ON k.branch_id = b.id
+      GROUP BY b.id, u.email
+      ORDER BY b.id
+    `;
+    const res = await this.db.executeQuery(pool, query, []);
+    return res;
+  }
+
   async create(userId: string, data: any) {
     const pool = this.db.getMainPool();
     const query = `
@@ -87,5 +120,21 @@ export class BranchesService {
     const query = 'DELETE FROM branches WHERE id = $1 AND user_id = $2 RETURNING id';
     const res = await this.db.executeQuery(pool, query, [id, userId]);
     return res[0];
+  }
+
+  async copyToUser(targetUserId: string, sourceBranchId: number) {
+    const src = await this.findById(sourceBranchId);
+    if (!src) return null;
+    const data = {
+      name: src.name,
+      db_host: src.db_host,
+      db_port: src.db_port,
+      db_name: src.db_name,
+      db_user: src.db_user,
+      db_password: src.db_password,
+      kasa_no: src.kasa_no,
+      kasalar: Array.isArray(src.kasalar) ? src.kasalar : [],
+    };
+    return this.create(targetUserId, data);
   }
 }

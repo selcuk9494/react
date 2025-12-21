@@ -148,7 +148,10 @@ export default function AdminManagePage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-24">
-        <h1 className="text-2xl font-bold">Admin — Tek Form Yönetimi</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Admin — Tek Form Yönetimi</h1>
+          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+        </div>
 
         <div className="bg-white rounded-xl p-4 shadow border space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

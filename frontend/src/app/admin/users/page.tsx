@@ -32,6 +32,9 @@ export default function AdminUsersPage() {
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState<number | null>(null);
   const [savingSelectedBranchUserId, setSavingSelectedBranchUserId] = useState<string | null>(null);
+  const [assigningFor, setAssigningFor] = useState<string | null>(null);
+  const [allBranches, setAllBranches] = useState<any[]>([]);
+  const [assignBranchId, setAssignBranchId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -46,6 +49,10 @@ export default function AdminUsersPage() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUsers(res.data);
+        const br = await axios.get(`${getApiUrl()}/admin/branches`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAllBranches(br.data || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -147,7 +154,10 @@ export default function AdminUsersPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-24">
-        <h1 className="text-2xl font-bold">Admin Paneli — Kullanıcı Yönetimi</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Admin Paneli — Kullanıcı Yönetimi</h1>
+          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+        </div>
 
         <div className="bg-white rounded-xl p-4 shadow border">
           <h2 className="text-lg font-semibold mb-3">Yeni Kullanıcı Ekle</h2>
@@ -276,6 +286,32 @@ export default function AdminUsersPage() {
                       </div>
                     ))}
                   </div>
+                  {assigningFor === u.id && (
+                    <div className="mt-3 border rounded p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <div className="md:col-span-2">
+                          <select className="border rounded px-3 py-2 text-gray-900" value={assignBranchId ?? ''} onChange={e => setAssignBranchId(parseInt(e.target.value || '0', 10))}>
+                            <option value="">Şube seçin</option>
+                            {allBranches.map((b: any) => (
+                              <option key={b.id} value={b.id}>{b.name} — {b.owner_email}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex gap-2">
+                          <button className="px-3 py-2 rounded bg-indigo-600 text-white" onClick={async () => {
+                            if (!assignBranchId) return;
+                            await axios.post(`${getApiUrl()}/admin/users/${u.id}/branches/assign`, { branch_id: assignBranchId }, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            setAssigningFor(null);
+                            setAssignBranchId(null);
+                            await refresh();
+                          }}>Ata</button>
+                          <button className="px-3 py-2 rounded bg-gray-200 text-gray-900" onClick={() => { setAssigningFor(null); setAssignBranchId(null); }}>İptal</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {addingBranchFor === u.id && (
                     <div className="mt-3 border rounded p-3">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
@@ -297,6 +333,13 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   )}
+                  <div className="mt-2 flex gap-2">
+                    {assigningFor === u.id ? (
+                      <button className="px-3 py-1 rounded bg-gray-200 text-gray-900" onClick={() => setAssigningFor(null)}>Şube Atamayı Kapat</button>
+                    ) : (
+                      <button className="px-3 py-1 rounded bg-amber-600 text-white" onClick={() => setAssigningFor(u.id)}>Varolan Şubeyi Ata</button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

@@ -67,6 +67,19 @@ export class AdminUsersController {
     return this.branchesService.create(id, body);
   }
 
+  @Get('branches')
+  async listAllBranches(@Request() req) {
+    this.assertAdmin(req);
+    return this.branchesService.findAllGlobal();
+  }
+
+  @Post('users/:id/branches/assign')
+  async assignExistingBranch(@Request() req, @Param('id') id: string, @Body() body: any) {
+    this.assertAdmin(req);
+    const branchId = Number(body?.branch_id);
+    return this.branchesService.copyToUser(id, branchId);
+  }
+
   @Put('users/:id/branches/:branchId')
   async updateBranch(@Request() req, @Param('id') id: string, @Param('branchId') branchId: string, @Body() body: any) {
     this.assertAdmin(req);

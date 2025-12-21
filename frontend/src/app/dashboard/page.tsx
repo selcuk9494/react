@@ -187,8 +187,11 @@ export default function Dashboard() {
     };
     fetchData();
 
-    // Removed polling to prevent continuous refresh
-  }, [token, period, customStartDate, customEndDate]);
+    const interval = setInterval(() => {
+      fetchData();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [token, period, customStartDate, customEndDate, user?.selected_branch]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
