@@ -502,11 +502,16 @@ export class ReportsService {
     const kapali_iskonto_toplam = kapali_paket.iskonto + kapali_adisyon.iskonto;
     
     const debtsQuery = `
+      WITH agg AS (
+        SELECT ads_no, SUM(borcu) AS borc
+        FROM ads_hareket
+        WHERE kasano = ANY($1) AND DATE(islem_zamani) BETWEEN $2 AND $3
+        GROUP BY ads_no
+      )
       SELECT 
-        COALESCE(SUM(h.borcu), 0) as toplam,
+        COALESCE(SUM(agg.borc), 0) as toplam,
         COUNT(*) as adet
-      FROM ads_hareket h
-      WHERE h.kasano = ANY($1) AND DATE(h.islem_zamani) BETWEEN $2 AND $3
+      FROM agg
     `;
     const debtsRows = await this.db.executeQuery(pool, debtsQuery, [kasa_nos, dStart, dEnd]);
     const debts = debtsRows[0] || { toplam: 0, adet: 0 };
@@ -1064,24 +1069,34 @@ export class ReportsService {
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
     const query = `
+      WITH agg AS (
+        SELECT 
+          ads_no,
+          SUM(borcu) AS borc,
+          MAX(islem_zamani) AS islem_zamani,
+          MAX(fisno) AS fisno,
+          MAX(pers_id) AS pers_id,
+          MAX(musteri) AS musteri
+        FROM ads_hareket
+        WHERE kasano = ANY($1) AND DATE(islem_zamani) BETWEEN $2 AND $3
+        GROUP BY ads_no
+      )
       SELECT
-        h.ads_no,
-        h.borcu,
-        h.fisno,
-        h.pers_id,
-        h.islem_zamani,
-        h.musteri,
+        agg.ads_no,
+        agg.borc,
+        agg.fisno,
+        agg.pers_id,
+        agg.islem_zamani,
+        agg.musteri,
         COALESCE(m.adi, '') as musteri_adi,
         COALESCE(m.soyadi, '') as musteri_soyadi,
         p.adi as personel_adi
-      FROM ads_hareket h
-      LEFT JOIN ads_musteri m ON h.musteri = m.mustid
-      LEFT JOIN personel p ON h.pers_id = p.id
-      WHERE DATE(h.islem_zamani) BETWEEN $1 AND $2
-        AND h.kasano = ANY($3)
-      ORDER BY h.islem_zamani DESC
+      FROM agg
+      LEFT JOIN ads_musteri m ON agg.musteri = m.mustid
+      LEFT JOIN personel p ON agg.pers_id = p.id
+      ORDER BY agg.islem_zamani DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    const rows = await this.db.executeQuery(pool, query, [kasa_nos, dStart, dEnd]);
     return rows.map((r: any) => ({
       adsno: r.ads_no,
       borc: parseFloat(r.borcu || 0),
