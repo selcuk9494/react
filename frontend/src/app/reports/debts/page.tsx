@@ -73,6 +73,9 @@ export default function DebtsPage() {
     });
     return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
   }, [filteredItems]);
+  
+  const totalBorc = useMemo(() => filteredItems.reduce((sum, i) => sum + (Number(i.borc) || 0), 0), [filteredItems]);
+  const totalCount = filteredItems.length;
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +195,10 @@ export default function DebtsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <div className="text-sm font-semibold text-amber-700">Toplam Kayıt: {totalCount}</div>
+            <div className="text-lg font-bold text-amber-700">Toplam Borç: {formatCurrency(totalBorc)}</div>
           </div>
         </div>
       </main>
