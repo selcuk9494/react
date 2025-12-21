@@ -1069,27 +1069,7 @@ export class ReportsService {
         AND h.kasano = ANY($3)
       ORDER BY h.islem_zamani DESC
     `;
-    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    if (!rows || rows.length === 0) {
-      const fbQuery = `
-        SELECT
-          h.ads_no,
-          h.borcu,
-          h.fisno,
-          h.pers_id,
-          h.islem_zamani,
-          h.musteri,
-          COALESCE(m.adi, '') as musteri_adi,
-          COALESCE(m.soyadi, '') as musteri_soyadi,
-          p.adi as personel_adi
-        FROM ads_hareket h
-        LEFT JOIN ads_musteri m ON h.musteri = m.mustid
-        LEFT JOIN personel p ON h.pers_id = p.id
-        ORDER BY h.islem_zamani DESC
-        LIMIT 200
-      `;
-      rows = await this.db.executeQuery(pool, fbQuery, []);
-    }
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
     return rows.map((r: any) => ({
       adsno: r.ads_no,
       borc: parseFloat(r.borcu || 0),
