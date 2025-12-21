@@ -770,7 +770,6 @@ export default function Dashboard() {
                     </div>
                     <div className="relative z-10">
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ödenmez Raporu</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">ads_adisyon → ack4 'ODENMEZ'</p>
                     </div>
                 </Link>
                 <Link 
@@ -785,7 +784,6 @@ export default function Dashboard() {
                     </div>
                     <div className="relative z-10">
                       <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Borca Atılanlar</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">ads_hareket → borç detay</p>
                     </div>
                 </Link>
                 <Link 
@@ -799,8 +797,7 @@ export default function Dashboard() {
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Satılmadan İptal</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">ads_iptal grafik ve detay</p>
+                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Satılmadan İptal Edilenler Raporu</h4>
                     </div>
                 </Link>
                 {user?.is_admin && (
