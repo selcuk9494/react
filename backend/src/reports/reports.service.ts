@@ -1058,17 +1058,18 @@ export class ReportsService {
         h.fisno,
         h.pers_id,
         h.islem_zamani,
-        h.mustid,
+        h.musteri,
         COALESCE(m.adi, '') as musteri_adi,
         COALESCE(m.soyadi, '') as musteri_soyadi,
         p.adi as personel_adi
       FROM ads_hareket h
-      LEFT JOIN ads_musteri m ON h.mustid = m.mustid
+      LEFT JOIN ads_musteri m ON h.musteri = m.mustid
       LEFT JOIN personel p ON h.pers_id = p.id
       WHERE DATE(h.islem_zamani) BETWEEN $1 AND $2
+        AND h.kasano = ANY($3)
       ORDER BY h.islem_zamani DESC
     `;
-    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd]);
+    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
     if (!rows || rows.length === 0) {
       const fbQuery = `
         SELECT
@@ -1077,12 +1078,12 @@ export class ReportsService {
           h.fisno,
           h.pers_id,
           h.islem_zamani,
-          h.mustid,
+          h.musteri,
           COALESCE(m.adi, '') as musteri_adi,
           COALESCE(m.soyadi, '') as musteri_soyadi,
           p.adi as personel_adi
         FROM ads_hareket h
-        LEFT JOIN ads_musteri m ON h.mustid = m.mustid
+        LEFT JOIN ads_musteri m ON h.musteri = m.mustid
         LEFT JOIN personel p ON h.pers_id = p.id
         ORDER BY h.islem_zamani DESC
         LIMIT 200
@@ -1095,7 +1096,7 @@ export class ReportsService {
       fisno: r.fisno,
       pers_id: r.pers_id,
       personel_adi: r.personel_adi,
-      mustid: r.mustid,
+      mustid: r.musteri,
       musteri_fullname: `${r.musteri_adi}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
       tarih: format(r.islem_zamani, 'yyyy-MM-dd'),
       saat: format(r.islem_zamani, 'HH:mm'),
