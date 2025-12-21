@@ -213,6 +213,17 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/debts')
+  async getDebts(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getDebts(req.user, period, startDate, endDate);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Sse('stream/dashboard')
   sseDashboard(
     @Request() req,

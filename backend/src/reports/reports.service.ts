@@ -1011,6 +1011,43 @@ export class ReportsService {
     }));
   }
 
+  async getDebts(user: any, period: string, startDate?: string, endDate?: string) {
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(period, startDate, endDate);
+    const dStart = format(start, 'yyyy-MM-dd');
+    const dEnd = format(end, 'yyyy-MM-dd');
+    const query = `
+      SELECT
+        h.ads_no,
+        h.borcu,
+        h.fisno,
+        h.pers_id,
+        h.islem_zamani,
+        h.mustid,
+        COALESCE(m.adi, '') as musteri_adi,
+        COALESCE(m.soyadi, '') as musteri_soyadi,
+        p.adi as personel_adi
+      FROM ads_hareket h
+      LEFT JOIN ads_musteri m ON h.mustid = m.mustid
+      LEFT JOIN personel p ON h.pers_id = p.id
+      WHERE DATE(h.islem_zamani) BETWEEN $1 AND $2
+        AND h.kasa = ANY($3)
+      ORDER BY h.islem_zamani DESC
+    `;
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    return rows.map((r: any) => ({
+      adsno: r.ads_no,
+      borc: parseFloat(r.borcu || 0),
+      fisno: r.fisno,
+      pers_id: r.pers_id,
+      personel_adi: r.personel_adi,
+      mustid: r.mustid,
+      musteri_fullname: `${r.musteri_adi}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
+      tarih: format(r.islem_zamani, 'yyyy-MM-dd'),
+      saat: format(r.islem_zamani, 'HH:mm'),
+    }));
+  }
+
   async getDiscountOrders(user: any, period: string, startDate?: string, endDate?: string) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);

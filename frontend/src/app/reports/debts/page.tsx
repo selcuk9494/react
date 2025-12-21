@@ -1,0 +1,240 @@
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
+import { useRouter } from 'next/navigation';
+import clsx from 'clsx';
+import { getApiUrl } from '@/utils/api';
+import { Calendar, BarChart2 } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+
+interface DebtItem {
+  adsno: string;
+  borc: number;
+  fisno: string;
+  pers_id: number;
+  personel_adi: string;
+  mustid: number;
+  musteri_fullname: string;
+  tarih: string;
+  saat: string;
+}
+
+export default function DebtsPage() {
+  const { token } = useAuth();
+  const { t } = useI18n();
+  const router = useRouter();
+  const [period, setPeriod] = useState('today');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<DebtItem[]>([]);
+  const [customerQuery, setCustomerQuery] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        let url = `${getApiUrl()}/reports/debts?period=${period}`;
+        if (period === 'custom') {
+          url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+        }
+        const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+        setItems(res.data || []);
+      } catch (e) {
+        console.error(e);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [token, period, customStartDate, customEndDate]);
+
+  const filteredItems = useMemo(() => {
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(i => (i.musteri_fullname || '').toLowerCase().includes(q));
+  }, [items, customerQuery]);
+
+  const chartData = useMemo(() => {
+    const map = new Map<string, { tarih: string; toplam_borc: number; adet: number }>();
+    filteredItems.forEach(i => {
+      const key = i.tarih;
+      const prev = map.get(key) || { tarih: key, toplam_borc: 0, adet: 0 };
+      prev.toplam_borc += i.borc;
+      prev.adet += 1;
+      map.set(key, prev);
+    });
+    return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
+  }, [filteredItems]);
+
+  const handleCustomDateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPeriod('custom');
+    setShowCustomDateModal(false);
+  };
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
+
+  if (loading && items.length === 0) return <div className="flex h-screen items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300">
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-yellow-600">Borca Atılanlar</h1>
+          </div>
+          <div className="px-0 py-2">
+            <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
+              {[
+                { id: 'today', label: 'Bugün' },
+                { id: 'yesterday', label: 'Dün' },
+                { id: 'week', label: 'Bu Hafta' },
+                { id: 'last7days', label: 'Son 7 Gün' },
+                { id: 'month', label: 'Bu Ay' },
+                { id: 'lastmonth', label: 'Geçen Ay' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={clsx(
+                    "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
+                    period === p.id 
+                      ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
+                      : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
+                  )}
+                >
+                  {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowCustomDateModal(true)}
+                className={clsx(
+                  "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
+                  period === 'custom' 
+                    ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
+                    : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
+                )}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Özel Tarih
+              </button>
+            </div>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Müşteri adı filtrele" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: '160px' }}>
+        <div className="flex items-center justify-between">
+          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
+          <div className="flex items-center mb-3">
+            <BarChart2 className="w-5 h-5 text-indigo-600 mr-2" />
+            <h2 className="text-lg font-bold text-gray-900">Günlük Borç Toplamı</h2>
+          </div>
+          <div className="w-full h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis dataKey="tarih" />
+                <YAxis />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                <Legend />
+                <Bar dataKey="toplam_borc" fill="#f59e0b" name="Toplam Borç" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 mb-3">Detaylar</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-100 rounded-xl overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Müşteri</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Fiş No</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Adisyon No</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Personel</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Borç</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((i, idx) => (
+                  <tr key={idx} className="border-t hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/reports/orders/detail?adsno=${encodeURIComponent(i.adsno)}&status=closed`)}>
+                    <td className="px-3 py-2 text-sm text-gray-900">{i.musteri_fullname || '-'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.fisno}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.adsno}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.personel_adi || i.pers_id}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.borc || 0)}</td>
+                  </tr>
+                ))}
+                {filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      {showCustomDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Tarih Aralığı Seç</h3>
+              <button onClick={() => setShowCustomDateModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleCustomDateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Başlangıç Tarihi</label>
+                <input 
+                  type="date" 
+                  required
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bitiş Tarihi</label>
+                <input 
+                  type="date" 
+                  required
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+              <button 
+                type="submit"
+                className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 transition"
+              >
+                Uygula
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
