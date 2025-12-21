@@ -503,7 +503,7 @@ export class ReportsService {
     
     const debtsQuery = `
       WITH agg AS (
-        SELECT ads_no, SUM(borcu) AS borc
+        SELECT ads_no, MAX(borcu) AS borc
         FROM ads_hareket
         WHERE kasano = ANY($1) AND DATE(islem_zamani) BETWEEN $2 AND $3
         GROUP BY ads_no
@@ -1072,7 +1072,7 @@ export class ReportsService {
       WITH agg AS (
         SELECT 
           ads_no,
-          SUM(borcu) AS borc,
+          MAX(borcu) AS borc,
           MAX(islem_zamani) AS islem_zamani,
           MAX(fisno) AS fisno,
           MAX(pers_id) AS pers_id,
