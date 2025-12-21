@@ -7,20 +7,25 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
-import { Calendar, BarChart2, ArrowLeft } from 'lucide-react';
+import { Calendar, BarChart2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
-interface UnsoldCancelItem {
-  urun_adi: string;
+interface UnpayableItem {
+  adtur: number;
+  adsno: string;
   tarih: string;
-  saat: string;
-  pers_id: number;
-  personel_adi: string;
+  saat: string | null;
+  masano: number;
+  pluid: string;
+  product_name: string;
   miktar: number;
+  bfiyat: number;
   tutar: number;
+  ack4: string;
+  musteri_fullname: string;
 }
 
-export default function UnsoldCancelsPage() {
+export default function UnpayablePage() {
   const { token } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
@@ -29,16 +34,8 @@ export default function UnsoldCancelsPage() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<UnsoldCancelItem[]>([]);
-  const [personel, setPersonel] = useState('');
-  const [personnelList, setPersonnelList] = useState<Array<{id:number; adi:string}>>([]);
-  const [selectedPersonId, setSelectedPersonId] = useState<string>('');
-  const [startHour, setStartHour] = useState('');
-  const [endHour, setEndHour] = useState('');
-  const [minQty, setMinQty] = useState('');
-  const [maxQty, setMaxQty] = useState('');
-  const [minTotal, setMinTotal] = useState('');
-  const [maxTotal, setMaxTotal] = useState('');
+  const [items, setItems] = useState<UnpayableItem[]>([]);
+  const [customerQuery, setCustomerQuery] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -46,16 +43,12 @@ export default function UnsoldCancelsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let url = `${getApiUrl()}/reports/unsold-cancels?period=${period}`;
+        let url = `${getApiUrl()}/reports/unpayable?period=${period}`;
         if (period === 'custom') {
           url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
         const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
         setItems(res.data || []);
-        try {
-          const per = await axios.get(`${getApiUrl()}/reports/personnel`, { headers: { Authorization: `Bearer ${token}` } });
-          setPersonnelList(per.data || []);
-        } catch(e) {}
       } catch (e) {
         console.error(e);
         setItems([]);
@@ -66,7 +59,11 @@ export default function UnsoldCancelsPage() {
     fetchData();
   }, [token, period, customStartDate, customEndDate]);
 
-  const filteredItems = useMemo(() => items, [items]);
+  const filteredItems = useMemo(() => {
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(i => (i.musteri_fullname || '').toLowerCase().includes(q));
+  }, [items, customerQuery]);
 
   const chartData = useMemo(() => {
     const map = new Map<string, { tarih: string; toplam_tutar: number; adet: number }>();
@@ -95,7 +92,7 @@ export default function UnsoldCancelsPage() {
       <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300">
         <div className="px-4 pt-4 pb-2">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Satılmadan İptal Edilenler</h1>
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">Ödenmez Raporu</h1>
           </div>
           <div className="px-0 py-2">
             <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
@@ -134,7 +131,9 @@ export default function UnsoldCancelsPage() {
                 Özel Tarih
               </button>
             </div>
-            {/* Filtre kaldırıldı */}
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
+              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Müşteri adı filtrele" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)} />
+            </div>
           </div>
         </div>
       </div>
@@ -146,7 +145,7 @@ export default function UnsoldCancelsPage() {
         <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
           <div className="flex items-center mb-3">
             <BarChart2 className="w-5 h-5 text-indigo-600 mr-2" />
-            <h2 className="text-lg font-bold text-gray-900">Günlük Toplam Tutar</h2>
+            <h2 className="text-lg font-bold text-gray-900">Günlük Ödenmez Toplam</h2>
           </div>
           <div className="w-full h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -155,7 +154,7 @@ export default function UnsoldCancelsPage() {
                 <YAxis />
                 <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
                 <Legend />
-                <Bar dataKey="toplam_tutar" fill="#6366f1" name="Toplam Tutar" />
+                <Bar dataKey="toplam_tutar" fill="#ef4444" name="Toplam Tutar" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -167,28 +166,34 @@ export default function UnsoldCancelsPage() {
             <table className="min-w-full border border-gray-100 rounded-xl overflow-hidden">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ürün</th>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Personel</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Müşteri</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Masa</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ürün</th>
                   <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Miktar</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Birim Fiyat</th>
                   <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Tutar</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ack4</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((i, idx) => (
                   <tr key={idx} className="border-t">
-                    <td className="px-3 py-2 text-sm text-gray-900">{i.urun_adi}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{i.personel_adi || i.pers_id}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900">{i.musteri_fullname || '-'}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.saat || '-'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.masano}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900">{i.product_name}</td>
                     <td className="px-3 py-2 text-sm text-gray-900 text-right">{i.miktar}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.bfiyat || 0)}</td>
                     <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.tutar || 0)}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.ack4}</td>
                   </tr>
                 ))}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
+                    <td colSpan={9} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
                   </tr>
                 )}
               </tbody>
@@ -238,3 +243,4 @@ export default function UnsoldCancelsPage() {
     </div>
   );
 }
+

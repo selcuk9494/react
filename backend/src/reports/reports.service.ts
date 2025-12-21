@@ -960,6 +960,57 @@ export class ReportsService {
     return this.db.executeQuery(pool, q, []);
   }
 
+  async getUnpayable(user: any, period: string, startDate?: string, endDate?: string) {
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(period, startDate, endDate);
+    const dStart = format(start, 'yyyy-MM-dd');
+    const dEnd = format(end, 'yyyy-MM-dd');
+    const query = `
+      SELECT 
+        a.adtur,
+        a.adsno,
+        a.actar,
+        a.acsaat,
+        a.kaptar,
+        a.masano,
+        a.pluid,
+        COALESCE(a.miktar, 0) as miktar,
+        COALESCE(a.bfiyat, 0) as bfiyat,
+        COALESCE(a.tutar, 0) as tutar,
+        a.ack4,
+        a.mustid,
+        COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name,
+        m.adi as musteri_adi,
+        m.soyadi as musteri_soyadi
+      FROM ads_adisyon a
+      LEFT JOIN product p ON a.pluid = p.plu
+      LEFT JOIN ads_musteri m ON a.mustid = m.mustid
+      WHERE a.kaptar BETWEEN $1 AND $2
+        AND a.kasa = ANY($3)
+        AND a.ack4 ILIKE '%ODENMEZ%'
+      ORDER BY a.kaptar DESC, a.adsno DESC
+    `;
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    return rows.map((r: any) => ({
+      adtur: r.adtur,
+      adsno: r.adsno,
+      tarih: format(r.kaptar || r.actar, 'yyyy-MM-dd'),
+      saat: r.acsaat || null,
+      kapanis_tarih: r.kaptar ? format(r.kaptar, 'yyyy-MM-dd') : null,
+      masano: r.masano,
+      pluid: r.pluid,
+      product_name: r.product_name,
+      miktar: parseFloat(r.miktar),
+      bfiyat: parseFloat(r.bfiyat),
+      tutar: parseFloat(r.tutar),
+      ack4: r.ack4,
+      mustid: r.mustid,
+      musteri_adi: r.musteri_adi,
+      musteri_soyadi: r.musteri_soyadi,
+      musteri_fullname: `${r.musteri_adi || ''}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
+    }));
+  }
+
   async getDiscountOrders(user: any, period: string, startDate?: string, endDate?: string) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
