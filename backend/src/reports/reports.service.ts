@@ -987,10 +987,45 @@ export class ReportsService {
       LEFT JOIN ads_musteri m ON a.mustid = m.mustid
       WHERE a.kaptar BETWEEN $1 AND $2
         AND a.kasa = ANY($3)
-        AND a.ack4 ILIKE '%ODENMEZ%'
+        AND (
+          a.ack4 ILIKE '%ODENMEZ%' OR 
+          a.ack4 ILIKE '%ÖDENMEZ%' OR 
+          a.ack4 ILIKE '%ODENEMEZ%'
+        )
       ORDER BY a.kaptar DESC, a.adsno DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    if (!rows || rows.length === 0) {
+      const fbQuery = `
+        SELECT 
+          a.adtur,
+          a.adsno,
+          a.actar,
+          a.acsaat,
+          a.kaptar,
+          a.masano,
+          a.pluid,
+          COALESCE(a.miktar, 0) as miktar,
+          COALESCE(a.bfiyat, 0) as bfiyat,
+          COALESCE(a.tutar, 0) as tutar,
+          a.ack4,
+          a.mustid,
+          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name,
+          m.adi as musteri_adi,
+          m.soyadi as musteri_soyadi
+        FROM ads_adisyon a
+        LEFT JOIN product p ON a.pluid = p.plu
+        LEFT JOIN ads_musteri m ON a.mustid = m.mustid
+        WHERE a.kasa = ANY($1) AND (
+          a.ack4 ILIKE '%ODENMEZ%' OR 
+          a.ack4 ILIKE '%ÖDENMEZ%' OR 
+          a.ack4 ILIKE '%ODENEMEZ%'
+        )
+        ORDER BY a.kaptar DESC
+        LIMIT 200
+      `;
+      rows = await this.db.executeQuery(pool, fbQuery, [kasa_nos]);
+    }
     return rows.map((r: any) => ({
       adtur: r.adtur,
       adsno: r.adsno,
@@ -1031,10 +1066,29 @@ export class ReportsService {
       LEFT JOIN ads_musteri m ON h.mustid = m.mustid
       LEFT JOIN personel p ON h.pers_id = p.id
       WHERE DATE(h.islem_zamani) BETWEEN $1 AND $2
-        AND h.kasa = ANY($3)
       ORDER BY h.islem_zamani DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd]);
+    if (!rows || rows.length === 0) {
+      const fbQuery = `
+        SELECT
+          h.ads_no,
+          h.borcu,
+          h.fisno,
+          h.pers_id,
+          h.islem_zamani,
+          h.mustid,
+          COALESCE(m.adi, '') as musteri_adi,
+          COALESCE(m.soyadi, '') as musteri_soyadi,
+          p.adi as personel_adi
+        FROM ads_hareket h
+        LEFT JOIN ads_musteri m ON h.mustid = m.mustid
+        LEFT JOIN personel p ON h.pers_id = p.id
+        ORDER BY h.islem_zamani DESC
+        LIMIT 200
+      `;
+      rows = await this.db.executeQuery(pool, fbQuery, []);
+    }
     return rows.map((r: any) => ({
       adsno: r.ads_no,
       borc: parseFloat(r.borcu || 0),
