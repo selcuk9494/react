@@ -76,6 +76,9 @@ export default function UnpayablePage() {
     });
     return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
   }, [filteredItems]);
+  
+  const totalTutar = useMemo(() => filteredItems.reduce((sum, i) => sum + (Number(i.tutar) || 0), 0), [filteredItems]);
+  const totalCount = filteredItems.length;
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +202,10 @@ export default function UnpayablePage() {
               </tbody>
             </table>
           </div>
+          <div className="mt-4 flex items-center justify-between bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+            <div className="text-sm font-semibold text-red-700">Toplam Kayıt: {totalCount}</div>
+            <div className="text-lg font-bold text-red-700">Toplam Tutar: {formatCurrency(totalTutar)}</div>
+          </div>
         </div>
       </main>
 
@@ -243,4 +250,3 @@ export default function UnpayablePage() {
     </div>
   );
 }
-
