@@ -141,7 +141,7 @@ export default function UnpayablePage() {
         </div>
       </div>
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: '160px' }}>
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: '220px' }}>
         <div className="flex items-center justify-between">
           <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
         </div>
