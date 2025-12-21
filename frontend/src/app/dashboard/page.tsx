@@ -420,19 +420,23 @@ export default function Dashboard() {
           
           <div className="relative z-10">
             <p className="text-teal-50 text-[10px] font-medium mb-1 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
-            <h2 className={clsx(
-              "font-black mb-1 tracking-tight drop-shadow-sm transition-all",
-              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 100000000 ? "text-xl" : 
-              ((data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)) >= 1000000 ? "text-2xl" : "text-3xl"
-            )}>
-              {formatCurrency(
-                (data?.kapali_adisyon_toplam || 0) + 
-                (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0)
-              )}
-            </h2>
-            <p className="text-teal-100 text-sm font-medium">
-              {t('open_closed_total')}
-            </p>
+            {(() => {
+              const baseTotal = (data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0);
+              const grandTotal = baseTotal + (data?.borca_atilan_toplam || 0);
+              const cls =
+                grandTotal >= 100000000 ? "text-xl" :
+                grandTotal >= 1000000 ? "text-2xl" : "text-3xl";
+              return (
+                <>
+                  <h2 className={clsx("font-black mb-1 tracking-tight drop-shadow-sm transition-all", cls)}>
+                    {formatCurrency(grandTotal)}
+                  </h2>
+                  <p className="text-teal-100 text-sm font-medium">
+                    {t('open_closed_total')}
+                  </p>
+                </>
+              );
+            })()}
             {!!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
               <div className={clsx(
                 "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm",
