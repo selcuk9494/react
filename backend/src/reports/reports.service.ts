@@ -1024,7 +1024,7 @@ export class ReportsService {
       product_name: r.product_name,
       miktar: parseFloat(r.miktar),
       bfiyat: parseFloat(r.bfiyat),
-      tutar: parseFloat(r.tutar),
+      tutar: parseFloat(r.miktar) * parseFloat(r.bfiyat),
       ack4: r.ack4,
       mustid: r.mustid,
       musteri_adi: r.musteri_adi,
