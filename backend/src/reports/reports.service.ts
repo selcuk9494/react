@@ -1099,7 +1099,7 @@ export class ReportsService {
     const rows = await this.db.executeQuery(pool, query, [kasa_nos, dStart, dEnd]);
     return rows.map((r: any) => ({
       adsno: r.ads_no,
-      borc: parseFloat(r.borcu || 0),
+      borc: parseFloat(r.borc || 0),
       fisno: r.fisno,
       pers_id: r.pers_id,
       personel_adi: r.personel_adi,
