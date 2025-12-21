@@ -734,6 +734,36 @@ export class ReportsService {
     return results.slice(0, 200);
   }
 
+  async getUnsoldCancels(user: any, period: string, startDate?: string, endDate?: string) {
+    const { pool } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(period, startDate, endDate);
+    const dStart = format(start, 'yyyy-MM-dd');
+    const dEnd = format(end, 'yyyy-MM-dd');
+    const query = `
+      SELECT 
+        COALESCE(a.urun_adi, 'Ürün') as urun_adi,
+        a.tarih_saat,
+        a.pers_id,
+        per.adi as personel_adi,
+        COALESCE(a.miktar, 0) as miktar,
+        COALESCE(a.tutar, 0) as tutar
+      FROM ads_iptal a
+      LEFT JOIN personel per ON a.pers_id = per.id
+      WHERE DATE(a.tarih_saat) BETWEEN $1 AND $2
+      ORDER BY a.tarih_saat DESC
+    `;
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd]);
+    return rows.map((r: any) => ({
+      urun_adi: r.urun_adi,
+      tarih: format(r.tarih_saat, 'yyyy-MM-dd'),
+      saat: format(r.tarih_saat, 'HH:mm'),
+      pers_id: r.pers_id,
+      personel_adi: r.personel_adi,
+      miktar: parseFloat(r.miktar),
+      tutar: parseFloat(r.tutar)
+    }));
+  }
+
   async getPerformance(user: any, period: string, startDate?: string, endDate?: string) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);

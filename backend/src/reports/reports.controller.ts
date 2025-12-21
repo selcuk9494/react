@@ -145,6 +145,17 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/unsold-cancels')
+  async getUnsoldCancels(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getUnsoldCancels(req.user, period, startDate, endDate);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/courier-tracking')
   async getCourierTracking(
     @Request() req,
