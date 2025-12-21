@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { ArrowLeft } from 'lucide-react';
 import { getApiUrl } from '@/utils/api';
@@ -12,7 +12,6 @@ export default function NewBranchPage() {
   const { token } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
-  const search = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -33,35 +32,35 @@ export default function NewBranchPage() {
   };
 
   useEffect(() => {
-    const idParam = search.get('id');
-    if (!idParam || !token) return;
+    if (typeof window === 'undefined' || !token) return;
+    const idParam = new URLSearchParams(window.location.search).get('id');
+    if (!idParam) return;
     const id = parseInt(idParam, 10);
-    if (!isNaN(id)) {
-      setEditingId(id);
-      (async () => {
-        try {
-          const res = await axios.get(`${getApiUrl()}/branches`, {
-            headers: { Authorization: `Bearer ${token}` }
+    if (isNaN(id)) return;
+    setEditingId(id);
+    (async () => {
+      try {
+        const res = await axios.get(`${getApiUrl()}/branches`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const found = (res.data || []).find((b: any) => b.id === id);
+        if (found) {
+          setFormData({
+            name: found.name || '',
+            db_host: found.db_host || '',
+            db_port: String(found.db_port || '5432'),
+            db_name: found.db_name || 'fasrest',
+            db_user: found.db_user || 'begum',
+            db_password: found.db_password || 'KORDO',
+            kasa_no: String(found.kasa_no || '1'),
           });
-          const found = (res.data || []).find((b: any) => b.id === id);
-          if (found) {
-            setFormData({
-              name: found.name || '',
-              db_host: found.db_host || '',
-              db_port: String(found.db_port || '5432'),
-              db_name: found.db_name || 'fasrest',
-              db_user: found.db_user || 'begum',
-              db_password: found.db_password || 'KORDO',
-              kasa_no: String(found.kasa_no || '1'),
-            });
-            setKasalar((found.kasalar || []).filter((k: any) => typeof k === 'number'));
-          }
-        } catch (e) {
-          console.error(e);
+          setKasalar((found.kasalar || []).filter((k: any) => typeof k === 'number'));
         }
-      })();
-    }
-  }, [search, token]);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
