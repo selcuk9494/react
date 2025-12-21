@@ -7,7 +7,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
-import { Calendar, BarChart2, ArrowLeft } from 'lucide-react';
+import { Calendar, BarChart2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface UnsoldCancelItem {
@@ -17,6 +17,7 @@ interface UnsoldCancelItem {
   pers_id: number;
   personel_adi: string;
   miktar: number;
+  bfiyat?: number;
   tutar: number;
 }
 
@@ -30,15 +31,6 @@ export default function UnsoldCancelsPage() {
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<UnsoldCancelItem[]>([]);
-  const [personel, setPersonel] = useState('');
-  const [personnelList, setPersonnelList] = useState<Array<{id:number; adi:string}>>([]);
-  const [selectedPersonId, setSelectedPersonId] = useState<string>('');
-  const [startHour, setStartHour] = useState('');
-  const [endHour, setEndHour] = useState('');
-  const [minQty, setMinQty] = useState('');
-  const [maxQty, setMaxQty] = useState('');
-  const [minTotal, setMinTotal] = useState('');
-  const [maxTotal, setMaxTotal] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -52,10 +44,6 @@ export default function UnsoldCancelsPage() {
         }
         const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
         setItems(res.data || []);
-        try {
-          const per = await axios.get(`${getApiUrl()}/reports/personnel`, { headers: { Authorization: `Bearer ${token}` } });
-          setPersonnelList(per.data || []);
-        } catch(e) {}
       } catch (e) {
         console.error(e);
         setItems([]);
@@ -79,6 +67,9 @@ export default function UnsoldCancelsPage() {
     });
     return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
   }, [filteredItems]);
+  
+  const totalTutar = useMemo(() => filteredItems.reduce((sum, i) => sum + (Number(i.tutar) || 0), 0), [filteredItems]);
+  const totalCount = filteredItems.length;
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,6 +163,7 @@ export default function UnsoldCancelsPage() {
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
                   <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Miktar</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Birim Fiyat</th>
                   <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Tutar</th>
                 </tr>
               </thead>
@@ -183,6 +175,7 @@ export default function UnsoldCancelsPage() {
                     <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
                     <td className="px-3 py-2 text-sm text-gray-900 text-right">{i.miktar}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.bfiyat || 0)}</td>
                     <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.tutar || 0)}</td>
                   </tr>
                 ))}
@@ -193,6 +186,10 @@ export default function UnsoldCancelsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
+            <div className="text-sm font-semibold text-indigo-700">Toplam Kayıt: {totalCount}</div>
+            <div className="text-lg font-bold text-indigo-700">Toplam Tutar: {formatCurrency(totalTutar)}</div>
           </div>
         </div>
       </main>

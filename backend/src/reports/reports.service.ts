@@ -992,7 +992,7 @@ export class ReportsService {
         a.masano,
         a.pluid,
         COALESCE(a.miktar, 0) as miktar,
-        COALESCE(a.bfiyat, 0) as bfiyat,
+        COALESCE(pf.fiyat, a.bfiyat, 0) as bfiyat,
         COALESCE(a.tutar, 0) as tutar,
         a.ack4,
         a.mustid,
@@ -1001,6 +1001,7 @@ export class ReportsService {
         m.soyadi as musteri_soyadi
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
+      LEFT JOIN product_fiyat pf ON pf.plu = a.pluid
       LEFT JOIN ads_musteri m ON a.mustid = m.mustid
       WHERE a.kaptar BETWEEN $1 AND $2
         AND a.kasa = ANY($3)
@@ -1011,38 +1012,7 @@ export class ReportsService {
         )
       ORDER BY a.kaptar DESC, a.adsno DESC
     `;
-    let rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    if (!rows || rows.length === 0) {
-      const fbQuery = `
-        SELECT 
-          a.adtur,
-          a.adsno,
-          a.actar,
-          a.acsaat,
-          a.kaptar,
-          a.masano,
-          a.pluid,
-          COALESCE(a.miktar, 0) as miktar,
-          COALESCE(a.bfiyat, 0) as bfiyat,
-          COALESCE(a.tutar, 0) as tutar,
-          a.ack4,
-          a.mustid,
-          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name,
-          m.adi as musteri_adi,
-          m.soyadi as musteri_soyadi
-        FROM ads_adisyon a
-        LEFT JOIN product p ON a.pluid = p.plu
-        LEFT JOIN ads_musteri m ON a.mustid = m.mustid
-        WHERE a.kasa = ANY($1) AND (
-          a.ack4 ILIKE '%ODENMEZ%' OR 
-          a.ack4 ILIKE '%ÖDENMEZ%' OR 
-          a.ack4 ILIKE '%ODENEMEZ%'
-        )
-        ORDER BY a.kaptar DESC
-        LIMIT 200
-      `;
-      rows = await this.db.executeQuery(pool, fbQuery, [kasa_nos]);
-    }
+    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
     return rows.map((r: any) => ({
       adtur: r.adtur,
       adsno: r.adsno,
