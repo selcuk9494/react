@@ -23,21 +23,6 @@ export class UsersService {
     return user;
   }
 
-  async findById(id: string): Promise<any> {
-    const pool = this.db.getMainPool();
-    const res = await pool.query(`
-      SELECT *, 
-             EXTRACT(DAY FROM (expiry_date - CURRENT_DATE))::INTEGER as days_left
-      FROM users 
-      WHERE id = $1
-    `, [id]);
-    if (res.rows.length === 0) return null;
-    const user = res.rows[0];
-    const branchesRes = await pool.query('SELECT * FROM branches WHERE user_id = $1', [user.id]);
-    user.branches = branchesRes.rows;
-    return user;
-  }
-
   async create(userData: any): Promise<any> {
     const pool = this.db.getMainPool();
     const client = await pool.connect();

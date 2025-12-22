@@ -149,7 +149,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         database: config.db_name,
         user: config.db_user,
         password: config.db_password,
-        max: 10, 
+        max: 5, 
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
       });
@@ -162,32 +162,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
     
     return this.branchPools.get(key);
-  }
-
-  async prewarmBranchPools(user: any) {
-    if (this.isMock) return;
-    if (!user?.branches || !Array.isArray(user.branches)) return;
-    const tasks = user.branches.map(async (branch: any) => {
-      try {
-        const pool = this.getBranchPool({
-          db_host: branch.db_host,
-          db_port: branch.db_port,
-          db_name: branch.db_name,
-          db_user: branch.db_user,
-          db_password: this.decrypt(branch.db_password || branch.db_password_encrypted || branch.db_password),
-        });
-        const client = await pool.connect();
-        await client.query('SELECT 1');
-        client.release();
-      } catch (e) {
-        console.warn('Prewarm branch pool failed:', e.message);
-      }
-    });
-    await Promise.allSettled(tasks);
-  }
-
-  private decrypt(v: string) {
-    return v;
   }
 
   async executeQuery(pool: any, text: string, params: any[] = []): Promise<any> {

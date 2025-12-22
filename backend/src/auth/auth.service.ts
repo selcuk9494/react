@@ -2,14 +2,12 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-    private dbService: DatabaseService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -33,8 +31,6 @@ export class AuthService {
 
   async login(user: any) {
     const payload = { email: user.email, sub: user.id };
-    // Prewarm branch pools asynchronously to speed up first queries
-    this.dbService.prewarmBranchPools(user).catch(() => {});
     return {
       access_token: this.jwtService.sign(payload),
       user: user,
@@ -66,11 +62,6 @@ export class AuthService {
 
   async selectBranch(userId: string, branchIndex: number) {
     await this.usersService.updateSelectedBranch(userId, branchIndex);
-    // Prewarm current user's branch pools after selection
-    const user = await this.usersService.findById(userId);
-    if (user) {
-      this.dbService.prewarmBranchPools(user).catch(() => {});
-    }
     return { success: true };
   }
 }
