@@ -149,7 +149,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         database: config.db_name,
         user: config.db_user,
         password: config.db_password,
-        max: 20, 
+        max: 10, 
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
       });

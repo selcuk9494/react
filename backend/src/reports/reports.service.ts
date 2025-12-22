@@ -79,11 +79,6 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
-    const cacheKey = `orders:${user?.id || ''}:${user?.selected_branch || 0}:${status}:${type || 'all'}:${period}:${dStart}:${dEnd}`;
-    const hit = this.cache.get(cacheKey);
-    if (hit && Date.now() - hit.t < 10000) {
-      return hit.v;
-    }
 
     let typeCondition = '';
     if (type === 'paket') {
@@ -158,7 +153,6 @@ export class ReportsService {
                 rows = await this.db.executeQuery(pool, fbSingleQuery, [kasa_no]);
             }
         }
-        this.cache.set(cacheKey, { t: Date.now(), v: rows });
         return rows;
     } else {
         let query = `
@@ -192,18 +186,12 @@ export class ReportsService {
             ORDER BY a.adsno DESC
         `;
         const rows = await this.db.executeQuery(pool, query, params);
-        this.cache.set(cacheKey, { t: Date.now(), v: rows });
         return rows;
-  }
+    }
   }
 
   async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string, adtur?: number) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const cacheKey = `orderDetail:${user?.id || ''}:${user?.selected_branch || 0}:${status}:${adsno}:${adtur ?? 'x'}`;
-    const hit = this.cache.get(cacheKey);
-    if (hit && Date.now() - hit.t < 10000) {
-      return hit.v;
-    }
 
     if (status === 'open') {
         const query = `
@@ -280,9 +268,7 @@ export class ReportsService {
         `;
         const params = typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno];
         const rows = await this.db.executeQuery(pool, query, params);
-        const out = rows[0] || null;
-        this.cache.set(cacheKey, { t: Date.now(), v: out });
-        return out;
+        return rows[0] || null;
     } else {
         const query = `
             WITH order_info AS (
@@ -368,10 +354,8 @@ export class ReportsService {
             LIMIT 1
         `;
         const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno]);
-        const out = rows[0] || null;
-        this.cache.set(cacheKey, { t: Date.now(), v: out });
-        return out;
-  }
+        return rows[0] || null;
+    }
   }
 
   async debugOrderCheck(user: any, adsno: string) {
@@ -438,7 +422,7 @@ export class ReportsService {
     const dEnd = format(end, 'yyyy-MM-dd');
     const key = `dash:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
     const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.t < 15000) {
+    if (hit && Date.now() - hit.t < 8000) {
       return hit.v;
     }
 
