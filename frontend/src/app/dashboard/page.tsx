@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
@@ -86,6 +86,7 @@ export default function Dashboard() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const reqIdRef = useRef(0);
   
   // Modals
   const [branchModalOpen, setBranchModalOpen] = useState(false);
@@ -168,6 +169,9 @@ export default function Dashboard() {
     if (!token) return;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     
+    const myId = ++reqIdRef.current;
+    setLoading(true);
+    setData(null);
     const fetchData = async () => {
       try {
         let url = `${getApiUrl()}/dashboard?period=${period}`;
@@ -178,13 +182,17 @@ export default function Dashboard() {
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setData(res.data);
+        if (reqIdRef.current === myId) {
+          setData(res.data);
+        }
         setIsOffline(false);
       } catch (e) {
         console.error(e);
         setIsOffline(true);
       } finally {
-        setLoading(false);
+        if (reqIdRef.current === myId) {
+          setLoading(false);
+        }
       }
     };
     fetchData();

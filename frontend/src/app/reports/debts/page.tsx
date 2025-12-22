@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -33,24 +33,33 @@ export default function DebtsPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<DebtItem[]>([]);
   const [customerQuery, setCustomerQuery] = useState('');
+  const reqIdRef = useRef(0);
 
   useEffect(() => {
     if (!token) return;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
+    const myId = ++reqIdRef.current;
     const fetchData = async () => {
       setLoading(true);
+      setItems([]);
       try {
         let url = `${getApiUrl()}/reports/debts?period=${period}`;
         if (period === 'custom') {
           url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
         const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
-        setItems(res.data || []);
+        if (reqIdRef.current === myId) {
+          setItems(res.data || []);
+        }
       } catch (e) {
         console.error(e);
-        setItems([]);
+        if (reqIdRef.current === myId) {
+          setItems([]);
+        }
       } finally {
-        setLoading(false);
+        if (reqIdRef.current === myId) {
+          setLoading(false);
+        }
       }
     };
     fetchData();
