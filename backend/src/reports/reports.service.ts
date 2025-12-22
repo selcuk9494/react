@@ -444,16 +444,11 @@ export class ReportsService {
       FROM acik_toplam
       GROUP BY adtur
     `;
-    const acikRows = await this.db.executeQuery(pool, acikQuery, [kasa_nos]);
+    const acikPromise = this.db.executeQuery(pool, acikQuery, [kasa_nos]);
 
     let acik_paket = { adet: 0, toplam: 0 };
     let acik_adisyon = { adet: 0, toplam: 0 };
     let acik_hizli = { adet: 0, toplam: 0 }; // Added hizli
-
-    acikRows.forEach(row => {
-      if (parseInt(row.adtur) === 1) acik_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
-      else acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
-    });
 
     // 2. Kapali Adisyonlar (ads_odeme üzerinden adtur ile)
     const kapaliQuery = `
@@ -481,17 +476,11 @@ export class ReportsService {
       FROM kapali_toplam
       GROUP BY adtur
     `;
-    const kapaliRows = await this.db.executeQuery(pool, kapaliQuery, [kasa_nos, dStart, dEnd, kasa_nos]);
+    const kapaliPromise = this.db.executeQuery(pool, kapaliQuery, [kasa_nos, dStart, dEnd, kasa_nos]);
 
     let kapali_paket = { adet: 0, toplam: 0, iskonto: 0 };
     let kapali_adisyon = { adet: 0, toplam: 0, iskonto: 0 };
     let kapali_hizli = { adet: 0, toplam: 0, iskonto: 0 };
-    kapaliRows.forEach((row: any) => {
-      const t = parseInt(row.adtur);
-      if (t === 1) kapali_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
-      else if (t === 3) kapali_hizli = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
-      else kapali_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
-    });
 
     // 3. Iptal
     const iptalQuery = `
@@ -499,8 +488,7 @@ export class ReportsService {
       FROM ads_iptal
       WHERE DATE(tarih_saat) BETWEEN $1 AND $2
     `;
-    const iptalRows = await this.db.executeQuery(pool, iptalQuery, [dStart, dEnd]);
-    const iptal = iptalRows[0] || { adet: 0, toplam: 0 };
+    const iptalPromise = this.db.executeQuery(pool, iptalQuery, [dStart, dEnd]);
 
     // Totals
     const acik_toplam = acik_paket.toplam + acik_adisyon.toplam;
@@ -519,54 +507,22 @@ export class ReportsService {
         COUNT(*) as adet
       FROM agg
     `;
-    const debtsRows = await this.db.executeQuery(pool, debtsQuery, [kasa_nos, dStart, dEnd]);
-    const debts = debtsRows[0] || { toplam: 0, adet: 0 };
+    const debtsPromise = this.db.executeQuery(pool, debtsQuery, [kasa_nos, dStart, dEnd]);
 
-    return {
-      acik_adisyon_toplam: acik_toplam,
-      kapali_adisyon_toplam: kapali_toplam,
-      kapali_iskonto_toplam: kapali_iskonto_toplam,
-      iptal_toplam: parseFloat(iptal.toplam),
-      borca_atilan_toplam: parseFloat(debts.toplam),
-      borca_atilan_adet: parseInt(debts.adet),
-      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet,
-      kapali_adisyon_adet: kapali_paket.adet + kapali_adisyon.adet,
-      iptal_adet: parseInt(iptal.adet),
-      dagilim: {
-        paket: {
-          acik_adet: acik_paket.adet,
-          acik_toplam: acik_paket.toplam,
-          kapali_adet: kapali_paket.adet,
-          kapali_toplam: kapali_paket.toplam,
-          kapali_iskonto: kapali_paket.iskonto,
-          toplam_adet: acik_paket.adet + kapali_paket.adet,
-          toplam_tutar: acik_paket.toplam + kapali_paket.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_paket.toplam / acik_toplam) * 100) : 0,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_paket.toplam / kapali_toplam) * 100) : 0
-        },
-        adisyon: {
-          acik_adet: acik_adisyon.adet,
-          acik_toplam: acik_adisyon.toplam,
-          kapali_adet: kapali_adisyon.adet,
-          kapali_toplam: kapali_adisyon.toplam,
-          kapali_iskonto: kapali_adisyon.iskonto,
-          toplam_adet: acik_adisyon.adet + kapali_adisyon.adet,
-          toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_adisyon.toplam / acik_toplam) * 100) : 0,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_adisyon.toplam / kapali_toplam) * 100) : 0
-        },
-        hizli: {
-          acik_adet: 0,
-          acik_toplam: 0,
-          kapali_adet: kapali_hizli.adet,
-          kapali_toplam: kapali_hizli.toplam,
-          kapali_iskonto: kapali_hizli.iskonto,
-          toplam_adet: kapali_hizli.adet,
-          toplam_tutar: kapali_hizli.toplam,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_hizli.toplam / kapali_toplam) * 100) : 0
-        }
-      }
-    };
+    const [acikRows, kapaliRows, iptalRows, debtsRows] = await Promise.all([acikPromise, kapaliPromise, iptalPromise, debtsPromise]);
+    const iptal = iptalRows[0] || { adet: 0, toplam: 0 };
+    const debts = debtsRows[0] || { toplam: 0, adet: 0 };
+    acikRows.forEach((row: any) => {
+      if (parseInt(row.adtur) === 1) acik_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+      else acik_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam) };
+    });
+    kapaliRows.forEach((row: any) => {
+      const t = parseInt(row.adtur);
+      if (t === 1) kapali_paket = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
+      else if (t === 3) kapali_hizli = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
+      else kapali_adisyon = { adet: parseInt(row.adet), toplam: parseFloat(row.toplam), iskonto: parseFloat(row.iskonto) };
+    });
+
     const out = {
       acik_adisyon_toplam: acik_toplam,
       kapali_adisyon_toplam: kapali_toplam,
@@ -614,6 +570,7 @@ export class ReportsService {
     };
     this.cache.set(key, { t: Date.now(), v: out });
     return out;
+ 
   }
 
 

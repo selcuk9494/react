@@ -181,6 +181,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         });
         const client = await pool.connect();
         await client.query('SELECT 1');
+        await this.ensureBranchIndexes(client);
         client.release();
       } catch (e) {
         console.warn('Prewarm branch pool failed:', e.message);
@@ -191,6 +192,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   private decrypt(v: string) {
     return v;
+  }
+
+  private async ensureBranchIndexes(client: PoolClient) {
+    const stmts = [
+      `CREATE INDEX IF NOT EXISTS idx_ads_odeme_raptar_kasa ON ads_odeme(raptar, kasa)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_adisyon_kaptar_kasa ON ads_adisyon(kaptar, kasa)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_adisyon_adsno_kasa ON ads_adisyon(adsno, kasa)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_acik_actar_kasa ON ads_acik(actar, kasa)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_acik_adsno_kasa ON ads_acik(adsno, kasa)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_hareket_islem_kasa ON ads_hareket(islem_zamani, kasano)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_hareket_adsno_kasa ON ads_hareket(ads_no, kasano)`,
+      `CREATE INDEX IF NOT EXISTS idx_ads_iptal_tarih ON ads_iptal(tarih_saat)`,
+      `CREATE INDEX IF NOT EXISTS idx_product_plu ON product(plu)`,
+      `CREATE INDEX IF NOT EXISTS idx_musteri_id ON ads_musteri(mustid)`
+    ];
+    for (const sql of stmts) {
+      try {
+        await client.query(sql);
+      } catch (e) {
+        // ignore index creation errors
+      }
+    }
   }
 
   async executeQuery(pool: any, text: string, params: any[] = []): Promise<any> {
