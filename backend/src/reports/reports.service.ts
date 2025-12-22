@@ -5,7 +5,6 @@ import { startOfDay, endOfDay, subDays, startOfWeek, startOfMonth, endOfMonth, p
 @Injectable()
 export class ReportsService {
   constructor(private db: DatabaseService) {}
-  private cache = new Map<string, { t: number; v: any }>();
 
   private getDateRange(period: string, startDate?: string, endDate?: string) {
     const today = new Date();
@@ -420,11 +419,6 @@ export class ReportsService {
     // Format dates for Postgres
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
-    const key = `dash:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
-    const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.t < 8000) {
-      return hit.v;
-    }
 
     // 1. Acik Adisyonlar
     const acikQuery = `
@@ -567,53 +561,6 @@ export class ReportsService {
         }
       }
     };
-    const out = {
-      acik_adisyon_toplam: acik_toplam,
-      kapali_adisyon_toplam: kapali_toplam,
-      kapali_iskonto_toplam: kapali_iskonto_toplam,
-      iptal_toplam: parseFloat(iptal.toplam),
-      borca_atilan_toplam: parseFloat(debts.toplam),
-      borca_atilan_adet: parseInt(debts.adet),
-      acik_adisyon_adet: acik_paket.adet + acik_adisyon.adet,
-      kapali_adisyon_adet: kapali_paket.adet + kapali_adisyon.adet,
-      iptal_adet: parseInt(iptal.adet),
-      dagilim: {
-        paket: {
-          acik_adet: acik_paket.adet,
-          acik_toplam: acik_paket.toplam,
-          kapali_adet: kapali_paket.adet,
-          kapali_toplam: kapali_paket.toplam,
-          kapali_iskonto: kapali_paket.iskonto,
-          toplam_adet: acik_paket.adet + kapali_paket.adet,
-          toplam_tutar: acik_paket.toplam + kapali_paket.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_paket.toplam / acik_toplam) * 100) : 0,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_paket.toplam / kapali_toplam) * 100) : 0
-        },
-        adisyon: {
-          acik_adet: acik_adisyon.adet,
-          acik_toplam: acik_adisyon.toplam,
-          kapali_adet: kapali_adisyon.adet,
-          kapali_toplam: kapali_adisyon.toplam,
-          kapali_iskonto: kapali_adisyon.iskonto,
-          toplam_adet: acik_adisyon.adet + kapali_adisyon.adet,
-          toplam_tutar: acik_adisyon.toplam + kapali_adisyon.toplam,
-          acik_yuzde: acik_toplam > 0 ? Math.round((acik_adisyon.toplam / acik_toplam) * 100) : 0,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_adisyon.toplam / kapali_toplam) * 100) : 0
-        },
-        hizli: {
-          acik_adet: 0,
-          acik_toplam: 0,
-          kapali_adet: kapali_hizli.adet,
-          kapali_toplam: kapali_hizli.toplam,
-          kapali_iskonto: kapali_hizli.iskonto,
-          toplam_adet: kapali_hizli.adet,
-          toplam_tutar: kapali_hizli.toplam,
-          kapali_yuzde: kapali_toplam > 0 ? Math.round((kapali_hizli.toplam / kapali_toplam) * 100) : 0
-        }
-      }
-    };
-    this.cache.set(key, { t: Date.now(), v: out });
-    return out;
   }
 
 

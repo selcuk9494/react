@@ -157,9 +157,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       pool.on('error', (err) => {
         console.error('Unexpected error on idle client', err);
       });
-      pool.on('connect', (client) => {
-        client.query('SET statement_timeout = 5000').catch(() => {});
-      });
 
       this.branchPools.set(key, pool);
     }
