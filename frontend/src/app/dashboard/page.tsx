@@ -189,8 +189,23 @@ export default function Dashboard() {
     };
     fetchData();
 
+    const prewarm = async () => {
+      try {
+        const base = `${getApiUrl()}`;
+        const params = period === 'custom' ? `period=custom&start_date=${customStartDate}&end_date=${customEndDate}` : `period=${period}`;
+        const headers = { Authorization: `Bearer ${token}` };
+        await Promise.allSettled([
+          axios.get(`${base}/reports/debts?${params}`, { headers }),
+          axios.get(`${base}/reports/unpayable?${params}`, { headers }),
+          axios.get(`${base}/reports/payment-types?${params}`, { headers }),
+        ]);
+      } catch {}
+    };
+    prewarm();
+
     const interval = setInterval(() => {
       fetchData();
+      prewarm();
     }, 10000);
     return () => clearInterval(interval);
   }, [token, period, customStartDate, customEndDate, user?.selected_branch]);

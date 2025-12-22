@@ -595,6 +595,9 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
+    const key = `salesChart:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.t < 15000) return hit.v;
 
     const query = `
       SELECT 
@@ -607,10 +610,12 @@ export class ReportsService {
     `;
     
     const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    return rows.map(row => ({
+    const out = rows.map(row => ({
       tarih: format(row.tarih, 'yyyy-MM-dd'),
       toplam: parseFloat(row.toplam)
     }));
+    this.cache.set(key, { t: Date.now(), v: out });
+    return out;
   }
 
   async getPaymentTypes(user: any, period: string, startDate?: string, endDate?: string) {
@@ -618,6 +623,9 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
+    const key = `paymentTypes:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.t < 15000) return hit.v;
 
     const query = `
       SELECT 
@@ -633,12 +641,14 @@ export class ReportsService {
     `;
     
     const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    return rows.map(row => ({
+    const out = rows.map(row => ({
       payment_name: row.payment_name,
       total: parseFloat(row.total),
       count: parseInt(row.count),
       otip: row.otip
     }));
+    this.cache.set(key, { t: Date.now(), v: out });
+    return out;
   }
 
   async getCourierTracking(user: any, period: string, startDate?: string, endDate?: string) {
@@ -782,6 +792,9 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
+    const key = `unsoldCancels:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.t < 15000) return hit.v;
     const query = `
       SELECT 
         COALESCE(a.urun_adi, 'Ürün') as urun_adi,
@@ -796,7 +809,7 @@ export class ReportsService {
       ORDER BY a.tarih_saat DESC
     `;
     const rows = await this.db.executeQuery(pool, query, [dStart, dEnd]);
-    return rows.map((r: any) => ({
+    const out = rows.map((r: any) => ({
       urun_adi: r.urun_adi,
       tarih: format(r.tarih_saat, 'yyyy-MM-dd'),
       saat: format(r.tarih_saat, 'HH:mm'),
@@ -805,6 +818,8 @@ export class ReportsService {
       miktar: parseFloat(r.miktar),
       tutar: parseFloat(r.tutar)
     }));
+    this.cache.set(key, { t: Date.now(), v: out });
+    return out;
   }
 
   async getPerformance(user: any, period: string, startDate?: string, endDate?: string) {
@@ -1008,6 +1023,9 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
+    const key = `unpayable:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.t < 15000) return hit.v;
     const query = `
       SELECT 
         a.adtur,
@@ -1039,7 +1057,7 @@ export class ReportsService {
       ORDER BY a.kaptar DESC, a.adsno DESC
     `;
     const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    return rows.map((r: any) => ({
+    const out = rows.map((r: any) => ({
       adtur: r.adtur,
       adsno: r.adsno,
       tarih: format(r.kaptar || r.actar, 'yyyy-MM-dd'),
@@ -1057,6 +1075,8 @@ export class ReportsService {
       musteri_soyadi: r.musteri_soyadi,
       musteri_fullname: `${r.musteri_adi || ''}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
     }));
+    this.cache.set(key, { t: Date.now(), v: out });
+    return out;
   }
 
   async getDebts(user: any, period: string, startDate?: string, endDate?: string) {
@@ -1064,6 +1084,9 @@ export class ReportsService {
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
+    const key = `debts:${user?.id || ''}:${user?.selected_branch || 0}:${period}:${dStart}:${dEnd}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.t < 15000) return hit.v;
     const query = `
       WITH agg AS (
         SELECT 
@@ -1093,7 +1116,7 @@ export class ReportsService {
       ORDER BY agg.islem_zamani DESC
     `;
     const rows = await this.db.executeQuery(pool, query, [kasa_nos, dStart, dEnd]);
-    return rows.map((r: any) => ({
+    const out = rows.map((r: any) => ({
       adsno: r.ads_no,
       borc: parseFloat(r.borc || 0),
       fisno: r.fisno,
@@ -1104,6 +1127,8 @@ export class ReportsService {
       tarih: format(r.islem_zamani, 'yyyy-MM-dd'),
       saat: format(r.islem_zamani, 'HH:mm'),
     }));
+    this.cache.set(key, { t: Date.now(), v: out });
+    return out;
   }
 
   async getDiscountOrders(user: any, period: string, startDate?: string, endDate?: string) {
