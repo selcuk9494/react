@@ -87,6 +87,13 @@ export default function Dashboard() {
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const reqIdRef = useRef(0);
+  const dispatchStart = () => window.dispatchEvent(new CustomEvent('app:transition:start'));
+  const dispatchEnd = () => window.dispatchEvent(new CustomEvent('app:transition:end'));
+  const navigateWithOverlay = (url: string) => {
+    dispatchStart();
+    router.push(url);
+    setTimeout(() => dispatchEnd(), 300); // allow app router to mount new page
+  };
   
   // Modals
   const [branchModalOpen, setBranchModalOpen] = useState(false);
@@ -461,7 +468,7 @@ export default function Dashboard() {
             {/* Açık Adisyon (Only visible if period is today) */}
             {period === 'today' && (
             <div 
-                onClick={() => router.push('/reports/orders/open')}
+                onClick={() => navigateWithOverlay('/reports/orders/open')}
                 className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
             >
                 <div className="flex justify-between items-start mb-2">
@@ -503,7 +510,7 @@ export default function Dashboard() {
                 {/* Details List */}
                 <div className="space-y-2 mt-2">
                     <div 
-                        onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=0'); }}
+                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=0'); }}
                         className="bg-orange-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-orange-100 transition"
                     >
                         <div>
@@ -522,7 +529,7 @@ export default function Dashboard() {
                     
                     {(data?.dagilim?.paket.acik_toplam || 0) > 0 && (
                         <div 
-                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/open?adtur=1'); }}
+                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=1'); }}
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
@@ -547,7 +554,7 @@ export default function Dashboard() {
 
             {/* Kapalı Adisyon */}
             <div 
-                onClick={() => router.push('/reports/orders/closed')}
+                onClick={() => navigateWithOverlay('/reports/orders/closed')}
                 className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
             >
                 <div className="flex justify-between items-start mb-2">
@@ -597,7 +604,7 @@ export default function Dashboard() {
                 {/* Details List */}
                 <div className="space-y-2 mt-2">
                     <div 
-                        onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=0'); }}
+                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=0'); }}
                         className="bg-emerald-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-emerald-100 transition"
                     >
                         <div>
@@ -616,7 +623,7 @@ export default function Dashboard() {
 
                     {(data?.dagilim?.paket.kapali_toplam || 0) > 0 && (
                         <div 
-                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=1'); }}
+                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=1'); }}
                             className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
                         >
                             <div>
@@ -636,7 +643,7 @@ export default function Dashboard() {
 
                     {(data?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
                         <div 
-                            onClick={(e) => { e.stopPropagation(); router.push('/reports/orders/closed?adtur=3'); }}
+                            onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=3'); }}
                             className="bg-pink-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-pink-100 transition"
                         >
                             <div>

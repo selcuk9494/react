@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '@/utils/api';
+const dispatchStart = () => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('app:transition:start'));
+const dispatchEnd = () => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('app:transition:end'));
 
 interface User {
   id: string;
@@ -60,6 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (email: string, pass: string) => {
+    dispatchStart();
     const res = await axios.post(`${API_URL}/auth/login`, { email, password: pass });
     const { access_token, user } = res.data;
     setToken(access_token);
@@ -68,9 +71,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     await fetchUser(access_token);
     router.push('/dashboard');
+    dispatchEnd();
   };
 
   const register = async (email: string, pass: string) => {
+    dispatchStart();
     const res = await axios.post(`${API_URL}/auth/register`, { email, password: pass });
     const { access_token, user } = res.data;
     setToken(access_token);
@@ -79,28 +84,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     await fetchUser(access_token);
     router.push('/dashboard');
+    dispatchEnd();
   };
 
   const logout = async () => {
+    dispatchStart();
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
     document.cookie = `token=; path=/; max-age=0`;
     delete axios.defaults.headers.common['Authorization'];
     router.push('/auth/login');
+    dispatchEnd();
   };
 
   const selectBranch = async (index: number) => {
     if (!user) return;
     try {
+      dispatchStart();
       await axios.post(`${API_URL}/auth/select-branch`, { index });
       const updatedUser = { ...user, selected_branch: index };
       setUser(updatedUser);
       if (token) {
         await fetchUser(token);
       }
+      dispatchEnd();
     } catch (e) {
       console.error('Failed to select branch', e);
+      dispatchEnd();
     }
   };
 
