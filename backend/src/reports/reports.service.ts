@@ -191,6 +191,30 @@ export class ReportsService {
 
   async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string, adtur?: number) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
+    let resolvedAdtur = typeof adtur !== 'undefined' ? adtur : undefined;
+    if (typeof resolvedAdtur === 'undefined') {
+      try {
+        if (status === 'closed') {
+          const r = await this.db.executeQuery(pool, `
+            SELECT COALESCE(adtur, CASE WHEN masano = 99999 THEN 1 ELSE 0 END) AS adtur
+            FROM ads_adisyon
+            WHERE kasa = ANY($1) AND adsno = $2
+            ORDER BY kaptar DESC, kapsaat DESC
+            LIMIT 1
+          `, [kasa_nos, adsno]);
+          if (r && r[0] && typeof r[0].adtur !== 'undefined') resolvedAdtur = parseInt(r[0].adtur);
+        } else {
+          const r = await this.db.executeQuery(pool, `
+            SELECT COALESCE(adtur, CASE WHEN sipyer = 2 OR masano = 99999 THEN 1 ELSE 0 END) AS adtur
+            FROM ads_acik
+            WHERE kasa = ANY($1) AND adsno = $2
+            ORDER BY actar DESC, acsaat DESC
+            LIMIT 1
+          `, [kasa_nos, adsno]);
+          if (r && r[0] && typeof r[0].adtur !== 'undefined') resolvedAdtur = parseInt(r[0].adtur);
+        }
+      } catch (e) {}
+    }
 
     if (status === 'open') {
         const query = `
@@ -207,7 +231,7 @@ export class ReportsService {
                     COALESCE(SUM(iskonto), 0) as toplam_iskonto,
                     COALESCE(SUM(tutar), 0) as toplam_tutar
                 FROM ads_acik
-                WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
             ),
             order_items AS (
@@ -234,7 +258,7 @@ export class ReportsService {
                     ) as items
                 FROM ads_acik a
                 LEFT JOIN product pr ON a.pluid = pr.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 AND a.pluid IS NOT NULL
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             )
             SELECT
@@ -262,11 +286,11 @@ export class ReportsService {
             FROM order_info oi
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON oi.mustid = m.mustid
-            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1)
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
         `;
-        const params = typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno];
+        const params = typeof resolvedAdtur !== 'undefined' ? [kasa_nos, adsno, resolvedAdtur] : [kasa_nos, adsno];
         const rows = await this.db.executeQuery(pool, query, params);
         return rows[0] || null;
     } else {
@@ -282,7 +306,7 @@ export class ReportsService {
                     MAX(acsaat) as acilis_saati,
                     MAX(kapsaat) as kapanis_saati
                 FROM ads_adisyon
-                WHERE kasa = ANY($1) AND adsno = $2 ${typeof adtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
             ),
             order_items AS (
@@ -308,7 +332,7 @@ export class ReportsService {
                     ) as items
                 FROM ads_adisyon a
                 LEFT JOIN product pr ON a.pluid = pr.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             ),
             payment_info AS (
@@ -319,7 +343,7 @@ export class ReportsService {
                     COALESCE(SUM(otutar), 0) as toplam_tutar,
                     MAX(mustid) as payment_mustid
                 FROM ads_odeme
-                WHERE kasa = ANY($1) AND adsno = $2
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
             )
             SELECT
@@ -348,12 +372,12 @@ export class ReportsService {
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, 0) = m.mustid
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
-            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof adtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
             LIMIT 1
         `;
-        const rows = await this.db.executeQuery(pool, query, typeof adtur !== 'undefined' ? [kasa_nos, adsno, adtur] : [kasa_nos, adsno]);
+        const rows = await this.db.executeQuery(pool, query, typeof resolvedAdtur !== 'undefined' ? [kasa_nos, adsno, resolvedAdtur] : [kasa_nos, adsno]);
         return rows[0] || null;
     }
   }
