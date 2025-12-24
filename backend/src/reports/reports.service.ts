@@ -171,7 +171,7 @@ export class ReportsService {
                 MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
             FROM ads_adisyon a
             LEFT JOIN personel p ON a.garsonno = p.id
-            LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa
+            LEFT JOIN ads_odeme o ON o.adsno = a.adsno AND o.kasa = a.kasa AND o.adtur = a.adtur
             LEFT JOIN ads_musteri m ON COALESCE(o.mustid, a.mustid) = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
@@ -181,7 +181,7 @@ export class ReportsService {
             params.push(dStart, dEnd);
         }
         query += `
-            GROUP BY a.adsno
+            GROUP BY a.adsno, a.adtur
             ORDER BY a.adsno DESC
         `;
         const rows = await this.db.executeQuery(pool, query, params);
@@ -213,6 +213,7 @@ export class ReportsService {
             order_items AS (
                 SELECT 
                     a.adsno,
+                    MAX(COALESCE(a.adtur, 0)) as adtur,
                     json_agg(
                         json_build_object(
                             'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
@@ -307,7 +308,7 @@ export class ReportsService {
                     ) as items
                 FROM ads_adisyon a
                 LEFT JOIN product pr ON a.pluid = pr.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 AND a.pluid IS NOT NULL
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof adtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             ),
             payment_info AS (
@@ -347,7 +348,7 @@ export class ReportsService {
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, 0) = m.mustid
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
-            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1)
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof adtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
             LIMIT 1
