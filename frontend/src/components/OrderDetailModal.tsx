@@ -162,25 +162,68 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
             </div>
           )}
 
+          {/* Products List */}
+          {items.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-3">
+                <ShoppingBasket className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-gray-900">{t('products')}</h3>
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {items.map((item: any, idx: number) => {
+                  const qty = item.quantity || item.miktar || 1;
+                  const price = item.price || item.birim_fiyat || 0;
+                  const total = item.total || item.toplam || 0;
+                  const name = item.product_name || item.urun_adi || t('product');
+                  
+                  return (
+                    <div key={idx} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-medium text-gray-900 text-sm flex-1">{name}</span>
+                        <span className="font-bold text-gray-900 text-sm">{formatCurrency(total)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>{qty}x × {formatCurrency(price)}</span>
+                      </div>
+                      {(item.ack1 || item.ack2 || item.ack3) && (
+                        <div className="mt-1 text-xs text-gray-600">
+                          {item.ack1 && <div>📝 {item.ack1}</div>}
+                          {item.ack2 && <div>📝 {item.ack2}</div>}
+                          {item.ack3 && <div>📝 {item.ack3}</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Amounts */}
           <div className="space-y-3 pt-4 border-t">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">{t('order_total')}</span>
-              <span className="font-semibold text-gray-900">{formatCurrency(parseFloat(order.tutar) || 0)}</span>
-            </div>
+            {items.length > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">{t('subtotal')}</span>
+                <span className="font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
+              </div>
+            )}
             
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">{t('discount')}</span>
-              <span className="font-bold text-red-600">{formatCurrency(parseFloat(order.iskonto) || 0)}</span>
-            </div>
+            {discount > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">{t('discount')}</span>
+                <span className="font-bold text-red-600">-{formatCurrency(discount)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between items-center pt-3 border-t-2">
               <span className="text-lg font-bold text-gray-900">{t('net_total')}</span>
               <span className="text-xl font-black text-green-600">
-                {formatCurrency((parseFloat(order.tutar) || 0) - (parseFloat(order.iskonto) || 0))}
+                {formatCurrency(items.length > 0 ? netTotal : (parseFloat(displayData.tutar || 0) - discount))}
               </span>
             </div>
           </div>
+          </>
+        )}
         </div>
 
         {/* Footer */}
