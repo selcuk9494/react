@@ -27,13 +27,17 @@ function ProductSalesContent() {
   const [sortBy, setSortBy] = useState<'total' | 'quantity'>('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
 
+  const additionalParams = useMemo(() => {
+    return selectedGroup ? { group_id: selectedGroup } : {};
+  }, [selectedGroup]);
+
   const { data, isLoading } = useReportData({
     endpoint: '/reports/product-sales',
     token,
     period,
     customStartDate,
     customEndDate,
-    additionalParams: selectedGroup ? { group_id: selectedGroup } : {},
+    additionalParams,
   });
 
   useEffect(() => {
