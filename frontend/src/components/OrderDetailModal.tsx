@@ -74,13 +74,20 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
               <X className="w-6 h-6" />
             </button>
           </div>
-          <p className="text-orange-100 text-sm">#{order.adsno}</p>
+          <p className="text-orange-100 text-sm">#{order.adsno || displayData.adsno}</p>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* Customer */}
-          {(order.customer_name || order.mustid) && (
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
+              <p className="text-gray-500">{t('loading')}</p>
+            </div>
+          ) : (
+            <>
+              {/* Customer */}
+              {(displayData.customer_name || displayData.mustid) && (
             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                 <User className="w-5 h-5 text-blue-600" />
