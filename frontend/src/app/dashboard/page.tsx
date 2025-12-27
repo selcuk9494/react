@@ -643,21 +643,31 @@ export default function Dashboard() {
             {/* Kapalı Adisyon - Modern Card */}
             <div 
                 onClick={() => navigateWithOverlay('/reports/orders/closed')}
-                className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
+                className="bg-white p-5 rounded-[24px] border border-emerald-100 shadow-lg shadow-emerald-100/50 cursor-pointer hover:shadow-xl hover:border-emerald-200 transition-all duration-300 relative overflow-hidden group"
             >
-                <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <h3 className="text-gray-500 text-sm font-medium mb-1">{t('closed_orders')}</h3>
-                        <p className="text-3xl font-bold text-gray-900 tracking-tight">
-                            {formatCurrency(data?.kapali_adisyon_toplam || 0)}
-                        </p>
-                        <div className="mt-1">
-                            <span className="bg-emerald-50 text-emerald-600 text-[10px] font-medium px-2 py-0.5 rounded-full inline-flex items-center">
-                                <Tag className="w-3 h-3 mr-1" />
-                                {t('discount')}: {formatCurrency(data?.kapali_iskonto_toplam || 0)}
+                {/* Decorative Background */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-teal-50 rounded-full -mr-16 -mt-16 opacity-60"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-3">
+                      <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                              <span className="text-white text-sm">✅</span>
+                            </div>
+                            <h3 className="text-gray-600 text-sm font-semibold">{t('closed_orders')}</h3>
+                          </div>
+                          <p className="text-3xl font-black text-gray-900 tracking-tight">
+                              {formatCurrency(data?.kapali_adisyon_toplam || 0)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-xs text-gray-400">{data?.kapali_adisyon_adet || 0} {t('count_orders')}</span>
+                            <span className="bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg inline-flex items-center gap-1 shadow-sm">
+                                <Tag className="w-3 h-3" />
+                                -{formatCurrency(data?.kapali_iskonto_toplam || 0)}
                             </span>
-                        </div>
-                    </div>
+                          </div>
+                      </div>
                     {/* Donut Chart */}
                     <div className="w-24 h-24 -mt-2 -mr-2">
                         <ResponsiveContainer width="100%" height="100%">
