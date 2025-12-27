@@ -121,10 +121,16 @@ function ProductSalesContent() {
               </div>
             ))}
           </div>
-        ) : !data || data.length === 0 ? (
+        ) : error || !data || data.length === 0 ? (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">{t('period_no_sales_products')}</p>
+            <p className="text-gray-500">{error ? `Error: ${error.message}` : t('period_no_sales_products')}</p>
+            {error && (
+              <details className="mt-4 text-left max-w-md mx-auto bg-red-50 p-4 rounded-lg">
+                <summary className="cursor-pointer text-red-700 font-medium">Debug Info</summary>
+                <pre className="mt-2 text-xs text-red-600 overflow-auto">{JSON.stringify(error, null, 2)}</pre>
+              </details>
+            )}
           </div>
         ) : (
           <>
