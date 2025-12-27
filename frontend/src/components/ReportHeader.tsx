@@ -127,6 +127,7 @@ export default function ReportHeader({
             }
             return '';
           })()}
+          </div>
         </div>
       </div>
 
