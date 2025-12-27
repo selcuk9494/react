@@ -313,141 +313,143 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 pb-20 font-sans">
       {/* Subscription Banner */}
       {user?.days_left !== undefined && (
-        <div className={`px-4 py-2.5 text-center font-bold text-sm ${
+        <div className={`px-4 py-2 text-center font-semibold text-sm safe-top ${
           user.days_left <= 3 
-            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+            ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white' 
             : user.days_left <= 7
-            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+            ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+            : 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white'
         }`}>
           {user.days_left > 0 
-            ? `⏰ Kullanım süreniz ${user.days_left} gün sonra dolacak` 
+            ? `⏰ ${lang === 'tr' ? 'Kullanım süreniz' : 'Your subscription expires in'} ${user.days_left} ${lang === 'tr' ? 'gün sonra dolacak' : 'days'}` 
             : user.days_left === 0
-            ? '⚠️ Kullanım süreniz bugün doluyor!'
-            : '❌ Kullanım süreniz doldu'}
+            ? (lang === 'tr' ? '⚠️ Kullanım süreniz bugün doluyor!' : '⚠️ Your subscription expires today!')
+            : (lang === 'tr' ? '❌ Kullanım süreniz doldu' : '❌ Your subscription has expired')}
         </div>
       )}
       
-      {/* Header Section (Fixed) */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300" style={{ top: user?.days_left !== undefined ? '40px' : '0' }}>
+      {/* Modern Header Section (Fixed) */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl shadow-sm border-b border-gray-100/50 transition-all duration-300" style={{ top: user?.days_left !== undefined ? '36px' : '0' }}>
         {/* Top Part */}
-        <div className="px-4 pt-4 pb-2">
-            <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#2aa290] to-[#1f7a6c]">FR</h1>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{user?.email}</span>
+        <div className="px-4 pt-3 pb-2">
+            <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center space-x-3">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <span className="text-white font-black text-lg">FR</span>
+                  </div>
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-xs text-gray-400 font-medium">{lang === 'tr' ? 'Hoş geldin' : 'Welcome'}</p>
+                  <p className="text-sm font-semibold text-gray-700 truncate max-w-[120px]">{user?.email?.split('@')[0]}</p>
+                </div>
+            </div>
+            <div className="flex items-center space-x-1">
                 <button 
                     onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
-                    className="text-xs font-bold text-gray-600 ml-2 bg-gray-100 px-2 py-1 rounded-md hover:bg-gray-200 transition ring-1 ring-gray-200"
+                    className="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition-all"
                 >
-                    {lang.toUpperCase()}
+                    {lang === 'tr' ? '🇹🇷' : '🇬🇧'} {lang.toUpperCase()}
                 </button>
-            </div>
-            <div className="flex items-center space-x-2">
                 <div className="relative">
                     <button 
                         onClick={() => setSettingsOpen(!settingsOpen)}
-                        className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
+                        className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-xl transition-all"
                     >
-                        <Settings className="w-6 h-6" />
+                        <Settings className="w-5 h-5" />
                     </button>
                     {settingsOpen && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 animate-in fade-in zoom-in duration-200">
-                            <div className="p-2">
+                        <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                            <div className="p-1.5">
                                 <button 
                                     onClick={() => {
                                         setSettingsOpen(false);
-                                        // Şifre kontrolü
                                         const now = new Date();
                                         const day = String(now.getDate()).padStart(2, '0');
                                         const month = String(now.getMonth() + 1).padStart(2, '0');
                                         const year = now.getFullYear();
                                         const expectedPassword = `${day}${month}${year}9@@`;
                                         
-                                        const inputPassword = prompt('Ayarlar menüsüne erişmek için şifre girin:');
+                                        const inputPassword = prompt(lang === 'tr' ? 'Ayarlar menüsüne erişmek için şifre girin:' : 'Enter password to access settings:');
                                         if (inputPassword === expectedPassword) {
                                             setBranchManagementOpen(true);
                                         } else if (inputPassword !== null) {
-                                            alert('Hatalı şifre!');
+                                            alert(lang === 'tr' ? 'Hatalı şifre!' : 'Wrong password!');
                                         }
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition font-medium flex items-center"
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition font-medium flex items-center gap-3"
                                 >
-                                    <Building className="w-4 h-4 mr-2" />
+                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                      <Building className="w-4 h-4 text-blue-600" />
+                                    </div>
                                     {t('branch_management')}
                                 </button>
-                                <div className="h-px bg-gray-100 my-1"></div>
                                 <button 
                                     onClick={logout}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition font-medium flex items-center"
+                                    className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-xl transition font-medium flex items-center gap-3"
                                 >
-                                    <LogOut className="w-4 h-4 mr-2" />
-                                    {t('login').replace('Giriş Yap', 'Çıkış Yap').replace('Sign In', 'Logout')}
+                                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                                      <LogOut className="w-4 h-4 text-red-600" />
+                                    </div>
+                                    {lang === 'tr' ? 'Çıkış Yap' : 'Logout'}
                                 </button>
                             </div>
                         </div>
                     )}
                 </div>
-                <button 
-                    onClick={logout}
-                    className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"
-                    title="Çıkış Yap"
-                >
-                    <LogOut className="w-6 h-6" />
-                </button>
             </div>
             </div>
 
             {/* Branch & Status Row */}
-            <div className="flex items-center space-x-2 mb-2">
+            <div className="flex items-center gap-2 mb-2">
             <button 
                 onClick={() => setBranchModalOpen(true)}
-                className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+                className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl px-3 py-2 text-sm font-medium text-gray-700 hover:from-gray-100 hover:to-gray-200 transition-all border border-gray-200/50 shadow-sm"
             >
-                <Building className="w-4 h-4 text-gray-500" />
-                <span>
+                <Building className="w-4 h-4 text-emerald-600" />
+                <span className="truncate max-w-[150px]">
                 {user?.branches && user.branches.length > 0 && user.selected_branch !== undefined
                     ? user.branches[user.selected_branch]?.name || t('select_branch')
                     : t('no_branch')}
                 </span>
+                <ChevronDown className="w-4 h-4 text-gray-400" />
             </button>
             
             <div className={clsx(
-                "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold",
-                isOffline ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold shadow-sm",
+                isOffline ? "bg-red-50 text-red-600 border border-red-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"
             )}>
-                <div className={clsx("w-2 h-2 rounded-full", isOffline ? "bg-red-500" : "bg-green-500")}></div>
+                <div className={clsx("w-2 h-2 rounded-full animate-pulse", isOffline ? "bg-red-500" : "bg-emerald-500")}></div>
                 <span>{isOffline ? t('offline') : t('online')}</span>
-                <ChevronDown className="w-3 h-3" />
             </div>
             </div>
         </div>
 
-        {/* Date Filter Row */}
-        <div className="px-4 py-2">
-            <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
+        {/* Date Filter Row - Improved */}
+        <div className="px-4 pb-3">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {[
-                    { id: 'today', label: t('today') },
-                    { id: 'yesterday', label: t('yesterday') },
-                    { id: 'week', label: t('this_week') },
-                    { id: 'last7days', label: t('last_7_days') },
-                    { id: 'month', label: t('this_month') },
-                    { id: 'lastmonth', label: t('last_month') },
+                    { id: 'today', label: t('today'), icon: '📅' },
+                    { id: 'yesterday', label: t('yesterday'), icon: '⏪' },
+                    { id: 'week', label: t('this_week'), icon: '📆' },
+                    { id: 'last7days', label: t('last_7_days'), icon: '🗓️' },
+                    { id: 'month', label: t('this_month'), icon: '📊' },
+                    { id: 'lastmonth', label: t('last_month'), icon: '📁' },
                 ].map((p) => (
                     <button
                         key={p.id}
                         onClick={() => setPeriod(p.id)}
                         className={clsx(
-                            "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
+                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
                             period === p.id 
-                                ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
-                                : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
+                                ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30" 
+                                : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
                         )}
                     >
-                        {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
+                        <span className="text-xs">{p.icon}</span>
                         {p.label}
                     </button>
                 ))}
@@ -455,23 +457,25 @@ export default function Dashboard() {
                 <button
                     onClick={() => setShowCustomDateModal(true)}
                     className={clsx(
-                        "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
+                        "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
                         period === 'custom' 
-                            ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
-                            : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30" 
+                            : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
                     )}
                 >
-                    <Calendar className="w-4 h-4 mr-2" />
+                    <Calendar className="w-4 h-4" />
                     {t('custom_date')}
                 </button>
             </div>
-            <div className="text-xs text-gray-500 mt-1 pl-1">
+            {/* Selected Date Display */}
+            <div className="text-xs text-gray-400 mt-2 pl-1 flex items-center gap-1">
+                <span>📍</span>
                 {period === 'custom' && customStartDate && customEndDate 
-                    ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                    ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}`
                     : period === 'today' 
-                        ? new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+                        ? new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })
                         : period === 'yesterday'
-                            ? new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+                            ? new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })
                             : ''
                 }
             </div>
