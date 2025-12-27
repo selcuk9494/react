@@ -1,11 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class BranchesService {
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private cache: CacheService,
+  ) {}
 
   async findAll(userId: string) {
+    // Try cache first
+    const cacheKey = this.cache.generateKey('branches', 'user', userId);
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const pool = this.db.getMainPool();
     const query = `
       SELECT 
@@ -18,6 +29,9 @@ export class BranchesService {
       ORDER BY b.id
     `;
     const res = await this.db.executeQuery(pool, query, [userId]);
+    
+    // Cache for 5 minutes
+    await this.cache.set(cacheKey, res, 300);
     return res;
   }
 
