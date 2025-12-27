@@ -147,7 +147,7 @@ export default function PaymentTypesPage() {
                     <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('detailed_info')}</h3>
                     
                     <div className="space-y-3">
-                        {data.map((item, index) => {
+                        {data.map((item: any, index: number) => {
                             const color = getChartColors()[index % getChartColors().length];
                             
                             return (
