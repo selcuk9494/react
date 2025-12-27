@@ -31,16 +31,16 @@ export default function PerformancePage() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  // Safe data handling - check if data has content
+  // Safe data handling - backend returns object with waiters array
   const performanceData = Array.isArray(data) 
     ? data 
-    : (data && typeof data === 'object' && Object.keys(data).length > 0 && data.personnel) 
-      ? data.personnel 
+    : (data && typeof data === 'object' && data.waiters && Array.isArray(data.waiters))
+      ? data.waiters 
       : [];
       
   const totalSales = Array.isArray(performanceData) && performanceData.length > 0
     ? performanceData.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) 
-    : 0;
+    : (data && data.totals && data.totals.total_sales) || 0;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
