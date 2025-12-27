@@ -108,7 +108,7 @@ export default function DiscountPage() {
                   <div 
                     key={index} 
                     className="bg-white rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all cursor-pointer active:scale-98"
-                    onClick={() => setSelectedOrder(item)}
+                    onClick={() => router.push(`/reports/orders/detail?id=${orderNo}&type=closed`)}
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white font-bold">
