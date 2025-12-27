@@ -787,116 +787,130 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* Other Reports Section */}
-        <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-900 px-1 flex items-center">
-              <span className="w-1 h-6 bg-indigo-600 rounded-full mr-2"></span>
-              {t('other_reports')}
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {/* Other Reports Section - Modern Grid */}
+        <div className="space-y-4 mt-6">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                  <BarChart2 className="w-4 h-4 text-white" />
+                </div>
+                {t('other_reports')}
+              </h3>
+              <span className="text-xs text-gray-400 font-medium">8 {lang === 'tr' ? 'rapor' : 'reports'}</span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {/* Product Sales */}
                 <Link 
                     href="/reports/product-sales"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-orange-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-orange-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <PieChartIcon className="w-6 h-6 text-orange-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-orange-100 to-amber-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-orange-500 to-amber-500 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-orange-500/30">
+                        <PieChartIcon className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('product_sales')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('product_sales_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors">{t('product_sales')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('product_sales_desc')}</p>
                     </div>
                 </Link>
                 
+                {/* Personnel */}
                 <Link 
                     href="/reports/performance"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-purple-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-purple-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <Users className="w-6 h-6 text-purple-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-purple-500 to-violet-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-purple-500/30">
+                        <Users className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('personnel')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('personnel_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-purple-600 transition-colors">{t('personnel')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('personnel_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Payment Types */}
                 <Link 
                     href="/reports/payment-types"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-blue-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <CreditCard className="w-6 h-6 text-blue-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-100 to-sky-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-blue-500 to-sky-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-blue-500/30">
+                        <CreditCard className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('payments_title')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('payment_types_card_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">{t('payments_title')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('payment_types_card_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Hourly Sales */}
                 <Link 
                     href="/reports/sales-chart"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-red-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-red-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <TrendingUp className="w-6 h-6 text-red-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-red-100 to-rose-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-red-500 to-rose-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-red-500/30">
+                        <TrendingUp className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('hourly_sales')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('hourly_sales_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-red-600 transition-colors">{t('hourly_sales')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('hourly_sales_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Courier Tracking */}
                 <Link 
                     href="/reports/courier-tracking"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-teal-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-teal-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <Bike className="w-6 h-6 text-teal-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-teal-100 to-cyan-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-teal-500/30">
+                        <Bike className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('courier_tracking')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('courier_tracking_card_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-teal-600 transition-colors">{t('courier_tracking')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('courier_tracking_card_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Cancelled Items */}
                 <Link 
                     href="/reports/cancelled-items"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-pink-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-pink-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-pink-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-pink-600">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-pink-500 to-rose-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-pink-500/30">
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">{t('cancelled_items')}</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">{t('cancelled_items_desc')}</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-pink-600 transition-colors">{t('cancelled_items')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('cancelled_items_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Discount Report */}
                 <Link 
                     href="/reports/discount"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-emerald-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <Tag className="w-6 h-6 text-emerald-600" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-emerald-100 to-green-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-emerald-500 to-green-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-emerald-500/30">
+                        <Tag className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">İskonto Raporu</h4>
-                      <p className="text-xs text-gray-500 mt-1 font-medium">İndirim yapılan adisyonlar</p>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors">{t('discount_report')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('discount_report_desc')}</p>
                     </div>
                 </Link>
 
+                {/* Unpayable Report */}
                 <Link 
                     href="/reports/unpayable"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-red-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
                     <div className="bg-red-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
