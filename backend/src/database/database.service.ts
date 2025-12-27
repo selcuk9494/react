@@ -18,7 +18,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       user: this.configService.get<string>('DB_USER', 'postgres'),
       password: this.configService.get<string>('DB_PASSWORD', 'postgres'),
       database: this.configService.get<string>('DB_NAME', 'micrapor_users'),
-      connectionTimeoutMillis: 2000,
+      // Optimized pool settings
+      max: 20, // Maximum pool size
+      min: 2, // Minimum pool size
+      idleTimeoutMillis: 30000, // Close idle connections after 30s
+      connectionTimeoutMillis: 5000, // Wait 5s for connection
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      // Enable prepared statements for better performance
+      statement_timeout: 30000, // 30s query timeout
     });
 
     try {
