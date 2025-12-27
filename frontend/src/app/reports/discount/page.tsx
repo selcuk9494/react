@@ -3,18 +3,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
+import { useRouter } from 'next/navigation';
 import { Tag } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
-import OrderDetailModal from '@/components/OrderDetailModal';
 import { useReportData } from '@/utils/useReportData';
 
 export default function DiscountPage() {
   const { token } = useAuth();
   const { t } = useI18n();
+  const router = useRouter();
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/discount',
