@@ -1004,23 +1004,49 @@ export class ReportsService {
   }
 
   async getProductGroups(user: any) {
+    const branchIndex = user.selected_branch || 0;
+    const branchId = user.branches[branchIndex]?.id;
+    const cacheKey = this.cache.generateKey('product_groups', branchId || 'default');
+    
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const { pool } = await this.getBranchPool(user);
     const q = `
       SELECT id, adi as name
       FROM product_group
       ORDER BY adi ASC
     `;
-    return this.db.executeQuery(pool, q, []);
+    const result = await this.db.executeQuery(pool, q, []);
+    
+    // Cache for 1 hour (product groups rarely change)
+    await this.cache.set(cacheKey, result, 3600);
+    return result;
   }
 
   async getPersonnel(user: any) {
+    const branchIndex = user.selected_branch || 0;
+    const branchId = user.branches[branchIndex]?.id;
+    const cacheKey = this.cache.generateKey('personnel', branchId || 'default');
+    
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const { pool } = await this.getBranchPool(user);
     const q = `
       SELECT id, adi
       FROM personel
       ORDER BY adi ASC
     `;
-    return this.db.executeQuery(pool, q, []);
+    const result = await this.db.executeQuery(pool, q, []);
+    
+    // Cache for 30 minutes (personnel data rarely changes)
+    await this.cache.set(cacheKey, result, 1800);
+    return result;
   }
 
   async getUnpayable(user: any, period: string, startDate?: string, endDate?: string) {
