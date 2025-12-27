@@ -910,64 +910,74 @@ export default function Dashboard() {
                 {/* Unpayable Report */}
                 <Link 
                     href="/reports/unpayable"
-                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-red-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-slate-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-red-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-600">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-slate-100 to-gray-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-slate-500 to-gray-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-slate-500/30">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Ödenmez Raporu</h4>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-slate-600 transition-colors">{t('unpayable_report')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('unpayable_report_desc')}</p>
                     </div>
                 </Link>
+
+                {/* Debts Report */}
                 <Link 
                     href="/reports/debts"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-amber-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-yellow-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-yellow-600">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-100 to-yellow-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-amber-500 to-yellow-500 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-amber-500/30">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Borca Atılanlar</h4>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-amber-600 transition-colors">{t('debts_report')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('debts_report_desc')}</p>
                     </div>
                 </Link>
+
+                {/* Unsold Cancels */}
                 <Link 
                     href="/reports/unsold-cancels"
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-rose-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-red-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                    <div className="bg-red-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-600">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-rose-100 to-red-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-rose-500 to-red-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-rose-500/30">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Satılmadan İptal Edilenler Raporu</h4>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-rose-600 transition-colors">{lang === 'tr' ? 'Satılmadan İptaller' : 'Unsold Cancels'}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'İptal edilen siparişler' : 'Cancelled orders'}</p>
                     </div>
                 </Link>
+
+                {/* Admin Cards */}
                 {user?.is_admin && (
                   <>
                     <Link 
                       href="/admin/users"
-                      className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                      className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                     >
-                      <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
-                      <div className="bg-indigo-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
-                        <Users className="w-6 h-6 text-indigo-600" />
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-100 to-violet-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="bg-gradient-to-br from-indigo-500 to-violet-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-indigo-500/30">
+                        <Users className="w-5 h-5 text-white" />
                       </div>
                       <div className="relative z-10">
-                        <h4 className="font-bold text-gray-900 text-lg group-hover:text-indigo-700 transition-colors">Admin — Kullanıcılar</h4>
-                        <p className="text-xs text-gray-500 mt-1 font-medium">Ekle, düzenle, sil, süre ve şifre</p>
+                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-indigo-600 transition-colors">{lang === 'tr' ? 'Admin — Kullanıcılar' : 'Admin — Users'}</h4>
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Ekle, düzenle, sil' : 'Add, edit, delete'}</p>
                       </div>
                     </Link>
                     <Link 
                       href="/admin/branches"
-                      className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 text-left group relative overflow-hidden"
+                      className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                    >
                     >
                       <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
                       <div className="bg-teal-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10 shadow-sm">
