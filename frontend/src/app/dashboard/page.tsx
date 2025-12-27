@@ -528,94 +528,119 @@ export default function Dashboard() {
 
         {/* Stats Cards Section */}
         <div className="flex flex-col space-y-4">
-            {/* Açık Adisyon (Only visible if period is today) */}
+            {/* Açık Adisyon (Only visible if period is today) - Modern Card */}
             {period === 'today' && (
             <div 
                 onClick={() => navigateWithOverlay('/reports/orders/open')}
-                className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
+                className="bg-white p-5 rounded-[24px] border border-orange-100 shadow-lg shadow-orange-100/50 cursor-pointer hover:shadow-xl hover:border-orange-200 transition-all duration-300 relative overflow-hidden group"
             >
-                <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <h3 className="text-gray-500 text-sm font-medium mb-1">{t('open_orders')}</h3>
-                        <p className="text-3xl font-bold text-gray-900 tracking-tight">
-                            {formatCurrency(data?.acik_adisyon_toplam || 0)}
-                        </p>
-                    </div>
-                    {/* Donut Chart */}
-                    <div className="w-24 h-24 -mt-2 -mr-2">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={[
-                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' },
-                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
-                                    ]}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={25}
-                                    outerRadius={40}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {[
-                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' },
-                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#f59e0b' },
-                                    ].map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Details List */}
-                <div className="space-y-2 mt-2">
-                    <div 
-                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=0'); }}
-                        className="bg-orange-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-orange-100 transition"
-                    >
-                        <div>
-                            <span className="text-xs font-bold text-orange-700 block mb-0.5">{t('order_type_adisyon')}</span>
-                            <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
-                        </div>
-                        <span className="text-xs text-orange-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                            {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
-                        </span>
-                        {typeof data?.dagilim?.adisyon.acik_yuzde !== 'undefined' && (
-                          <span className="ml-2 text-[10px] text-orange-700 bg-orange-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                            %{data?.dagilim?.adisyon.acik_yuzde}
-                          </span>
-                        )}
-                    </div>
-                    
-                    {(data?.dagilim?.paket.acik_toplam || 0) > 0 && (
-                        <div 
-                        onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=1'); }}
-                            className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
-                        >
-                            <div>
-                                <span className="text-xs font-bold text-amber-700 block mb-0.5">{t('order_type_paket')}</span>
-                                <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.paket.acik_toplam || 0)}</span>
+                {/* Decorative Background */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-100 to-amber-50 rounded-full -mr-16 -mt-16 opacity-60"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-3">
+                      <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
+                              <span className="text-white text-sm">🟠</span>
                             </div>
-                            <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
+                            <h3 className="text-gray-600 text-sm font-semibold">{t('open_orders')}</h3>
+                          </div>
+                          <p className="text-3xl font-black text-gray-900 tracking-tight">
+                              {formatCurrency(data?.acik_adisyon_toplam || 0)}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">{data?.acik_adisyon_adet || 0} {t('count_orders')}</p>
+                      </div>
+                      {/* Mini Donut Chart */}
+                      <div className="w-20 h-20">
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie
+                                      data={[
+                                          { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' },
+                                          { name: t('order_type_paket'), value: data?.dagilim?.paket.acik_toplam || 0, color: '#fbbf24' },
+                                      ]}
+                                      cx="50%"
+                                      cy="50%"
+                                      innerRadius={22}
+                                      outerRadius={36}
+                                      paddingAngle={4}
+                                      dataKey="value"
+                                      stroke="none"
+                                  >
+                                      {[
+                                          { color: '#f97316' },
+                                          { color: '#fbbf24' },
+                                      ].map((entry, index) => (
+                                          <Cell key={`cell-${index}`} fill={entry.color} />
+                                      ))}
+                                  </Pie>
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                  </div>
+
+                  {/* Details List - Improved */}
+                  <div className="space-y-2">
+                      <div 
+                          onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=0'); }}
+                          className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-2xl p-3 flex justify-between items-center cursor-pointer hover:from-orange-100 hover:to-orange-100 transition-all border border-orange-200/50"
+                      >
+                          <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
+                                <span className="text-white text-lg">🍽️</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-orange-800 block">{t('order_type_adisyon')}</span>
+                                <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
+                              </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-orange-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-orange-200">
+                                {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
                             </span>
-                            {typeof data?.dagilim?.paket.acik_yuzde !== 'undefined' && (
-                              <span className="ml-2 text-[10px] text-amber-700 bg-amber-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                                %{data?.dagilim?.paket.acik_yuzde}
+                            {typeof data?.dagilim?.adisyon.acik_yuzde !== 'undefined' && (
+                              <span className="text-[10px] text-white bg-orange-500 px-2 py-1 rounded-lg font-bold">
+                                %{data?.dagilim?.adisyon.acik_yuzde}
                               </span>
                             )}
-                        </div>
-                    )}
-
-                    {/* Hızlı Satış açık adisyonda gösterilmez */}
+                            <ChevronRight className="w-4 h-4 text-orange-400" />
+                          </div>
+                      </div>
+                      
+                      {(data?.dagilim?.paket.acik_toplam || 0) > 0 && (
+                          <div 
+                          onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=1'); }}
+                              className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl p-3 flex justify-between items-center cursor-pointer hover:from-amber-100 hover:to-yellow-100 transition-all border border-amber-200/50"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+                                    <span className="text-white text-lg">📦</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs font-bold text-amber-800 block">{t('order_type_paket')}</span>
+                                    <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.paket.acik_toplam || 0)}</span>
+                                  </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-amber-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-amber-200">
+                                    {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
+                                </span>
+                                {typeof data?.dagilim?.paket.acik_yuzde !== 'undefined' && (
+                                  <span className="text-[10px] text-white bg-amber-500 px-2 py-1 rounded-lg font-bold">
+                                    %{data?.dagilim?.paket.acik_yuzde}
+                                  </span>
+                                )}
+                                <ChevronRight className="w-4 h-4 text-amber-400" />
+                              </div>
+                          </div>
+                      )}
+                  </div>
                 </div>
             </div>
             )}
 
-            {/* Kapalı Adisyon */}
+            {/* Kapalı Adisyon - Modern Card */}
             <div 
                 onClick={() => navigateWithOverlay('/reports/orders/closed')}
                 className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition relative overflow-hidden group"
