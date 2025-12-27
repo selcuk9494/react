@@ -36,6 +36,13 @@ export class BranchesService {
   }
 
   async findById(id: number) {
+    // Try cache first
+    const cacheKey = this.cache.generateKey('branches', 'id', id);
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const pool = this.db.getMainPool();
     const query = `
       SELECT 
@@ -48,7 +55,11 @@ export class BranchesService {
       LIMIT 1
     `;
     const res = await this.db.executeQuery(pool, query, [id]);
-    return res[0];
+    const branch = res[0];
+    
+    // Cache for 10 minutes
+    await this.cache.set(cacheKey, branch, 600);
+    return branch;
   }
 
   async findAllGlobal() {
