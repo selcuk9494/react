@@ -96,21 +96,27 @@ export default function DiscountPage() {
 
             <div className="space-y-3">
               {data.map((item: any, index: number) => {
-                const discountAmount = item.total_discount || item.discount || item.total || 0;
-                const discountCount = item.count || item.order_count || 0;
-                const discountName = item.name || item.discount_name || t('discount');
+                const discountAmount = item.iskonto || item.discount || 0;
+                const orderAmount = item.tutar || item.total || 0;
+                const orderNo = item.adsno || item.order_no || index + 1;
+                const customerName = item.customer_name || item.mustid || t('customer');
+                const orderDate = item.tarih || item.date || '';
 
                 return (
                   <div key={index} className="bg-white rounded-3xl p-5 shadow-lg">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white">
-                        <Tag className="w-6 h-6" />
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white font-bold">
+                        {orderNo}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-bold text-gray-900">{discountName}</h3>
-                        <p className="text-sm text-gray-500">{discountCount} {t('times')}</p>
+                        <h3 className="font-bold text-gray-900">{customerName}</h3>
+                        <p className="text-xs text-gray-500">{orderDate}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {t('order_total')}: {formatCurrency(parseFloat(orderAmount) || 0)}
+                        </p>
                       </div>
                       <div className="text-right">
+                        <p className="text-xs text-gray-500 mb-1">{t('discount')}</p>
                         <p className="text-lg font-bold text-red-600">{formatCurrency(parseFloat(discountAmount) || 0)}</p>
                       </div>
                     </div>
