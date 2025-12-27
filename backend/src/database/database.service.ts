@@ -157,9 +157,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         database: config.db_name,
         user: config.db_user,
         password: config.db_password,
-        max: 5, 
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        // Optimized settings for branch connections
+        max: 10, // Reduced max connections per branch
+        min: 1, // Keep 1 connection alive
+        idleTimeoutMillis: 60000, // Keep connections longer (60s)
+        connectionTimeoutMillis: 8000, // Longer timeout for branch DBs
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+        statement_timeout: 45000, // 45s timeout for branch queries
       });
       
       pool.on('error', (err) => {
