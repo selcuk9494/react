@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { CacheService } from '../cache/cache.service';
 import { startOfDay, endOfDay, subDays, startOfWeek, startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
 
 @Injectable()
 export class ReportsService {
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private cache: CacheService,
+  ) {}
 
   private getDateRange(period: string, startDate?: string, endDate?: string) {
     const today = new Date();
