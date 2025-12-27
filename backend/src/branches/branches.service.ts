@@ -105,6 +105,10 @@ export class BranchesService {
         }
       }
     }
+    
+    // Invalidate user's branches cache
+    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    
     return branch;
   }
 
