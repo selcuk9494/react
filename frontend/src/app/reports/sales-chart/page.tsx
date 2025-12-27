@@ -32,8 +32,13 @@ export default function SalesChartPage() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  // Ensure data is array
-  const chartData = Array.isArray(data) ? data : [];
+  // Ensure data is array and map field names
+  const chartData = Array.isArray(data) 
+    ? data.map((item: any) => ({
+        date: item.date || item.tarih || '',
+        total: item.total || item.toplam || 0
+      }))
+    : [];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
