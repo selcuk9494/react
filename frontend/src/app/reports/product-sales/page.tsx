@@ -40,11 +40,6 @@ function ProductSalesContent() {
     additionalParams,
   });
 
-  // Debug log
-  useEffect(() => {
-    console.log('Product Sales Data:', { data, isLoading, error, period, selectedGroup });
-  }, [data, isLoading, error, period, selectedGroup]);
-
   useEffect(() => {
     const fetchGroups = async () => {
       setGroupsLoading(true);
