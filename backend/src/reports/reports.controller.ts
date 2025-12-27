@@ -234,9 +234,9 @@ export class ReportsController {
     return interval(5000).pipe(
       switchMap(() => from(this.reportsService.getDashboard(req.user, period, startDate, endDate))),
       map((data) => ({
-        data: data,
+        data: JSON.stringify(data),
         type: 'dashboard',
-      })),
+      } as MessageEvent)),
     );
   }
 }
