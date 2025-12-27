@@ -76,7 +76,7 @@ function ProductSalesContent() {
 
   const filteredData = (data || []).filter((item: any) => {
     const q = searchQuery.toLowerCase();
-    return item.name?.toLowerCase().includes(q) || item.plu?.toString().includes(q);
+    return item.product_name?.toLowerCase().includes(q) || item.plu?.toString().includes(q);
   });
 
   const sortedData = [...filteredData].sort((a, b) => {
