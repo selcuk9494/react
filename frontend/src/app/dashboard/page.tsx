@@ -281,28 +281,28 @@ export default function Dashboard() {
           {/* Stats Cards */}
           <div className="grid grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-3xl p-6 shadow-lg animate-pulse\">
-                <div className="h-4 bg-gray-200 rounded w-20 mb-3\"></div>
-                <div className=\"h-8 bg-gray-300 rounded w-32 mb-2\"></div>
-                <div className=\"h-3 bg-gray-100 rounded w-16\"></div>
+              <div key={i} className="bg-white rounded-3xl p-6 shadow-lg animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-20 mb-3"></div>
+                <div className="h-8 bg-gray-300 rounded w-32 mb-2"></div>
+                <div className="h-3 bg-gray-100 rounded w-16"></div>
               </div>
             ))}
           </div>
 
           {/* Chart Skeleton */}
-          <div className=\"bg-white rounded-3xl p-6 shadow-lg animate-pulse\">
-            <div className=\"h-6 bg-gray-200 rounded w-32 mb-4\"></div>
-            <div className=\"h-48 bg-gray-100 rounded-2xl\"></div>
+          <div className="bg-white rounded-3xl p-6 shadow-lg animate-pulse">
+            <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+            <div className="h-48 bg-gray-100 rounded-2xl"></div>
           </div>
 
           {/* List Items */}
           {[1, 2, 3].map((i) => (
-            <div key={i} className=\"bg-white rounded-2xl p-4 shadow animate-pulse\">
-              <div className=\"flex items-center gap-3\">
-                <div className=\"w-12 h-12 bg-gray-200 rounded-xl\"></div>
-                <div className=\"flex-1\">
-                  <div className=\"h-4 bg-gray-200 rounded w-32 mb-2\"></div>
-                  <div className=\"h-3 bg-gray-100 rounded w-20\"></div>
+            <div key={i} className="bg-white rounded-2xl p-4 shadow animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
+                  <div className="h-3 bg-gray-100 rounded w-20"></div>
                 </div>
               </div>
             </div>
