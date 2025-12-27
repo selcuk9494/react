@@ -153,6 +153,11 @@ export class BranchesService {
     const pool = this.db.getMainPool();
     const query = 'DELETE FROM branches WHERE id = $1 AND user_id = $2 RETURNING id';
     const res = await this.db.executeQuery(pool, query, [id, userId]);
+    
+    // Invalidate caches
+    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    await this.cache.del(this.cache.generateKey('branches', 'id', id));
+    
     return res[0];
   }
 
