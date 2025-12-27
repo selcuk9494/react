@@ -1,50 +1,28 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { useRouter } from 'next/navigation';
-import { Wallet, Banknote, CreditCard as CreditCardIcon, CreditCard, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import { CreditCard as CreditCardIcon, AlertCircle } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
-import { getApiUrl } from '@/utils/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import useSWR from 'swr';
-
-// Fetcher function for SWR
-const fetcher = (url: string, token: string) =>
-  axios.get(url, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.data);
+import { useReportData } from '@/utils/useReportData';
 
 export default function PaymentTypesPage() {
   const { token } = useAuth();
   const { t } = useI18n();
-  const router = useRouter();
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // Build API URL
-  const apiUrl = useMemo(() => {
-    if (!token) return null;
-    if (period === 'custom' && (!customStartDate || !customEndDate)) return null;
-    
-    let url = `${getApiUrl()}/reports/payment-types?period=${period}`;
-    if (period === 'custom') {
-      url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
-    }
-    return url;
-  }, [token, period, customStartDate, customEndDate]);
-
-  // Use SWR for caching and auto-revalidation
-  const { data, error, isLoading } = useSWR(
-    apiUrl ? [apiUrl, token] : null,
-    ([url, tkn]) => fetcher(url, tkn as string),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      dedupingInterval: 5000, // Prevent duplicate requests within 5 seconds
-    }
-  );
+  // Use optimized hook with SWR
+  const { data, error, isLoading } = useReportData({
+    endpoint: '/reports/payment-types',
+    token,
+    period,
+    customStartDate,
+    customEndDate,
+  });
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
