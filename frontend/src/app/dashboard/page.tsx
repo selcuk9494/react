@@ -178,7 +178,6 @@ export default function Dashboard() {
     
     const myId = ++reqIdRef.current;
     setLoading(true);
-    setData(null);
     const fetchData = async () => {
       try {
         let url = `${getApiUrl()}/dashboard?period=${period}`;
