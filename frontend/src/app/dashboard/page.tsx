@@ -668,28 +668,28 @@ export default function Dashboard() {
                             </span>
                           </div>
                       </div>
-                    {/* Donut Chart */}
-                    <div className="w-24 h-24 -mt-2 -mr-2">
+                    {/* Mini Donut Chart */}
+                    <div className="w-20 h-20">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={[
                                         { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
-                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
+                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#fbbf24' },
                                         { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.kapali_toplam || 0, color: '#ec4899' },
                                     ]}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={25}
-                                    outerRadius={40}
-                                    paddingAngle={5}
+                                    innerRadius={22}
+                                    outerRadius={36}
+                                    paddingAngle={4}
                                     dataKey="value"
                                     stroke="none"
                                 >
                                     {[
-                                        { name: t('order_type_adisyon'), value: data?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
-                                        { name: t('order_type_paket'), value: data?.dagilim?.paket.kapali_toplam || 0, color: '#f59e0b' },
-                                        { name: t('order_type_hizli'), value: data?.dagilim?.hizli?.kapali_toplam || 0, color: '#ec4899' },
+                                        { color: '#10b981' },
+                                        { color: '#fbbf24' },
+                                        { color: '#ec4899' },
                                     ].map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -699,68 +699,91 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Details List */}
-                <div className="space-y-2 mt-2">
+                {/* Details List - Improved */}
+                <div className="space-y-2">
                     <div 
                         onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=0'); }}
-                        className="bg-emerald-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-emerald-100 transition"
+                        className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-3 flex justify-between items-center cursor-pointer hover:from-emerald-100 hover:to-teal-100 transition-all border border-emerald-200/50"
                     >
-                        <div>
-                            <span className="text-xs font-bold text-emerald-700 block mb-0.5">{t('order_type_adisyon')}</span>
-                            <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                              <span className="text-white text-lg">🍽️</span>
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-emerald-800 block">{t('order_type_adisyon')}</span>
+                              <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
+                            </div>
                         </div>
-                        <span className="text-xs text-emerald-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                            {data?.dagilim?.adisyon.kapali_adet || 0} {t('piece')}
-                        </span>
-                        {typeof data?.dagilim?.adisyon.kapali_yuzde !== 'undefined' && (
-                          <span className="ml-2 text-[10px] text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                            %{data?.dagilim?.adisyon.kapali_yuzde}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-emerald-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-emerald-200">
+                              {data?.dagilim?.adisyon.kapali_adet || 0} {t('piece')}
                           </span>
-                        )}
+                          {typeof data?.dagilim?.adisyon.kapali_yuzde !== 'undefined' && (
+                            <span className="text-[10px] text-white bg-emerald-500 px-2 py-1 rounded-lg font-bold">
+                              %{data?.dagilim?.adisyon.kapali_yuzde}
+                            </span>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-emerald-400" />
+                        </div>
                     </div>
 
                     {(data?.dagilim?.paket.kapali_toplam || 0) > 0 && (
                         <div 
                         onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=1'); }}
-                            className="bg-amber-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-amber-100 transition"
+                            className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl p-3 flex justify-between items-center cursor-pointer hover:from-amber-100 hover:to-yellow-100 transition-all border border-amber-200/50"
                         >
-                            <div>
-                                <span className="text-xs font-bold text-amber-700 block mb-0.5">{t('order_type_paket')}</span>
-                                <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.paket.kapali_toplam || 0)}</span>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+                                  <span className="text-white text-lg">📦</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs font-bold text-amber-800 block">{t('order_type_paket')}</span>
+                                  <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.paket.kapali_toplam || 0)}</span>
+                                </div>
                             </div>
-                            <span className="text-xs text-amber-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
-                                {data?.dagilim?.paket.kapali_adet || 0} {t('piece')}
-                            </span>
-                            {typeof data?.dagilim?.paket.kapali_yuzde !== 'undefined' && (
-                              <span className="ml-2 text-[10px] text-amber-700 bg-amber-100 px-2 py-1 rounded-lg font-bold shadow-sm">
-                                %{data?.dagilim?.paket.kapali_yuzde}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-amber-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-amber-200">
+                                  {data?.dagilim?.paket.kapali_adet || 0} {t('piece')}
                               </span>
-                            )}
+                              {typeof data?.dagilim?.paket.kapali_yuzde !== 'undefined' && (
+                                <span className="text-[10px] text-white bg-amber-500 px-2 py-1 rounded-lg font-bold">
+                                  %{data?.dagilim?.paket.kapali_yuzde}
+                                </span>
+                              )}
+                              <ChevronRight className="w-4 h-4 text-amber-400" />
+                            </div>
                         </div>
                     )}
 
                     {(data?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
                         <div 
                             onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=3'); }}
-                            className="bg-pink-50 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-pink-100 transition"
+                            className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-2xl p-3 flex justify-between items-center cursor-pointer hover:from-pink-100 hover:to-rose-100 transition-all border border-pink-200/50"
                         >
-                            <div>
-                                <span className="text-xs font-bold text-pink-700 block mb-0.5">{t('order_type_hizli')}</span>
-                                <span className="text-sm font-bold text-gray-900">{formatCurrency(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center">
+                                  <span className="text-white text-lg">⚡</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs font-bold text-pink-800 block">{t('order_type_hizli')}</span>
+                                  <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-pink-600 bg-white px-2 py-1 rounded-lg font-medium shadow-sm">
+                              <span className="text-xs text-pink-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-pink-200">
                                   {data?.dagilim?.hizli?.kapali_adet || 0} {t('piece')}
                               </span>
                               {typeof data?.dagilim?.hizli?.kapali_yuzde !== 'undefined' && (
-                                <span className="text-[10px] text-pink-700 bg-pink-100 px-2 py-1 rounded-lg font-bold shadow-sm">
+                                <span className="text-[10px] text-white bg-pink-500 px-2 py-1 rounded-lg font-bold">
                                   %{data?.dagilim?.hizli?.kapali_yuzde}
                                 </span>
                               )}
+                              <ChevronRight className="w-4 h-4 text-pink-400" />
                             </div>
                         </div>
                     )}
                 </div>
+              </div>
             </div>
         </div>
 
