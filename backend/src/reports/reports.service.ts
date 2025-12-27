@@ -557,7 +557,7 @@ export class ReportsService {
     const debtsRows = await this.db.executeQuery(pool, debtsQuery, [kasa_nos, dStart, dEnd]);
     const debts = debtsRows[0] || { toplam: 0, adet: 0 };
 
-    return {
+    const result = {
       acik_adisyon_toplam: acik_toplam,
       kapali_adisyon_toplam: kapali_toplam,
       kapali_iskonto_toplam: kapali_iskonto_toplam,
@@ -602,6 +602,11 @@ export class ReportsService {
         }
       }
     };
+
+    // Cache the result
+    await this.cache.set(cacheKey, result, cacheTTL);
+
+    return result;
   }
 
 
