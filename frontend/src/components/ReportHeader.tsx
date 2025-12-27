@@ -37,8 +37,8 @@ export default function ReportHeader({
 
   return (
     <>
-      {/* Fixed Header - Mobile Optimized */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+      {/* Fixed Header - Mobile Optimized with Safe Area */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Title Row with Back Button */}
         <div className="flex items-center gap-2 px-3 py-3">
           <button 
