@@ -88,8 +88,10 @@ export default function ReportHeader({
               </button>
             </div>
           </div>
-        <div className="text-xs text-gray-700 font-medium mt-1 pl-1 whitespace-nowrap">
-          {(() => {
+          
+          {/* Date Range Display */}
+          <div className="text-xs text-gray-600 font-medium mt-2 px-1">
+            {(() => {
             const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
             const now = new Date();
             if (period === 'today') return f(now);
