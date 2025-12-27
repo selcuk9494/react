@@ -442,6 +442,18 @@ export class ReportsService {
   }
 
   async getDashboard(user: any, period: string, startDate?: string, endDate?: string) {
+    // Cache key with user, period, and dates
+    const cacheKey = this.cache.generateKey('dashboard', user.id, period, startDate || 'none', endDate || 'none', user.selected_branch || 0);
+    
+    // For 'today' and 'yesterday', cache for shorter time (2 minutes)
+    // For historical data, cache longer (10 minutes)
+    const cacheTTL = ['today', 'yesterday'].includes(period) ? 120 : 600;
+    
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     
