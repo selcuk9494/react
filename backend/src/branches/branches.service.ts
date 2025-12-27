@@ -141,6 +141,11 @@ export class BranchesService {
         }
       }
     }
+    
+    // Invalidate caches
+    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    await this.cache.del(this.cache.generateKey('branches', 'id', id));
+    
     return branch;
   }
 
