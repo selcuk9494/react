@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { BarChart as BarChartIcon } from 'lucide-react';
@@ -15,7 +15,7 @@ export default function SalesChartPage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const { data, isLoading } = useReportData({
+  const { data, isLoading, error } = useReportData({
     endpoint: '/reports/sales-chart',
     token,
     period,
@@ -23,9 +23,17 @@ export default function SalesChartPage() {
     customEndDate,
   });
 
+  // Debug log
+  useEffect(() => {
+    console.log('Sales Chart Data:', { data, isLoading, error, dataType: typeof data, isArray: Array.isArray(data) });
+  }, [data, isLoading, error]);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
+
+  // Ensure data is array
+  const chartData = Array.isArray(data) ? data : [];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
@@ -47,7 +55,16 @@ export default function SalesChartPage() {
               <div className="h-64 bg-gray-100 rounded-2xl"></div>
             </div>
           </div>
-        ) : !data || data.length === 0 ? (
+        ) : error ? (
+          <div className="text-center py-12">
+            <BarChartIcon className="w-16 h-16 text-red-300 mx-auto mb-4" />
+            <p className="text-red-500">Error: {error.message}</p>
+            <details className="mt-4 text-left max-w-md mx-auto bg-red-50 p-4 rounded-lg">
+              <summary className="cursor-pointer text-red-700 font-medium">Debug Info</summary>
+              <pre className="mt-2 text-xs text-red-600 overflow-auto">{JSON.stringify({ data, error }, null, 2)}</pre>
+            </details>
+          </div>
+        ) : !chartData || chartData.length === 0 ? (
           <div className="text-center py-12">
             <BarChartIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">{t('no_data')}</p>
@@ -56,7 +73,7 @@ export default function SalesChartPage() {
           <div className="bg-white rounded-3xl p-6 shadow-lg">
             <h2 className="text-lg font-bold text-gray-900 mb-4">{t('daily_sales')}</h2>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />

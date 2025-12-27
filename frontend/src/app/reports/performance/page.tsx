@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { Users } from 'lucide-react';
@@ -14,7 +14,7 @@ export default function PerformancePage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const { data, isLoading } = useReportData({
+  const { data, isLoading, error } = useReportData({
     endpoint: '/reports/performance',
     token,
     period,
@@ -22,11 +22,20 @@ export default function PerformancePage() {
     customEndDate,
   });
 
+  // Debug log
+  useEffect(() => {
+    console.log('Performance Data:', { data, isLoading, error, dataType: typeof data, isArray: Array.isArray(data) });
+  }, [data, isLoading, error]);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  const totalSales = data?.reduce((acc: number, curr: any) => acc + curr.total, 0) || 0;
+  // Safe data handling - data might be object or array
+  const performanceData = Array.isArray(data) ? data : (data?.personnel || []);
+  const totalSales = Array.isArray(performanceData) 
+    ? performanceData.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
@@ -60,7 +69,16 @@ export default function PerformancePage() {
               </div>
             ))}
           </div>
-        ) : !data || data.length === 0 ? (
+        ) : error ? (
+          <div className="text-center py-12">
+            <Users className="w-16 h-16 text-red-300 mx-auto mb-4" />
+            <p className="text-red-500">Error: {error.message}</p>
+            <details className="mt-4 text-left max-w-md mx-auto bg-red-50 p-4 rounded-lg">
+              <summary className="cursor-pointer text-red-700 font-medium">Debug Info</summary>
+              <pre className="mt-2 text-xs text-red-600 overflow-auto">{JSON.stringify({ data, error }, null, 2)}</pre>
+            </details>
+          </div>
+        ) : !performanceData || performanceData.length === 0 ? (
           <div className="text-center py-12">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">{t('no_data')}</p>
@@ -73,18 +91,18 @@ export default function PerformancePage() {
             </div>
 
             <div className="space-y-3">
-              {data.map((item: any, index: number) => (
+              {performanceData.map((item: any, index: number) => (
                 <div key={index} className="bg-white rounded-3xl p-5 shadow-lg">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900">{item.name}</h3>
-                      <p className="text-sm text-gray-500">{item.count} {t('orders')}</p>
+                      <h3 className="font-bold text-gray-900">{item.name || item.personnel_name || 'N/A'}</h3>
+                      <p className="text-sm text-gray-500">{item.count || item.order_count || 0} {t('orders')}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total)}</p>
+                      <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total || 0)}</p>
                     </div>
                   </div>
                 </div>
