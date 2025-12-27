@@ -1,8 +1,11 @@
 'use client';
 
-import React from 'react';
-import { X, User, CreditCard, Clock, Calendar, MapPin } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, User, CreditCard, Clock, Calendar, MapPin, ShoppingBasket, Loader2 } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
+import { useAuth } from '@/contexts/AuthContext';
+import axios from 'axios';
+import { getApiUrl } from '@/utils/api';
 
 interface OrderDetailModalProps {
   order: any;
@@ -11,6 +14,32 @@ interface OrderDetailModalProps {
 
 export default function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
   const { t } = useI18n();
+  const { token } = useAuth();
+  const [orderDetail, setOrderDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFullOrderDetail = async () => {
+      if (!order?.adsno || !token) return;
+      
+      try {
+        setLoading(true);
+        const url = `${getApiUrl()}/reports/order-detail/${order.adsno}?order_type=closed`;
+        const response = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setOrderDetail(response.data);
+      } catch (error) {
+        console.error('Failed to fetch order detail:', error);
+        // Fallback to basic order data
+        setOrderDetail(order);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFullOrderDetail();
+  }, [order, token]);
 
   if (!order) return null;
 
@@ -18,6 +47,12 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
     if (isNaN(val) || val === null || val === undefined) return '₺0,00';
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
+
+  const displayData = orderDetail || order;
+  const items = orderDetail?.items || [];
+  const subtotal = items.reduce((sum: number, item: any) => sum + (parseFloat(item.total || item.toplam || 0)), 0);
+  const discount = parseFloat(displayData.iskonto || displayData.toplam_iskonto || 0);
+  const netTotal = subtotal - discount;
 
   return (
     <div 
