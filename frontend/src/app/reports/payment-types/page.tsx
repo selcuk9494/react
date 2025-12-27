@@ -88,8 +88,32 @@ export default function PaymentTypesPage() {
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (
-            <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <div className="space-y-4">
+              {/* Shimmer Summary Card */}
+              <div className="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl p-8 animate-pulse">
+                <div className="h-4 bg-white/30 rounded w-32 mx-auto mb-3"></div>
+                <div className="h-12 bg-white/40 rounded w-48 mx-auto mb-4"></div>
+                <div className="h-3 bg-white/20 rounded w-24 mx-auto"></div>
+              </div>
+
+              {/* Chart Skeleton */}
+              <div className="bg-white rounded-3xl p-6 shadow-lg">
+                <div className="h-48 bg-gray-100 rounded-2xl animate-pulse"></div>
+              </div>
+
+              {/* List Skeletons */}
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-3xl p-5 shadow-lg animate-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded w-20"></div>
+                    </div>
+                    <div className="h-6 bg-gray-200 rounded w-24"></div>
+                  </div>
+                </div>
+              ))}
             </div>
         ) : error || !data || data.length === 0 ? (
             <div className="text-center py-12">
