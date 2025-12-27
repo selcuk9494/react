@@ -72,15 +72,17 @@ export default function SalesChartPage() {
         ) : (
           <div className="bg-white rounded-3xl p-6 shadow-lg">
             <h2 className="text-lg font-bold text-gray-900 mb-4">{t('daily_sales')}</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
-                <Bar dataKey="total" fill="#4F46E5" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
+                  <Bar dataKey="total" fill="#4F46E5" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
       </main>
