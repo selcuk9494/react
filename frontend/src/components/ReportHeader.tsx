@@ -37,55 +37,57 @@ export default function ReportHeader({
 
   return (
     <>
-      <div className="bg-white/95 backdrop-blur-md px-4 pt-4 pb-2 fixed top-0 left-0 right-0 z-40 shadow-sm border-b border-gray-100 transition-all duration-300">
-        <div className="flex items-center space-x-2 mb-4">
-          <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">{title}</h1>
-        </div>
-
-        {/* Date Filter Row */}
-        <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-2 items-center">
-          {[
-            { id: 'today', label: t('today') },
-            { id: 'yesterday', label: t('yesterday') },
-            { id: 'week', label: t('this_week') },
-            { id: 'last7days', label: t('last_7_days') },
-            { id: 'month', label: t('this_month') },
-            { id: 'lastmonth', label: t('last_month') },
-          ].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPeriod(p.id)}
-              className={clsx(
-                "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-                period === p.id
-                  ? "border-indigo-600 text-indigo-700 bg-indigo-50"
-                  : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-              )}
+      <div className="bg-white/95 backdrop-blur-md fixed top-0 left-0 right-0 z-40 shadow-sm border-b border-gray-100">
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex items-center gap-3 mb-3">
+            <button 
+              onClick={() => router.back()} 
+              className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors touch-manipulation"
+              aria-label="Geri"
             >
-              {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
-              {p.label}
+              <ArrowLeft className="w-5 h-5" />
             </button>
-          ))}
+            <h1 className="text-lg font-bold text-gray-900 truncate">{title}</h1>
+          </div>
 
-          <button
-            onClick={() => setShowCustomDateModal(true)}
-            className={clsx(
-              "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-              period === 'custom'
-                ? "border-indigo-600 text-indigo-700 bg-indigo-50"
-                : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-            )}
-          >
-            <Calendar className="w-4 h-4 mr-2" />
-            {period === 'custom' && customStartDate && customEndDate
-              ? `${new Date(customStartDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
-              : t('custom_date')}
-          </button>
-          
-        </div>
+          {/* Date Filter Row - Scrollable */}
+          <div className="relative -mx-4 px-4">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
+              {[
+                { id: 'today', label: t('today'), icon: true },
+                { id: 'yesterday', label: t('yesterday') },
+                { id: 'week', label: t('this_week') },
+                { id: 'last7days', label: t('last_7_days') },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={clsx(
+                    "flex-shrink-0 snap-start flex items-center px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-all touch-manipulation",
+                    period === p.id
+                      ? "border-indigo-600 text-indigo-700 bg-indigo-50 shadow-sm"
+                      : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50 active:scale-95"
+                  )}
+                >
+                  {p.icon && <Calendar className="w-4 h-4 mr-1.5" />}
+                  {p.label}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setShowCustomDateModal(true)}
+                className={clsx(
+                  "flex-shrink-0 snap-start flex items-center px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-all touch-manipulation",
+                  period === 'custom'
+                    ? "border-indigo-600 text-indigo-700 bg-indigo-50 shadow-sm"
+                    : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50 active:scale-95"
+                )}
+              >
+                <Calendar className="w-4 h-4 mr-1.5" />
+                {t('custom_date')}
+              </button>
+            </div>
+          </div>
         <div className="text-xs text-gray-700 font-medium mt-1 pl-1 whitespace-nowrap">
           {(() => {
             const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
