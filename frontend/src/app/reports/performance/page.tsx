@@ -103,8 +103,8 @@ export default function PerformancePage() {
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900">{item.name || item.personnel_name || 'N/A'}</h3>
-                      <p className="text-sm text-gray-500">{item.count || item.order_count || 0} {t('orders')}</p>
+                      <h3 className="font-bold text-gray-900">{item.waiter_name || item.name || item.personnel_name || 'N/A'}</h3>
+                      <p className="text-sm text-gray-500">{item.order_count || item.count || 0} {t('orders')}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total || 0)}</p>
