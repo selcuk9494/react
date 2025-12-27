@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
@@ -9,47 +9,56 @@ import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
 import { getApiUrl } from '@/utils/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import useSWR from 'swr';
+
+// Fetcher function for SWR
+const fetcher = (url: string, token: string) =>
+  axios.get(url, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.data);
 
 export default function PaymentTypesPage() {
   const { token } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  useEffect(() => {
-    if (!token) return;
-    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        let url = `${getApiUrl()}/reports/payment-types?period=${period}`;
-        if (period === 'custom') {
-            url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
-        }
-        const res = await axios.get(url, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setData(res.data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  // Build API URL
+  const apiUrl = useMemo(() => {
+    if (!token) return null;
+    if (period === 'custom' && (!customStartDate || !customEndDate)) return null;
+    
+    let url = `${getApiUrl()}/reports/payment-types?period=${period}`;
+    if (period === 'custom') {
+      url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+    }
+    return url;
   }, [token, period, customStartDate, customEndDate]);
+
+  // Use SWR for caching and auto-revalidation
+  const { data, error, isLoading } = useSWR(
+    apiUrl ? [apiUrl, token] : null,
+    ([url, tkn]) => fetcher(url, tkn as string),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 5000, // Prevent duplicate requests within 5 seconds
+    }
+  );
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  const totalAmount = data.reduce((acc, curr) => acc + curr.total, 0);
-  const totalCount = data.reduce((acc, curr) => acc + curr.count, 0);
+  const totalAmount = useMemo(() => 
+    data ? data.reduce((acc: number, curr: any) => acc + curr.total, 0) : 0,
+    [data]
+  );
+
+  const totalCount = useMemo(() =>
+    data ? data.reduce((acc: number, curr: any) => acc + curr.count, 0) : 0,
+    [data]
+  );
 
   const getPercent = (value: number) => {
     if (!totalAmount) return 0;
@@ -77,12 +86,12 @@ export default function PaymentTypesPage() {
         setCustomEndDate={setCustomEndDate}
       />
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[140px]">
-        {loading ? (
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[160px]">
+        {isLoading ? (
             <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             </div>
-        ) : data.length === 0 ? (
+        ) : error || !data || data.length === 0 ? (
             <div className="text-center py-12">
                 <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{t('period_no_sales_products')}</p>
