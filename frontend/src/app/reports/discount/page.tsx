@@ -27,6 +27,7 @@ export default function DiscountPage() {
     console.log('Discount Data:', { data, isLoading, error, dataType: typeof data, isArray: Array.isArray(data) });
     if (data && Array.isArray(data) && data.length > 0) {
       console.log('First discount item:', data[0]);
+      console.log('Available fields:', Object.keys(data[0]));
     }
   }, [data, isLoading, error]);
 
