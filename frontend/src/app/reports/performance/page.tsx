@@ -31,9 +31,14 @@ export default function PerformancePage() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  // Safe data handling - data might be object or array
-  const performanceData = Array.isArray(data) ? data : (data?.personnel || []);
-  const totalSales = Array.isArray(performanceData) 
+  // Safe data handling - check if data has content
+  const performanceData = Array.isArray(data) 
+    ? data 
+    : (data && typeof data === 'object' && Object.keys(data).length > 0 && data.personnel) 
+      ? data.personnel 
+      : [];
+      
+  const totalSales = Array.isArray(performanceData) && performanceData.length > 0
     ? performanceData.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) 
     : 0;
 
