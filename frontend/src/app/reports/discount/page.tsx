@@ -130,9 +130,4 @@ export default function DiscountPage() {
                 );
               })}
             </div>
-          </>
-        )}
-      </main>
-    </div>
-  );
-}
+          </>\n        )}\n\n        {/* Order Detail Modal */}\n        {selectedOrder && (\n          <OrderDetailModal\n            order={selectedOrder}\n            onClose={() => setSelectedOrder(null)}\n          />\n        )}\n      </main>\n    </div>\n  );\n}
