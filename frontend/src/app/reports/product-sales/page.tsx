@@ -158,7 +158,7 @@ function ProductSalesContent() {
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900">{item.name}</h3>
+                      <h3 className="font-bold text-gray-900">{item.product_name}</h3>
                       <p className="text-sm text-gray-500">{item.quantity} {t('pieces')}</p>
                     </div>
                     <div className="text-right">
