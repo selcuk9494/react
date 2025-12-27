@@ -75,7 +75,7 @@ export default function PaymentTypesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans">
+    <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
       <ReportHeader
         title={t('payments_title')}
         period={period}
@@ -86,7 +86,7 @@ export default function PaymentTypesPage() {
         setCustomEndDate={setCustomEndDate}
       />
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[120px]">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (
             <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
