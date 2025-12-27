@@ -36,10 +36,10 @@ export default function DiscountPage() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  // Safe total calculation with multiple possible field names
+  // Safe total calculation - backend returns order-based discounts
   const totalDiscount = Array.isArray(data) && data.length > 0
     ? data.reduce((acc: number, curr: any) => {
-        const discount = curr.total_discount || curr.discount || curr.total || 0;
+        const discount = curr.iskonto || curr.total_discount || curr.discount || 0;
         return acc + (parseFloat(discount) || 0);
       }, 0)
     : 0;
