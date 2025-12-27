@@ -482,43 +482,51 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: user?.days_left !== undefined ? '240px' : '200px' }}>
-        {/* Main Summary Card */}
-        <div className="bg-gradient-to-br from-[#2aa290] via-[#249685] to-[#1f7a6c] rounded-3xl p-5 text-white shadow-xl shadow-[#2aa290]/30 text-center relative overflow-hidden group hover:shadow-2xl transition-all duration-500 mx-1">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-[#1f7a6c] opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+      <main className="px-4 py-4 space-y-5 overflow-hidden max-w-full" style={{ paddingTop: user?.days_left !== undefined ? '230px' : '195px' }}>
+        {/* Main Summary Card - Premium Design */}
+        <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-[28px] p-6 text-white shadow-2xl shadow-emerald-500/40 text-center relative overflow-hidden group">
+          {/* Animated Background Elements */}
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
+          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-teal-300 opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-emerald-400/20 to-cyan-400/20 rounded-full blur-3xl"></div>
           
           <div className="relative z-10">
-            <p className="text-teal-50 text-[10px] font-medium mb-1 uppercase tracking-wider bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{t('range_label_total')}</p>
+            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-1.5 rounded-full mb-3 border border-white/20">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+              <span className="text-white/90 text-xs font-semibold uppercase tracking-wider">{t('range_label_total')}</span>
+            </div>
             {(() => {
               const base = (data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0);
               const grand = base + (data?.borca_atilan_toplam || 0);
               const cls =
-                grand >= 100000000 ? "text-xl" :
-                grand >= 1000000 ? "text-2xl" : "text-3xl";
+                grand >= 100000000 ? "text-2xl" :
+                grand >= 1000000 ? "text-3xl" : "text-4xl";
               return (
                 <>
-                  <h2 className={clsx("font-black mb-1 tracking-tight drop-shadow-sm transition-all", cls)}>
+                  <h2 className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", cls)}>
                     {formatCurrency(grand)}
                   </h2>
-                  <p className="text-teal-100 text-sm font-medium">
+                  <p className="text-emerald-100 text-sm font-medium flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-200 rounded-full"></span>
                     {t('open_closed_total')}
+                    <span className="w-1.5 h-1.5 bg-emerald-200 rounded-full"></span>
                   </p>
                 </>
               );
             })()}
             {!!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
               <div className={clsx(
-                "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm",
-                period === 'today' ? "bg-amber-100 text-amber-700 border border-amber-200" : "bg-amber-200 text-amber-800 border border-amber-300 ring-2 ring-amber-400"
+                "mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold backdrop-blur-sm",
+                period === 'today' ? "bg-amber-500/90 text-white" : "bg-amber-400 text-amber-900"
               )}>
-                Borca Atılan: {formatCurrency(data.borca_atilan_toplam)}
+                <span>💰</span>
+                {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam)}
               </div>
             )}
           </div>
         </div>
 
-        {/* Metric Cards Row */}
+        {/* Stats Cards Section */}
         <div className="flex flex-col space-y-4">
             {/* Açık Adisyon (Only visible if period is today) */}
             {period === 'today' && (
