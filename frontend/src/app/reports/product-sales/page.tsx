@@ -31,7 +31,7 @@ function ProductSalesContent() {
     return selectedGroup ? { group_id: selectedGroup } : {};
   }, [selectedGroup]);
 
-  const { data, isLoading } = useReportData({
+  const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
     token,
     period,
@@ -39,6 +39,11 @@ function ProductSalesContent() {
     customEndDate,
     additionalParams,
   });
+
+  // Debug log
+  useEffect(() => {
+    console.log('Product Sales Data:', { data, isLoading, error, period, selectedGroup });
+  }, [data, isLoading, error, period, selectedGroup]);
 
   useEffect(() => {
     const fetchGroups = async () => {
