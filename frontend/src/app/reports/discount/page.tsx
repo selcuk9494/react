@@ -105,7 +105,11 @@ export default function DiscountPage() {
                 const orderDate = item.tarih || item.date || '';
 
                 return (
-                  <div key={index} className="bg-white rounded-3xl p-5 shadow-lg">
+                  <div 
+                    key={index} 
+                    className="bg-white rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all cursor-pointer active:scale-98"
+                    onClick={() => setSelectedOrder(item)}
+                  >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white font-bold">
                         {orderNo}
