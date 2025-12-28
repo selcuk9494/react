@@ -948,7 +948,7 @@ export class ReportsService {
     };
   }
 
-  async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number) {
+  async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number, groupIds?: number[]) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
@@ -956,6 +956,7 @@ export class ReportsService {
 
     let query = '';
     const params = [];
+    const useArray = Array.isArray(groupIds) && groupIds.length > 0;
 
     if (period === 'today') {
         // Combine Open and Closed
@@ -971,32 +972,42 @@ export class ReportsService {
             )
             SELECT 
                 p.product_name as product_name,
+                p.plu as plu,
+                p.tip as group_id,
+                pg.adi as group_name,
                 COALESCE(SUM(cs.miktar), 0) as quantity,
                 COALESCE(SUM(cs.tutar), 0) as total
             FROM combined_sales cs
             LEFT JOIN product p ON cs.pluid = p.plu
-            ${groupId ? 'WHERE p.tip = $7' : ''}
-            GROUP BY p.product_name
+            LEFT JOIN product_group pg ON p.tip = pg.id
+            ${useArray ? 'WHERE p.tip = ANY($7)' : (groupId ? 'WHERE p.tip = $7' : '')}
+            GROUP BY p.product_name, p.plu, p.tip, pg.adi
             ORDER BY total DESC
         `;
         params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
-        if (groupId) params.push(groupId);
+        if (useArray) params.push(groupIds);
+        else if (groupId) params.push(groupId);
     } else {
         // Only Closed
         query = `
             SELECT 
                 p.product_name as product_name,
+                a.pluid as plu,
+                p.tip as group_id,
+                pg.adi as group_name,
                 COALESCE(SUM(a.miktar), 0) as quantity,
                 COALESCE(SUM(a.tutar), 0) as total
             FROM ads_adisyon a
             LEFT JOIN product p ON a.pluid = p.plu
+            LEFT JOIN product_group pg ON p.tip = pg.id
             WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
-            ${groupId ? 'AND p.tip = $4' : ''}
-            GROUP BY p.product_name
+            ${useArray ? 'AND p.tip = ANY($4)' : (groupId ? 'AND p.tip = $4' : '')}
+            GROUP BY p.product_name, a.pluid, p.tip, pg.adi
             ORDER BY total DESC
         `;
         params.push(dStart, dEnd, kasa_nos);
-        if (groupId) params.push(groupId);
+        if (useArray) params.push(groupIds);
+        else if (groupId) params.push(groupId);
     }
 
     const rows = await this.db.executeQuery(pool, query, params);

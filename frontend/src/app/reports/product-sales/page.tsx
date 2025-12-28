@@ -4,7 +4,7 @@ import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useSearchParams } from 'next/navigation';
-import { ShoppingBag, Search, Package, TrendingUp, DollarSign, Layers } from 'lucide-react';
+import { Package, Layers, Download, ArrowUpDown } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
@@ -21,15 +21,15 @@ function ProductSalesContent() {
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'groups'>('products');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'total' | 'quantity'>('total');
+  const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
 
   const additionalParams = useMemo(() => {
-    return selectedGroup ? { group_id: selectedGroup } : {};
-  }, [selectedGroup]);
+    return selectedGroups.length ? { group_ids: selectedGroups.join(',') } : {};
+  }, [selectedGroups]);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
@@ -60,7 +60,8 @@ function ProductSalesContent() {
   useEffect(() => {
       const groupIdParam = searchParams.get('group_id');
       if (groupIdParam) {
-          setSelectedGroup(parseInt(groupIdParam));
+          const gid = parseInt(groupIdParam);
+          if (!isNaN(gid)) setSelectedGroups([gid]);
           setActiveTab('products');
       }
   }, [searchParams]);
@@ -75,13 +76,50 @@ function ProductSalesContent() {
   });
 
   const sortedData = [...filteredData].sort((a, b) => {
-    const aVal = sortBy === 'total' ? a.total : a.quantity;
-    const bVal = sortBy === 'total' ? b.total : b.quantity;
+    const aVal = sortBy === 'total' ? a.total : sortBy === 'quantity' ? a.quantity : sortBy === 'pct_total' ? (totalSales > 0 ? a.total / totalSales : 0) : (totalQty > 0 ? a.quantity / totalQty : 0);
+    const bVal = sortBy === 'total' ? b.total : sortBy === 'quantity' ? b.quantity : sortBy === 'pct_total' ? (totalSales > 0 ? b.total / totalSales : 0) : (totalQty > 0 ? b.quantity / totalQty : 0);
     return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
   });
 
   const totalSales = filteredData.reduce((acc: number, curr: any) => acc + curr.total, 0);
   const totalQty = filteredData.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+  const groupAgg = useMemo(() => {
+    const m = new Map<number, { name: string; total: number; qty: number }>();
+    filteredData.forEach((it: any) => {
+      const gid = it.group_id ?? -1;
+      const name = it.group_name ?? 'Diğer';
+      const prev = m.get(gid) || { name, total: 0, qty: 0 };
+      prev.total += it.total || 0;
+      prev.qty += it.quantity || 0;
+      m.set(gid, prev);
+    });
+    const arr = Array.from(m.entries()).map(([id, v]) => ({ id, ...v }));
+    arr.sort((a, b) => b.total - a.total);
+    return arr;
+  }, [filteredData]);
+
+  const exportCSV = () => {
+    const rows = [
+      ['product_name', 'group_name', 'plu', 'quantity', 'total', 'pct_total', 'pct_qty'],
+      ...sortedData.map((it: any) => [
+        it.product_name,
+        it.group_name ?? '',
+        it.plu ?? '',
+        it.quantity ?? 0,
+        it.total ?? 0,
+        totalSales > 0 ? ((it.total / totalSales) * 100).toFixed(2) : '0',
+        totalQty > 0 ? ((it.quantity / totalQty) * 100).toFixed(2) : '0',
+      ])
+    ];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `product-sales-${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
@@ -96,6 +134,77 @@ function ProductSalesContent() {
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-indigo-600" />
+              <span className="text-sm font-semibold text-gray-700">Ürün Grubu</span>
+            </div>
+            {selectedGroups.length > 0 && (
+              <button
+                onClick={() => setSelectedGroups([])}
+                className="text-xs px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+            <button
+              onClick={() => setSelectedGroups([])}
+              className={clsx(
+                "px-3 py-1.5 rounded-xl text-sm border",
+                selectedGroups.length === 0 ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"
+              )}
+            >
+              Tümü
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => {
+                  setSelectedGroups((prev) => {
+                    if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
+                    return [...prev, g.id];
+                  });
+                }}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-sm border whitespace-nowrap",
+                  selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"
+                )}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
+              >
+                <option value="total">Tutar</option>
+                <option value="quantity">Adet</option>
+                <option value="pct_total">Tutar %</option>
+                <option value="pct_qty">Adet %</option>
+              </select>
+              <button
+                onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
+                className="px-2 py-1.5 rounded-lg border border-gray-200"
+              >
+                <ArrowUpDown className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm"
+            >
+              <Download className="w-4 h-4" />
+              Dışa Aktar (CSV)
+            </button>
+          </div>
+        </div>
         {isLoading ? (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-8 animate-pulse">
@@ -146,6 +255,27 @@ function ProductSalesContent() {
             </div>
 
             <div className="space-y-3">
+              <div className="bg-white rounded-3xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-bold text-gray-900">Gruplar</div>
+                  <div className="text-sm text-gray-500">{groupAgg.length} grup</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg.slice(0, 6)).map((g, i) => (
+                    <div key={g.id} className="border rounded-xl p-3">
+                      <div className="text-sm font-semibold text-gray-800">{g.name || 'Diğer'}</div>
+                      <div className="text-xs text-gray-500">{g.qty} adet</div>
+                      <div className="text-sm font-bold text-gray-900">{formatCurrency(g.total)}</div>
+                      <div className="mt-1 h-1.5 bg-gray-200 rounded">
+                        <div
+                          className="h-1.5 bg-indigo-600 rounded"
+                          style={{ width: `${totalSales > 0 ? Math.min(100, (g.total / totalSales) * 100) : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
               {sortedData.map((item: any, index: number) => (
                 <div key={index} className="bg-white rounded-3xl p-5 shadow-lg hover:shadow-xl transition-shadow">
                   <div className="flex items-center gap-4">
@@ -154,7 +284,15 @@ function ProductSalesContent() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900">{item.product_name}</h3>
-                      <p className="text-sm text-gray-500">{item.quantity} {t('pieces')}</p>
+                      <p className="text-sm text-gray-500">
+                        {item.quantity} {t('pieces')} • Tutar % {(totalSales > 0 ? ((item.total / totalSales) * 100) : 0).toFixed(1)} • Adet % {(totalQty > 0 ? ((item.quantity / totalQty) * 100) : 0).toFixed(1)}
+                      </p>
+                      <div className="mt-2 h-2 bg-gray-200 rounded">
+                        <div
+                          className="h-2 bg-indigo-600 rounded"
+                          style={{ width: `${totalSales > 0 ? Math.min(100, (item.total / totalSales) * 100) : 0}%` }}
+                        />
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total)}</p>

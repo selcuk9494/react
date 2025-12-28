@@ -185,8 +185,13 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('group_id') groupId?: number,
+    @Query('group_ids') groupIds?: string,
   ) {
-    return this.reportsService.getProductSales(req.user, period, startDate, endDate, groupId);
+    const ids = (groupIds || '')
+      .split(',')
+      .map((n) => parseInt(n))
+      .filter((n) => !isNaN(n));
+    return this.reportsService.getProductSales(req.user, period, startDate, endDate, groupId, ids.length ? ids : undefined);
   }
 
   @UseGuards(JwtAuthGuard)
