@@ -128,7 +128,7 @@ function ProductSalesContent() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
       <ReportHeader
-        title={t('product_sales_title')}
+        title={"Ürün Satış Raporu"}
         period={period}
         setPeriod={setPeriod}
         customStartDate={customStartDate}
