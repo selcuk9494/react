@@ -29,6 +29,7 @@ import axios from 'axios';
 import clsx from 'clsx';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { getApiUrl } from '@/utils/api';
+import AutoFitText from '@/components/AutoFitText';
 
 interface DashboardData {
   acik_adisyon_toplam: number;
@@ -536,9 +537,15 @@ export default function Dashboard() {
                 grand >= 1000000 ? "text-3xl" : "text-4xl";
               return (
                 <>
-                  <h2 className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", cls)}>
-                    {formatCurrency(grand)}
-                  </h2>
+                  <div className="w-full">
+                    {/* Auto-fit amount */}
+                    <AutoFitText
+                      text={formatCurrency(grand)}
+                      className="font-black mb-2 tracking-tight drop-shadow-lg transition-all"
+                      maxPx={36}
+                      minPx={22}
+                    />
+                  </div>
                   <p className="text-emerald-100 text-sm font-medium flex items-center justify-center gap-2">
                     <span className="w-1.5 h-1.5 bg-emerald-200 rounded-full"></span>
                     {t('open_closed_total')}

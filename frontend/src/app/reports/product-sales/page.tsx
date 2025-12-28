@@ -8,6 +8,7 @@ import { Package, Layers, Download, ArrowUpDown } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
+import AutoFitText from '@/components/AutoFitText';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 
@@ -252,7 +253,12 @@ function ProductSalesContent() {
           <>
             <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-3xl p-8 text-center text-white shadow-2xl">
               <p className="text-blue-100 text-sm font-bold mb-3">💰 {t('total_sales')}</p>
-              <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalSales)}</h2>
+              <AutoFitText
+                text={formatCurrency(totalSales)}
+                className="font-black tracking-tight drop-shadow-lg"
+                maxPx={48}
+                minPx={24}
+              />
               <p className="text-blue-200 text-base mt-4 font-semibold">{totalQty} {t('total_products')}</p>
             </div>
 

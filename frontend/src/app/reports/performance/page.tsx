@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Users } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
+import AutoFitText from '@/components/AutoFitText';
 
 export default function PerformancePage() {
   const { token } = useAuth();
@@ -92,7 +93,12 @@ export default function PerformancePage() {
           <>
             <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-3xl p-8 text-center text-white shadow-2xl">
               <p className="text-purple-100 text-sm font-bold mb-3">🎯 {t('total_performance')}</p>
-              <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalSales)}</h2>
+              <AutoFitText
+                text={formatCurrency(totalSales)}
+                className="font-black tracking-tight drop-shadow-lg"
+                maxPx={48}
+                minPx={24}
+              />
             </div>
 
             <div className="space-y-3">
