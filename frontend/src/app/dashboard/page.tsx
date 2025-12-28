@@ -470,14 +470,47 @@ export default function Dashboard() {
             {/* Selected Date Display */}
             <div className="text-xs text-gray-400 mt-2 pl-1 flex items-center gap-1">
                 <span>📍</span>
-                {period === 'custom' && customStartDate && customEndDate 
-                    ? `${new Date(customStartDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} - ${new Date(customEndDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                    : period === 'today' 
-                        ? new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })
-                        : period === 'yesterday'
-                            ? new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })
-                            : ''
-                }
+                {(() => {
+                  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+                  const fmt = (d: Date, withYear?: boolean) => d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: withYear ? 'numeric' : undefined });
+                  if (period === 'custom' && customStartDate && customEndDate) {
+                    const s = new Date(customStartDate);
+                    const e = new Date(customEndDate);
+                    return `${fmt(s)} - ${fmt(e, true)}`;
+                  }
+                  if (period === 'today') {
+                    return new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+                  }
+                  if (period === 'yesterday') {
+                    const y = new Date(); y.setDate(y.getDate() - 1);
+                    return y.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+                  }
+                  if (period === 'week') {
+                    const end = new Date();
+                    const start = new Date(end);
+                    const day = start.getDay();
+                    const diff = (day === 0 ? 6 : day - 1);
+                    start.setDate(end.getDate() - diff);
+                    return `${fmt(start)} - ${fmt(end, true)}`;
+                  }
+                  if (period === 'last7days') {
+                    const end = new Date();
+                    const start = new Date(end); start.setDate(end.getDate() - 6);
+                    return `${fmt(start)} - ${fmt(end, true)}`;
+                  }
+                  if (period === 'month') {
+                    const end = new Date();
+                    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+                    return `${fmt(start)} - ${fmt(end, true)}`;
+                  }
+                  if (period === 'lastmonth') {
+                    const ref = new Date(); ref.setMonth(ref.getMonth() - 1);
+                    const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+                    const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+                    return `${fmt(start)} - ${fmt(end, true)}`;
+                  }
+                  return '';
+                })()}
             </div>
         </div>
       </div>
