@@ -54,89 +54,87 @@ export default function ReportHeader({
 
         {/* Period Filter Buttons */}
         <div className="px-3 pb-3">
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <style jsx>{`
               div::-webkit-scrollbar {
                 display: none;
               }
             `}</style>
-            
             {/* Quick Periods */}
-            <button
-              onClick={() => setPeriod('today')}
-              className={clsx(
-                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                period === 'today'
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-              )}
-              type="button"
-            >
-              📅 {t('today')}
-            </button>
-
-            <button
-              onClick={() => setPeriod('yesterday')}
-              className={clsx(
-                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                period === 'yesterday'
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-              )}
-              type="button"
-            >
-              {t('yesterday')}
-            </button>
-
-            <button
-              onClick={() => setPeriod('last7days')}
-              className={clsx(
-                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                period === 'last7days'
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-              )}
-              type="button"
-            >
-              {t('last_7_days')}
-            </button>
-
+            {[
+              { id: 'today', label: 'Bugün', icon: '📅' },
+              { id: 'yesterday', label: 'Dün', icon: '⏪' },
+              { id: 'week', label: 'Bu Hafta', icon: '📆' },
+              { id: 'last7days', label: 'Son 7 Gün', icon: '🗓️' },
+              { id: 'month', label: 'Bu Ay', icon: '📊' },
+              { id: 'lastmonth', label: 'Geçen Ay', icon: '📁' },
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => setPeriod(p.id)}
+                className={clsx(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
+                  period === p.id
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                )}
+                type="button"
+              >
+                <span className="text-xs">{p.icon}</span>
+                {p.label}
+              </button>
+            ))}
             <button
               onClick={() => setShowCustomDateModal(true)}
               className={clsx(
-                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
                 period === 'custom'
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
               )}
               type="button"
             >
-              <Calendar className="w-3 h-3 inline-block mr-1" />
-              {t('custom_date')}
+              <Calendar className="w-4 h-4" aria-hidden="true" />
+              Özel Tarih
             </button>
           </div>
 
           {/* Date Range Display */}
-          {period && (
-            <div className="text-xs text-gray-600 mt-2 px-1">
-              {(() => {
-                const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-                const now = new Date();
-                if (period === 'today') return f(now);
-                if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
-                if (period === 'last7days') {
-                  const end = new Date();
-                  const start = new Date(); start.setDate(end.getDate() - 6);
-                  return `${f(start)} - ${f(end)}`;
-                }
-                if (period === 'custom' && customStartDate && customEndDate) {
-                  const s = new Date(customStartDate); const e = new Date(customEndDate);
-                  return `${f(s)} - ${f(e)}`;
-                }
-                return '';
-              })()}
-            </div>
-          )}
+          <div className="text-xs text-gray-600 mt-2 px-1">
+            {(() => {
+              const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+              const now = new Date();
+              if (period === 'today') return f(now);
+              if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
+              if (period === 'week') {
+                const end = new Date();
+                const start = new Date(end); const day = start.getDay(); const diff = (day === 0 ? 6 : day - 1);
+                start.setDate(end.getDate() - diff);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'last7days') {
+                const end = new Date();
+                const start = new Date(); start.setDate(end.getDate() - 6);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'month') {
+                const end = new Date();
+                const start = new Date(end.getFullYear(), end.getMonth(), 1);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'lastmonth') {
+                const ref = new Date(); ref.setMonth(ref.getMonth() - 1);
+                const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+                const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+                return `${f(start)} - ${f(end)}`;
+              }
+              if (period === 'custom' && customStartDate && customEndDate) {
+                const s = new Date(customStartDate); const e = new Date(customEndDate);
+                return `${f(s)} - ${f(e)}`;
+              }
+              return '';
+            })()}
+          </div>
         </div>
       </header>
 

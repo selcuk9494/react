@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
 import { Calendar, BarChart2 } from 'lucide-react';
+import ReportHeader from '@/components/ReportHeader';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface UnpayableItem {
@@ -101,56 +102,17 @@ export default function UnpayablePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 transition-all duration-300">
-        <div className="px-4 pt-4 pb-2">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">Ödenmez Raporu</h1>
-          </div>
-          <div className="px-0 py-2">
-            <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
-              {[
-                { id: 'today', label: 'Bugün' },
-                { id: 'yesterday', label: 'Dün' },
-                { id: 'week', label: 'Bu Hafta' },
-                { id: 'last7days', label: 'Son 7 Gün' },
-                { id: 'month', label: 'Bu Ay' },
-                { id: 'lastmonth', label: 'Geçen Ay' },
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPeriod(p.id)}
-                  className={clsx(
-                    "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-                    period === p.id 
-                      ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
-                      : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-                  )}
-                >
-                  {p.id === 'today' && <Calendar className="w-4 h-4 mr-2" />}
-                  {p.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setShowCustomDateModal(true)}
-                className={clsx(
-                  "flex items-center px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition",
-                  period === 'custom' 
-                    ? "border-indigo-600 text-indigo-700 bg-indigo-50" 
-                    : "border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-                )}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Özel Tarih
-              </button>
-            </div>
-            <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
-              <input className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400" placeholder="Müşteri adı filtrele" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)} />
-            </div>
-          </div>
-        </div>
-      </div>
+      <ReportHeader
+        title="Ödenmez Raporu"
+        period={period}
+        setPeriod={setPeriod}
+        customStartDate={customStartDate}
+        setCustomStartDate={setCustomStartDate}
+        customEndDate={customEndDate}
+        setCustomEndDate={setCustomEndDate}
+      />
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: '220px' }}>
+      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between">
           <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
         </div>
