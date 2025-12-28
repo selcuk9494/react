@@ -948,7 +948,7 @@ export class ReportsService {
     };
   }
 
-  async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number, groupIds?: number[]) {
+  async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number, groupIds?: number[], plu?: number) {
     const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(period, startDate, endDate);
     const dStart = format(start, 'yyyy-MM-dd');
@@ -957,6 +957,7 @@ export class ReportsService {
     let query = '';
     const params = [];
     const useArray = Array.isArray(groupIds) && groupIds.length > 0;
+    const usePlu = typeof plu === 'number' && !isNaN(plu);
 
     if (period === 'today') {
         // Combine Open and Closed
@@ -980,13 +981,21 @@ export class ReportsService {
             FROM combined_sales cs
             LEFT JOIN product p ON cs.pluid = p.plu
             LEFT JOIN product_group pg ON p.tip = pg.id
-            ${useArray ? 'WHERE p.tip = ANY($7)' : (groupId ? 'WHERE p.tip = $7' : '')}
+            ${(() => {
+              const conds: string[] = [];
+              if (useArray) conds.push('p.tip = ANY($7)');
+              else if (groupId) conds.push('p.tip = $7');
+              const nextIndex = 7 + (useArray || groupId ? 1 : 0);
+              if (usePlu) conds.push(`p.plu = $${nextIndex}`);
+              return conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+            })()}
             GROUP BY p.product_name, p.plu, p.tip, pg.adi
             ORDER BY total DESC
         `;
         params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
         if (useArray) params.push(groupIds);
         else if (groupId) params.push(groupId);
+        if (usePlu) params.push(plu);
     } else {
         // Only Closed
         query = `
@@ -1001,13 +1010,21 @@ export class ReportsService {
             LEFT JOIN product p ON a.pluid = p.plu
             LEFT JOIN product_group pg ON p.tip = pg.id
             WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
-            ${useArray ? 'AND p.tip = ANY($4)' : (groupId ? 'AND p.tip = $4' : '')}
+            ${(() => {
+              const conds: string[] = [];
+              if (useArray) conds.push('p.tip = ANY($4)');
+              else if (groupId) conds.push('p.tip = $4');
+              const nextIndex = 4 + (useArray || groupId ? 1 : 0);
+              if (usePlu) conds.push(`p.plu = $${nextIndex}`);
+              return conds.length ? 'AND ' + conds.join(' AND ') : '';
+            })()}
             GROUP BY p.product_name, a.pluid, p.tip, pg.adi
             ORDER BY total DESC
         `;
         params.push(dStart, dEnd, kasa_nos);
         if (useArray) params.push(groupIds);
         else if (groupId) params.push(groupId);
+        if (usePlu) params.push(plu);
     }
 
     const rows = await this.db.executeQuery(pool, query, params);

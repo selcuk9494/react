@@ -186,12 +186,13 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('group_id') groupId?: number,
     @Query('group_ids') groupIds?: string,
+    @Query('plu') plu?: number,
   ) {
     const ids = (groupIds || '')
       .split(',')
       .map((n) => parseInt(n))
       .filter((n) => !isNaN(n));
-    return this.reportsService.getProductSales(req.user, period, startDate, endDate, groupId, ids.length ? ids : undefined);
+    return this.reportsService.getProductSales(req.user, period, startDate, endDate, groupId, ids.length ? ids : undefined, typeof plu !== 'undefined' ? Number(plu) : undefined);
   }
 
   @UseGuards(JwtAuthGuard)

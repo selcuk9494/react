@@ -22,14 +22,18 @@ function ProductSalesContent() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
+  const [selectedPlu, setSelectedPlu] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'products' | 'groups'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
 
   const additionalParams = useMemo(() => {
-    return selectedGroups.length ? { group_ids: selectedGroups.join(',') } : {};
-  }, [selectedGroups]);
+    const params: any = {};
+    if (selectedGroups.length) params.group_ids = selectedGroups.join(',');
+    if (selectedPlu !== null) params.plu = String(selectedPlu);
+    return params;
+  }, [selectedGroups, selectedPlu]);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
@@ -195,6 +199,14 @@ function ProductSalesContent() {
               >
                 <ArrowUpDown className="w-4 h-4 text-gray-600" />
               </button>
+              {selectedPlu !== null && (
+                <button
+                  onClick={() => setSelectedPlu(null)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
+                >
+                  Ürün filtresini temizle (PLU {selectedPlu})
+                </button>
+              )}
             </div>
             <button
               onClick={exportCSV}
@@ -283,7 +295,13 @@ function ProductSalesContent() {
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900">{item.product_name}</h3>
+                      <h3
+                        className="font-bold text-gray-900 cursor-pointer hover:text-indigo-700"
+                        onClick={() => setSelectedPlu(item.plu ?? null)}
+                        title={item.plu ? `PLU ${item.plu} ile filtrele` : undefined}
+                      >
+                        {item.product_name}
+                      </h3>
                       <p className="text-sm text-gray-500">
                         {item.quantity} {t('pieces')} • Tutar % {(totalSales > 0 ? ((item.total / totalSales) * 100) : 0).toFixed(1)} • Adet % {(totalQty > 0 ? ((item.quantity / totalQty) * 100) : 0).toFixed(1)}
                       </p>
