@@ -292,30 +292,24 @@ export class StockService {
     salesRes.rows.forEach((row: any) => {
       const productName = row.product_name;
       const item = stockMap.get(productName);
+      const qty = Number(row.total_qty);
       
       if (item) {
-        const qty = Number(row.total_qty);
-        if (row.sturu === 4) { // İptal
-          item.cancelled += qty;
-        } else if (row.sturu !== 2) { // Normal Satış (İade değilse)
-          item.sold += qty;
-          item.remaining -= qty;
-        }
+        // Satılan olarak ekle (sturu 2=iade, 4=iptal hariç - zaten WHERE'de filtrelendi)
+        item.sold += qty;
+        item.remaining -= qty;
       } else {
         // Ürün stock map'te yok, yeni ekle
-        const qty = Number(row.total_qty);
-        if (row.sturu !== 2 && row.sturu !== 4) {
-          stockMap.set(productName, {
-            name: productName,
-            group: 'Satılan',
-            initial: 0,
-            sold: qty,
-            open: 0,
-            cancelled: 0,
-            remaining: -qty,
-            hasStockEntry: false
-          });
-        }
+        stockMap.set(productName, {
+          name: productName,
+          group: 'Satılan',
+          initial: 0,
+          sold: qty,
+          open: 0,
+          cancelled: 0,
+          remaining: -qty,
+          hasStockEntry: false
+        });
       }
     });
 
