@@ -20,6 +20,8 @@ export default function DashboardScreen({ navigation, route }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [period, setPeriod] = useState('today');
   const [branchModalVisible, setBranchModalVisible] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const fetchControllerRef = useRef(null);
 
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
