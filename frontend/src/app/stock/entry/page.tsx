@@ -82,26 +82,6 @@ export default function StockEntryPage() {
   const handleRefresh = () => {
     fetchProducts(true);
   };
-          console.log('Using mock products');
-          items = MOCK_PRODUCTS;
-        }
-        
-        setProducts(items);
-        
-        const uniqueGroups = ['Tümü', ...new Set(items.map((p: Product) => p.grup2).filter(Boolean) as string[])];
-        setGroups(uniqueGroups);
-
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        setProducts(MOCK_PRODUCTS);
-        setGroups(['Tümü', ...new Set(MOCK_PRODUCTS.map(p => p.grup2))]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, [token, user]);
 
   const handleQuantityChange = useCallback((productName: string, qty: string) => {
     if (qty && !/^\d+$/.test(qty)) return;
