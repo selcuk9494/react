@@ -250,10 +250,11 @@ export class StockService {
       return { date, items: [], hasAnyStockEntry: false };
     }
 
-    // Satış verilerini al - kapalı adisyonlardan
+    // Satış verilerini al - kapalı adisyonlardan (ads_adisyon)
     let salesRes;
     try {
-      // Önce kaptar (kapanış tarihi) ile dene
+      // kaptar (kapanış tarihi) ile sorgula - iş günü mantığına göre
+      // Saat 06:00'dan önce ise önceki gün, sonra ise bugün
       salesRes = await pool.query(`
         SELECT 
           COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
@@ -261,10 +262,11 @@ export class StockService {
           a.sturu
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE DATE(a.kaptar) = $1
+        WHERE DATE(a.kaptar) = $1::date
+          AND a.sturu NOT IN (2, 4)
         GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
       `, [date]);
-      console.log(`Sales query (kaptar) returned ${salesRes.rows.length} rows`);
+      console.log(`Sales query (kaptar) returned ${salesRes.rows.length} rows for date ${date}`);
     } catch (err) {
       console.error('LiveStock sales query (kaptar) error:', err);
       // kaptar yoksa tarih ile dene
@@ -276,10 +278,11 @@ export class StockService {
             a.sturu
           FROM ads_adisyon a
           LEFT JOIN product p ON a.pluid = p.plu
-          WHERE DATE(a.tarih) = $1
+          WHERE DATE(a.tarih) = $1::date
+            AND a.sturu NOT IN (2, 4)
           GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
         `, [date]);
-        console.log(`Sales query (tarih) returned ${salesRes.rows.length} rows`);
+        console.log(`Sales query (tarih) returned ${salesRes.rows.length} rows for date ${date}`);
       } catch (err2) {
         console.error('LiveStock sales query (tarih) error:', err2);
         salesRes = { rows: [] };
