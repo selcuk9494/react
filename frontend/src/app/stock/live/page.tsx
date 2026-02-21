@@ -30,6 +30,7 @@ interface StockItem {
   open: number;
   cancelled: number;
   remaining: number;
+  hasStockEntry?: boolean;
 }
 
 export default function LiveStockPage() {
