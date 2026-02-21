@@ -152,10 +152,10 @@ export default function DashboardScreen({ navigation, route }) {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchUserProfile(), fetchDashboardData()]).then(() => {
+    Promise.all([fetchUserProfile(), fetchDashboardData(false)]).then(() => {
         setRefreshing(false);
     });
-  }, []);
+  }, [period]);
 
   const handleBranchChange = async (branchIndex) => {
     if (branchIndex === selectedBranch) return;
