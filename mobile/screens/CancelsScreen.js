@@ -81,7 +81,13 @@ export default function CancelsScreen({ navigation }) {
         style={[styles.card, { borderLeftColor: color }]}
         onPress={() => {
             if (item.adsno) {
-                navigation.navigate('OrderDetail', { id: item.adsno, type: 'closed' });
+                // İptal listesindeki ürünler için order_type belirsiz olabilir
+                // Backend'e sadece adsno gönderiyoruz, backend kendi belirleyecek
+                navigation.navigate('OrderDetail', { 
+                  id: item.adsno, 
+                  type: item.order_type || 'closed',
+                  fromCancels: true 
+                });
             } else {
                 alert('Adisyon numarası bulunamadı');
             }
