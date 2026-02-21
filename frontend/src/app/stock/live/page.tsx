@@ -301,6 +301,19 @@ export default function LiveStockPage() {
               </select>
               
               <button
+                onClick={() => setShowStockEntryOnly(!showStockEntryOnly)}
+                className={clsx(
+                  "px-4 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
+                  showStockEntryOnly 
+                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" 
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+              >
+                <Package className="w-4 h-4" />
+                <span className="hidden md:inline">Stok Girilen ({stats.stockEntryCount})</span>
+              </button>
+              
+              <button
                 onClick={() => setShowCriticalOnly(!showCriticalOnly)}
                 className={clsx(
                   "px-4 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
