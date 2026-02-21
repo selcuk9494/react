@@ -324,16 +324,6 @@ export default function LiveStockScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Table Header */}
-      <View style={styles.tableHeader}>
-        <Text style={[styles.headerText, styles.nameCol]}>Ürün</Text>
-        <Text style={[styles.headerText, styles.valCol]}>Giriş</Text>
-        <Text style={[styles.headerText, styles.valCol]}>Satılan</Text>
-        <Text style={[styles.headerText, styles.valCol]}>Açık</Text>
-        <Text style={[styles.headerText, styles.valCol]}>Top.</Text>
-        <Text style={[styles.headerText, styles.valColLast]}>Kalan</Text>
-      </View>
-
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0ea5e9" />
