@@ -206,6 +206,14 @@ export default function StockEntryPage() {
                 <p className="text-xs text-gray-500 mt-0.5">Bugünkü başlangıç stoklarını girin</p>
               </div>
             </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2.5 hover:bg-blue-50 rounded-xl text-blue-600 transition-all active:scale-95 disabled:opacity-50"
+              title="Ürün listesini yenile"
+            >
+              <RefreshCw className={clsx("w-5 h-5", refreshing && "animate-spin")} />
+            </button>
           </div>
         </div>
       </div>
