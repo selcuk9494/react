@@ -95,6 +95,7 @@ export default function Dashboard() {
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const reqIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const dispatchStart = () => window.dispatchEvent(new CustomEvent('app:transition:start'));
   const dispatchEnd = () => window.dispatchEvent(new CustomEvent('app:transition:end'));
 
