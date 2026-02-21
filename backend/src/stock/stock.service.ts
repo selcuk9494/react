@@ -5,14 +5,26 @@ import { DatabaseService } from '../database/database.service';
 export class StockService {
   constructor(private db: DatabaseService) {}
 
-  // Gün dönümü (06:00) mantığına göre bugünün tarihi
+  // Gün dönümü (06:00) mantığına göre bugünün tarihi - Türkiye saatine göre
   private getCurrentBusinessDate(): string {
+    // Türkiye saat dilimi UTC+3
     const now = new Date();
+    const turkeyOffset = 3 * 60; // dakika cinsinden
+    const utcOffset = now.getTimezoneOffset(); // dakika cinsinden (negatif doğu için)
+    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+    
     // Eğer saat 06:00'dan önceyse, iş günü bir önceki gündür
-    if (now.getHours() < 6) {
-      now.setDate(now.getDate() - 1);
+    if (turkeyTime.getHours() < 6) {
+      turkeyTime.setDate(turkeyTime.getDate() - 1);
     }
-    return now.toISOString().split('T')[0];
+    
+    const year = turkeyTime.getFullYear();
+    const month = String(turkeyTime.getMonth() + 1).padStart(2, '0');
+    const day = String(turkeyTime.getDate()).padStart(2, '0');
+    
+    console.log(`Business date calculated: ${year}-${month}-${day} (Turkey time: ${turkeyTime.toISOString()})`);
+    
+    return `${year}-${month}-${day}`;
   }
 
   // Şube veritabanına bağlanmak için yardımcı fonksiyon
