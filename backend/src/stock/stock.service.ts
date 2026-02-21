@@ -309,17 +309,13 @@ export class StockService {
           a.sturu
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE a.tarih = $1
+        WHERE DATE(a.tarih) = $1
         GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
       `, [date]);
+      console.log(`Open orders query returned ${openRes.rows.length} rows`);
     } catch (err) {
-      const code = (err as any)?.code;
-      if (code === '42P01') {
-        openRes = { rows: [] };
-      } else {
-        console.error('LiveStock open query error:', err);
-        openRes = { rows: [] };
-      }
+      console.error('LiveStock open query error:', err);
+      openRes = { rows: [] };
     }
 
     openRes.rows.forEach((row: any) => {
