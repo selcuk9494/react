@@ -313,20 +313,20 @@ export class StockService {
       }
     });
 
-    // Açık siparişleri al
+    // Açık siparişleri al - ads_acik tablosundan
     let openRes;
     try {
       openRes = await pool.query(`
         SELECT 
           COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-          SUM(a.miktar) as total_qty, 
-          a.sturu
+          SUM(a.miktar) as total_qty
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE DATE(a.tarih) = $1
-        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
+        WHERE DATE(a.tarih) = $1::date
+          AND a.sturu NOT IN (2, 4)
+        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
       `, [date]);
-      console.log(`Open orders query returned ${openRes.rows.length} rows`);
+      console.log(`Open orders query returned ${openRes.rows.length} rows for date ${date}`);
     } catch (err) {
       console.error('LiveStock open query error:', err);
       openRes = { rows: [] };
@@ -335,28 +335,23 @@ export class StockService {
     openRes.rows.forEach((row: any) => {
       const productName = row.product_name;
       const item = stockMap.get(productName);
+      const qty = Number(row.total_qty);
       
       if (item) {
-        const qty = Number(row.total_qty);
-        if (row.sturu !== 4) { 
-          item.open += qty;
-          item.remaining -= qty;
-        }
+        item.open += qty;
+        item.remaining -= qty;
       } else {
         // Ürün stock map'te yok, yeni ekle
-        const qty = Number(row.total_qty);
-        if (row.sturu !== 4) {
-          stockMap.set(productName, {
-            name: productName,
-            group: 'Açık Sipariş',
-            initial: 0,
-            sold: 0,
-            open: qty,
-            cancelled: 0,
-            remaining: -qty,
-            hasStockEntry: false
-          });
-        }
+        stockMap.set(productName, {
+          name: productName,
+          group: 'Açık Sipariş',
+          initial: 0,
+          sold: 0,
+          open: qty,
+          cancelled: 0,
+          remaining: -qty,
+          hasStockEntry: false
+        });
       }
     });
 
