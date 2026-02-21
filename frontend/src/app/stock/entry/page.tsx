@@ -15,7 +15,8 @@ import {
   Filter,
   X,
   Plus,
-  Minus
+  Minus,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -31,6 +32,7 @@ export default function StockEntryPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,46 +40,48 @@ export default function StockEntryPage() {
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
 
-  // Fallback products for demo or error cases
-  const MOCK_PRODUCTS: Product[] = [
-    { id: 101, urun_adi: 'Hamburger', grup2: 'Ana Yemek' },
-    { id: 102, urun_adi: 'Cheeseburger', grup2: 'Ana Yemek' },
-    { id: 103, urun_adi: 'Pizza Margherita', grup2: 'Ana Yemek' },
-    { id: 104, urun_adi: 'Tavuk Döner', grup2: 'Ana Yemek' },
-    { id: 105, urun_adi: 'Lahmacun', grup2: 'Ana Yemek' },
-    { id: 106, urun_adi: 'Cola', grup2: 'İçecek' },
-    { id: 107, urun_adi: 'Fanta', grup2: 'İçecek' },
-    { id: 108, urun_adi: 'Su', grup2: 'İçecek' },
-    { id: 109, urun_adi: 'Ayran', grup2: 'İçecek' },
-    { id: 110, urun_adi: 'Çay', grup2: 'İçecek' },
-    { id: 111, urun_adi: 'Patates Kızartması', grup2: 'Ara Sıcak' },
-    { id: 112, urun_adi: 'Soğan Halkası', grup2: 'Ara Sıcak' },
-    { id: 113, urun_adi: 'Cheesecake', grup2: 'Tatlı' },
-    { id: 114, urun_adi: 'Tiramisu', grup2: 'Tatlı' },
-    { id: 115, urun_adi: 'Sütlaç', grup2: 'Tatlı' }
-  ];
+  const fetchProducts = useCallback(async (showRefreshIndicator = false) => {
+    if (!token) return;
+    
+    try {
+      if (showRefreshIndicator) setRefreshing(true);
+      else setLoading(true);
+      
+      const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      
+      let items: Product[] = [];
+      
+      if (branchId) {
+        try {
+          const res = await axios.get(`${getApiUrl()}/stock/products?branchId=${branchId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          items = res.data || [];
+        } catch (err) {
+          console.warn('API Error:', err);
+        }
+      }
+
+      if (items.length > 0) {
+        setProducts(items);
+        const uniqueGroups = ['Tümü', ...new Set(items.map((p: Product) => p.grup2).filter(Boolean) as string[])];
+        setGroups(uniqueGroups);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token, user]);
 
   useEffect(() => {
-    if (!token) return;
+    fetchProducts();
+  }, [fetchProducts]);
 
-    const fetchProducts = async () => {
-      try {
-        const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
-        
-        let items: Product[] = [];
-        
-        if (branchId) {
-          try {
-            const res = await axios.get(`${getApiUrl()}/stock/products?branchId=${branchId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            items = res.data || [];
-          } catch (err) {
-            console.warn('API Error, using fallback:', err);
-          }
-        }
-
-        if (items.length === 0) {
+  const handleRefresh = () => {
+    fetchProducts(true);
+  };
           console.log('Using mock products');
           items = MOCK_PRODUCTS;
         }
