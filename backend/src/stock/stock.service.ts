@@ -265,36 +265,49 @@ export class StockService {
     // Satış verilerini al - kapalı adisyonlardan (ads_adisyon)
     let salesRes;
     try {
-      // kaptar (kapanış tarihi) ile sorgula - iş günü mantığına göre
-      // Saat 06:00'dan önce ise önceki gün, sonra ise bugün
+      // Önce tabloyu ve verileri kontrol et
+      const checkQuery = await pool.query(`
+        SELECT COUNT(*) as total, MIN(kaptar) as min_date, MAX(kaptar) as max_date 
+        FROM ads_adisyon
+      `);
+      console.log('ads_adisyon table check:', checkQuery.rows[0]);
+      
+      // Bugünkü kayıtları kontrol et
+      const todayCheck = await pool.query(`
+        SELECT COUNT(*) as today_count 
+        FROM ads_adisyon 
+        WHERE kaptar::date = $1::date
+      `, [date]);
+      console.log(`Records for date ${date}:`, todayCheck.rows[0]);
+
+      // kaptar (kapanış tarihi) ile sorgula
       salesRes = await pool.query(`
         SELECT 
           COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-          SUM(a.miktar) as total_qty, 
-          a.sturu
+          SUM(a.miktar) as total_qty
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE DATE(a.kaptar) = $1::date
-          AND a.sturu NOT IN (2, 4)
-        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
+        WHERE a.kaptar::date = $1::date
+          AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
+        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
       `, [date]);
-      console.log(`Sales query (kaptar) returned ${salesRes.rows.length} rows for date ${date}`);
+      console.log(`Sales query returned ${salesRes.rows.length} rows:`, salesRes.rows.slice(0, 5));
     } catch (err) {
-      console.error('LiveStock sales query (kaptar) error:', err);
-      // kaptar yoksa tarih ile dene
+      console.error('LiveStock sales query error:', err);
+      
+      // Alternatif sorgu - tarih ile dene
       try {
         salesRes = await pool.query(`
           SELECT 
             COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-            SUM(a.miktar) as total_qty, 
-            a.sturu
+            SUM(a.miktar) as total_qty
           FROM ads_adisyon a
           LEFT JOIN product p ON a.pluid = p.plu
-          WHERE DATE(a.tarih) = $1::date
-            AND a.sturu NOT IN (2, 4)
-          GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
+          WHERE a.tarih::date = $1::date
+            AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
+          GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
         `, [date]);
-        console.log(`Sales query (tarih) returned ${salesRes.rows.length} rows for date ${date}`);
+        console.log(`Sales query (tarih) returned ${salesRes.rows.length} rows`);
       } catch (err2) {
         console.error('LiveStock sales query (tarih) error:', err2);
         salesRes = { rows: [] };
