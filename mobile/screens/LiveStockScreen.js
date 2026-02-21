@@ -532,6 +532,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
     borderColor: '#ef4444',
   },
+  stockEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    marginRight: 8,
+  },
+  stockEntryBtnActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  stockEntryBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3b82f6',
+    marginLeft: 4,
+  },
+  stockEntryBtnTextActive: {
+    color: '#fff',
+  },
+  stockBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    backgroundColor: '#dbeafe',
+    borderRadius: 4,
+  },
+  stockBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#1d4ed8',
+  },
+  rowNoStock: {
+    backgroundColor: '#f8fafc',
+  },
+  textMuted: {
+    color: '#94a3b8',
+  },
   tableHeader: {
     flexDirection: 'row',
     paddingHorizontal: 12,
