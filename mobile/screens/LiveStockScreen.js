@@ -131,28 +131,37 @@ export default function LiveStockScreen({ navigation }) {
   const renderItem = useCallback(({ item }) => {
     const totalSold = (item.sold || 0) + (item.open || 0);
     const remaining = item.remaining || 0;
-    const isOutOfStock = remaining <= 0;
-    const isCritical = remaining <= CRITICAL_THRESHOLD && remaining > 0;
-    const isLow = remaining <= CRITICAL_THRESHOLD * 2 && remaining > CRITICAL_THRESHOLD;
+    const hasStockEntry = item.hasStockEntry;
+    const isOutOfStock = remaining <= 0 && hasStockEntry;
+    const isCritical = remaining <= CRITICAL_THRESHOLD && remaining > 0 && hasStockEntry;
+    const isLow = remaining <= CRITICAL_THRESHOLD * 2 && remaining > CRITICAL_THRESHOLD && hasStockEntry;
 
     return (
       <View style={[
         styles.row, 
         isOutOfStock && styles.rowCritical,
-        isCritical && styles.rowWarning
+        isCritical && styles.rowWarning,
+        !hasStockEntry && styles.rowNoStock
       ]}>
         <View style={styles.nameCol}>
           <View style={styles.nameRow}>
             {isOutOfStock && <Feather name="x-circle" size={14} color="#dc2626" style={{marginRight: 4}} />}
             {isCritical && <Feather name="alert-triangle" size={14} color="#ea580c" style={{marginRight: 4}} />}
-            <Text style={[styles.nameText, isOutOfStock && styles.textRed, isCritical && styles.textOrange]} numberOfLines={1}>
+            <Text style={[styles.nameText, isOutOfStock && styles.textRed, isCritical && styles.textOrange, !hasStockEntry && styles.textMuted]} numberOfLines={1}>
               {item.name}
             </Text>
+            {hasStockEntry && (
+              <View style={styles.stockBadge}>
+                <Text style={styles.stockBadgeText}>STOK</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.groupText}>{item.group || 'Diğer'}</Text>
         </View>
         <View style={styles.valCol}>
-          <Text style={styles.initialText}>{item.initial || 0}</Text>
+          <Text style={[styles.initialText, !hasStockEntry && styles.textMuted]}>
+            {hasStockEntry ? (item.initial || 0) : '-'}
+          </Text>
         </View>
         <View style={styles.valCol}>
           <Text style={styles.soldText}>{item.sold || 0}</Text>
@@ -164,15 +173,19 @@ export default function LiveStockScreen({ navigation }) {
           <Text style={styles.totalText}>{totalSold}</Text>
         </View>
         <View style={styles.valColLast}>
-          <View style={[
-            styles.badge, 
-            isOutOfStock ? styles.badgeRed : isCritical ? styles.badgeOrange : isLow ? styles.badgeYellow : styles.badgeGreen
-          ]}>
-            <Text style={[
-              styles.badgeText,
-              isOutOfStock ? styles.badgeTextRed : isCritical ? styles.badgeTextOrange : isLow ? styles.badgeTextYellow : styles.badgeTextGreen
-            ]}>{remaining}</Text>
-          </View>
+          {hasStockEntry ? (
+            <View style={[
+              styles.badge, 
+              isOutOfStock ? styles.badgeRed : isCritical ? styles.badgeOrange : isLow ? styles.badgeYellow : styles.badgeGreen
+            ]}>
+              <Text style={[
+                styles.badgeText,
+                isOutOfStock ? styles.badgeTextRed : isCritical ? styles.badgeTextOrange : isLow ? styles.badgeTextYellow : styles.badgeTextGreen
+              ]}>{remaining}</Text>
+            </View>
+          ) : (
+            <Text style={styles.textMuted}>-</Text>
+          )}
         </View>
       </View>
     );
