@@ -571,33 +571,131 @@ const styles = StyleSheet.create({
   textMuted: {
     color: '#94a3b8',
   },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#e0f2fe',
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#bae6fd',
-  },
-  headerText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369a1',
-    textAlign: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+  // Card Styles
+  cardItem: {
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    marginHorizontal: 12,
+    marginVertical: 4,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  cardCritical: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  cardWarning: {
+    backgroundColor: '#fff7ed',
+    borderColor: '#fed7aa',
+  },
+  cardNoStock: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardNameSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  cardNameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  rowCritical: {
-    backgroundColor: '#fef2f2',
+  cardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    flexShrink: 1,
+  },
+  cardGroup: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  remainingBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    minWidth: 48,
+    alignItems: 'center',
+  },
+  remainingRed: {
+    backgroundColor: '#ef4444',
+  },
+  remainingOrange: {
+    backgroundColor: '#f97316',
+  },
+  remainingYellow: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
+  remainingGreen: {
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  remainingGray: {
+    backgroundColor: '#f1f5f9',
+  },
+  remainingText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  remainingTextWhite: {
+    color: '#fff',
+  },
+  remainingTextDark: {
+    color: '#166534',
+  },
+  cardStatsRow: {
+    flexDirection: 'row',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  cardStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  cardStatLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginBottom: 2,
+  },
+  cardStatValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  textGreen: {
+    color: '#10b981',
+  },
+  textAmber: {
+    color: '#f59e0b',
+  },
+  textIndigo: {
+    color: '#6366f1',
+  },
+  textRed: {
+    color: '#dc2626',
+  },
+  textOrange: {
+    color: '#ea580c',
+  },
+  listContent: {
+    paddingTop: 8,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
   },
   rowWarning: {
     backgroundColor: '#fff7ed',
