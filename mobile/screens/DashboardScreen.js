@@ -1317,6 +1317,45 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
   },
+  cardMainRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cardValueSection: {
+    flex: 1,
+  },
+  breakdownRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  countBadgeLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  percentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  percentText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   reportsSection: {
     marginTop: 8,
   },
