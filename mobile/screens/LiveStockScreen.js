@@ -696,68 +696,37 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   loadingContainer: {
-  },
-  rowWarning: {
-    backgroundColor: '#fff7ed',
-  },
-  nameCol: {
-    flex: 3,
-    paddingRight: 6,
-  },
-  valCol: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-  },
-  valColLast: {
-    flex: 1.2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
-  nameText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-    flex: 1,
-  },
-  textRed: {
-    color: '#dc2626',
-  },
-  textOrange: {
-    color: '#ea580c',
-  },
-  groupText: {
-    fontSize: 10,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  initialText: {
-    fontSize: 13,
-    fontWeight: '600',
+  loadingText: {
+    marginTop: 12,
     color: '#64748b',
+    fontSize: 15,
   },
-  soldText: {
-    fontSize: 13,
+  emptyContainer: {
+    padding: 60,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  emptyButtonText: {
+    color: '#fff',
     fontWeight: '700',
-    color: '#10b981',
+    fontSize: 15,
   },
-  openText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#f97316',
-  },
-  totalText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#334155',
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+});
     borderRadius: 8,
     minWidth: 32,
     alignItems: 'center',
