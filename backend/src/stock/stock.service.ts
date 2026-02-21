@@ -79,7 +79,6 @@ export class StockService {
         } catch (itemError) {
           console.error(`Error inserting item ${item.productName}:`, itemError);
           throw itemError;
-          }
         }
       }
 
