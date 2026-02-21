@@ -74,9 +74,10 @@ export default function LiveStockScreen({ navigation }) {
   const stats = useMemo(() => {
     const totalSold = data.reduce((sum, item) => sum + (item.sold || 0), 0);
     const totalOpen = data.reduce((sum, item) => sum + (item.open || 0), 0);
-    const criticalCount = data.filter(item => item.remaining <= CRITICAL_THRESHOLD).length;
-    const outOfStock = data.filter(item => item.remaining <= 0).length;
-    return { totalSold, totalOpen, criticalCount, outOfStock };
+    const criticalCount = data.filter(item => item.remaining <= CRITICAL_THRESHOLD && item.hasStockEntry).length;
+    const outOfStock = data.filter(item => item.remaining <= 0 && item.hasStockEntry).length;
+    const stockEntryCount = data.filter(item => item.hasStockEntry).length;
+    return { totalSold, totalOpen, criticalCount, outOfStock, stockEntryCount };
   }, [data]);
 
   // Filtrelenmiş data
