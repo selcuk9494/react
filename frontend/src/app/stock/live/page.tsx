@@ -367,57 +367,180 @@ export default function LiveStockPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ürün</th>
-                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Giriş</th>
-                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Satılan</th>
-                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Açık</th>
-                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Toplam</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Kalan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredItems.map((item, idx) => {
-                    const totalSold = item.sold + item.open;
-                    const isOutOfStock = item.remaining <= 0 && item.hasStockEntry;
-                    const isCritical = item.remaining <= criticalThreshold && item.remaining > 0 && item.hasStockEntry;
-                    const isLow = item.remaining <= criticalThreshold * 2 && item.remaining > criticalThreshold && item.hasStockEntry;
-                    const noStockEntry = !item.hasStockEntry;
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ürün</th>
+                      <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Giriş</th>
+                      <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Satılan</th>
+                      <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Açık</th>
+                      <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Top.</th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Kalan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredItems.map((item, idx) => {
+                      const totalSold = item.sold + item.open;
+                      const isOutOfStock = item.remaining <= 0 && item.hasStockEntry;
+                      const isCritical = item.remaining <= criticalThreshold && item.remaining > 0 && item.hasStockEntry;
+                      const isLow = item.remaining <= criticalThreshold * 2 && item.remaining > criticalThreshold && item.hasStockEntry;
+                      const noStockEntry = !item.hasStockEntry;
 
-                    return (
-                      <tr 
-                        key={idx} 
-                        className={clsx(
-                          "transition-all duration-200",
-                          isOutOfStock && "bg-red-50",
-                          isCritical && !isOutOfStock && "bg-orange-50",
-                          noStockEntry && "bg-gray-50/50",
-                          !isOutOfStock && !isCritical && !noStockEntry && "hover:bg-gray-50"
+                      return (
+                        <tr 
+                          key={idx} 
+                          className={clsx(
+                            "transition-all duration-200",
+                            isOutOfStock && "bg-red-50",
+                            isCritical && !isOutOfStock && "bg-orange-50",
+                            noStockEntry && "bg-gray-50/50",
+                            !isOutOfStock && !isCritical && !noStockEntry && "hover:bg-gray-50"
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {isOutOfStock && <X className="w-4 h-4 text-red-600 flex-shrink-0" />}
+                              {isCritical && <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 animate-pulse" />}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className={clsx(
+                                    "font-bold text-sm truncate",
+                                    isOutOfStock ? "text-red-700" : isCritical ? "text-orange-700" : noStockEntry ? "text-gray-500" : "text-gray-900"
+                                  )}>
+                                    {item.name}
+                                  </p>
+                                  {item.hasStockEntry && (
+                                    <span className="px-1 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold rounded flex-shrink-0">
+                                      STOK
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 truncate">{item.group || 'Diğer'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className={clsx(
+                              "text-sm font-semibold",
+                              item.hasStockEntry ? "text-gray-600" : "text-gray-400"
+                            )}>
+                              {item.hasStockEntry ? item.initial : '-'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className="text-sm font-bold text-emerald-600">{item.sold}</span>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className="text-sm font-bold text-amber-600">{item.open}</span>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className="text-sm font-black text-indigo-600">{totalSold}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={clsx(
+                              "inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black min-w-[2.5rem]",
+                              isOutOfStock 
+                                ? "bg-red-500 text-white" 
+                                : isCritical 
+                                ? "bg-gradient-to-r from-orange-500 to-red-500 text-white animate-pulse" 
+                                : isLow
+                                ? "bg-amber-100 text-amber-700 border border-amber-300"
+                                : item.hasStockEntry
+                                ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                                : "text-gray-400"
+                            )}>
+                              {item.hasStockEntry ? item.remaining : '-'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="md:hidden space-y-2">
+              {filteredItems.map((item, idx) => {
+                const totalSold = item.sold + item.open;
+                const isOutOfStock = item.remaining <= 0 && item.hasStockEntry;
+                const isCritical = item.remaining <= criticalThreshold && item.remaining > 0 && item.hasStockEntry;
+                const isLow = item.remaining <= criticalThreshold * 2 && item.remaining > criticalThreshold && item.hasStockEntry;
+                const noStockEntry = !item.hasStockEntry;
+
+                return (
+                  <div 
+                    key={idx} 
+                    className={clsx(
+                      "bg-white rounded-xl p-3 border shadow-sm",
+                      isOutOfStock && "bg-red-50 border-red-200",
+                      isCritical && !isOutOfStock && "bg-orange-50 border-orange-200",
+                      noStockEntry && "bg-gray-50 border-gray-200",
+                      !isOutOfStock && !isCritical && !noStockEntry && "border-gray-100"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {isOutOfStock && <X className="w-4 h-4 text-red-600 flex-shrink-0" />}
+                        {isCritical && <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 animate-pulse" />}
+                        <div className="min-w-0">
+                          <p className={clsx(
+                            "font-bold text-sm truncate",
+                            isOutOfStock ? "text-red-700" : isCritical ? "text-orange-700" : noStockEntry ? "text-gray-500" : "text-gray-900"
+                          )}>
+                            {item.name}
+                          </p>
+                          <p className="text-xs text-gray-500">{item.group || 'Diğer'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.hasStockEntry && (
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold rounded">STOK</span>
                         )}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {isOutOfStock && (
-                              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <X className="w-4 h-4 text-red-600" />
-                              </div>
-                            )}
-                            {isCritical && (
-                              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0 animate-pulse">
-                                <AlertTriangle className="w-4 h-4 text-orange-600" />
-                              </div>
-                            )}
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className={clsx(
-                                  "font-bold",
-                                  isOutOfStock ? "text-red-700" : isCritical ? "text-orange-700" : noStockEntry ? "text-gray-500" : "text-gray-900"
-                                )}>
-                                  {item.name}
+                        <span className={clsx(
+                          "px-3 py-1.5 rounded-lg text-base font-black min-w-[3rem] text-center",
+                          isOutOfStock 
+                            ? "bg-red-500 text-white" 
+                            : isCritical 
+                            ? "bg-gradient-to-r from-orange-500 to-red-500 text-white" 
+                            : isLow
+                            ? "bg-amber-100 text-amber-700"
+                            : item.hasStockEntry
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-100 text-gray-400"
+                        )}>
+                          {item.hasStockEntry ? item.remaining : '-'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-gray-100 pt-2 mt-1">
+                      <div className="text-center">
+                        <span className="text-gray-500 block">Giriş</span>
+                        <span className="font-bold text-gray-700">{item.hasStockEntry ? item.initial : '-'}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-gray-500 block">Satılan</span>
+                        <span className="font-bold text-emerald-600">{item.sold}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-gray-500 block">Açık</span>
+                        <span className="font-bold text-amber-600">{item.open}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-gray-500 block">Toplam</span>
+                        <span className="font-black text-indigo-600">{totalSold}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
                                 </p>
                                 {item.hasStockEntry && (
                                   <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
