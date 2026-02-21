@@ -43,6 +43,7 @@ export default function LiveStockPage() {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [sortBy, setSortBy] = useState<'sales' | 'remaining' | 'critical'>('sales');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
+  const [showStockEntryOnly, setShowStockEntryOnly] = useState(false);
   const [criticalThreshold, setCriticalThreshold] = useState(5);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
