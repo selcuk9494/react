@@ -28,10 +28,12 @@ export default function LoginScreen({ navigation }) {
   const performLogin = async (loginEmail, loginPassword) => {
     setLoading(true);
     try {
-      console.log('Logging in to:', `${API_URL}/auth/login`);
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        email: loginEmail,
-        password: loginPassword,
+      const params = new URLSearchParams();
+      params.append('email', loginEmail);
+      params.append('password', loginPassword);
+
+      const response = await axios.post(`${API_URL}/auth/login`, params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
       const { access_token, user } = response.data;
