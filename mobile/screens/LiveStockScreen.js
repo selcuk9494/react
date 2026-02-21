@@ -301,6 +301,15 @@ export default function LiveStockScreen({ navigation }) {
           ))}
         </ScrollView>
         <TouchableOpacity 
+          style={[styles.stockEntryBtn, showStockEntryOnly && styles.stockEntryBtnActive]}
+          onPress={() => setShowStockEntryOnly(!showStockEntryOnly)}
+        >
+          <Feather name="package" size={14} color={showStockEntryOnly ? '#fff' : '#3b82f6'} />
+          <Text style={[styles.stockEntryBtnText, showStockEntryOnly && styles.stockEntryBtnTextActive]}>
+            {stats.stockEntryCount}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
           style={[styles.criticalBtn, showCriticalOnly && styles.criticalBtnActive]}
           onPress={() => setShowCriticalOnly(!showCriticalOnly)}
         >
