@@ -170,52 +170,87 @@ export class StockService {
     const pool = await this.getBranchPool(branchId);
     const date = this.getCurrentBusinessDate();
 
+    // Önce TÜM ürünleri al
+    let allProducts: any[] = [];
+    try {
+      const productRes = await pool.query(`
+        SELECT 
+          p.plu as id,
+          p.product_name,
+          COALESCE(pg.adi, 'Diğer') as group_name
+        FROM product p
+        LEFT JOIN product_group pg ON p.tip = pg.id
+        ORDER BY pg.adi, p.product_name
+      `);
+      allProducts = productRes.rows || [];
+    } catch (err) {
+      console.error('LiveStock products query error:', err);
+    }
+
+    // Stok girişi yapılan ürünleri al
     let stockRes;
     try {
       stockRes = await pool.query(`
-        SELECT d.product_name, d.quantity as initial_stock, p.grup2 as group_name
+        SELECT d.product_name, d.quantity as initial_stock
         FROM daily_stock d
-        LEFT JOIN product p ON d.product_name = p.product_name
         WHERE d.entry_date = $1
       `, [date]);
     } catch (err) {
       const code = (err as any)?.code;
-      const message = ((err as any)?.message || '').toLowerCase();
-      if (code === '42P01' || message.includes('relation') && message.includes('product')) {
-        stockRes = await pool.query(`
-          SELECT d.product_name, d.quantity as initial_stock, NULL as group_name
-          FROM daily_stock d
-          WHERE d.entry_date = $1
-        `, [date]);
+      if (code === '42P01') {
+        // Tablo yoksa boş döner
+        stockRes = { rows: [] };
       } else {
         console.error('LiveStock stock query error:', err);
-        throw err;
+        stockRes = { rows: [] };
       }
     }
 
-    // Stok girilen ürünlerin map'ini oluştur
+    // Stok girişi yapılanların map'i
+    const stockEntryMap = new Map();
+    stockRes.rows.forEach((row: any) => {
+      stockEntryMap.set(row.product_name, row.initial_stock);
+    });
+
+    // Tüm ürünleri map'e ekle
     const stockMap = new Map();
-    
-    // Eğer stok girilmemişse bile, en azından girilenleri göster
-    // Eğer hiç stok girilmemişse boş liste dönebiliriz veya tüm ürünleri 0 stokla gösterebiliriz.
-    // Kullanıcı "Günlük stok miktarını girip kayıt yaptıktan sonra" dediği için, sadece girilenleri baz alıyoruz.
-    
-    stockRes.rows.forEach(row => {
-      stockMap.set(row.product_name, {
-        name: row.product_name,
-        group: row.group_name || 'Diğer',
-        initial: row.initial_stock,
+    allProducts.forEach((product: any) => {
+      const hasStockEntry = stockEntryMap.has(product.product_name);
+      const initialStock = hasStockEntry ? stockEntryMap.get(product.product_name) : 0;
+      
+      stockMap.set(product.product_name, {
+        name: product.product_name,
+        group: product.group_name || 'Diğer',
+        initial: initialStock,
         sold: 0,
         open: 0,
         cancelled: 0,
-        remaining: row.initial_stock
+        remaining: initialStock,
+        hasStockEntry: hasStockEntry  // Stok girişi yapıldı mı?
       });
     });
 
-    if (stockMap.size === 0) {
-        return { date, items: [] };
+    // Eğer ürün tablosu boşsa, sadece stok girişi yapılanları göster
+    if (stockMap.size === 0 && stockRes.rows.length > 0) {
+      stockRes.rows.forEach((row: any) => {
+        stockMap.set(row.product_name, {
+          name: row.product_name,
+          group: 'Diğer',
+          initial: row.initial_stock,
+          sold: 0,
+          open: 0,
+          cancelled: 0,
+          remaining: row.initial_stock,
+          hasStockEntry: true
+        });
+      });
     }
 
+    if (stockMap.size === 0) {
+      return { date, items: [], hasAnyStockEntry: false };
+    }
+
+    // Satış verilerini al
     let salesRes;
     try {
       salesRes = await pool.query(`
@@ -224,46 +259,34 @@ export class StockService {
           SUM(a.miktar) as total_qty, 
           a.sturu
         FROM ads_adisyon a
-        LEFT JOIN product p ON a.pluid = p.id
+        LEFT JOIN product p ON a.pluid = p.plu
         WHERE a.tarih = $1
         GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
       `, [date]);
     } catch (err) {
       const code = (err as any)?.code;
-      const message = ((err as any)?.message || '').toLowerCase();
-      if (code === '42P01' || message.includes('relation') && message.includes('product')) {
-        salesRes = await pool.query(`
-          SELECT 
-            COALESCE(a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-            SUM(a.miktar) as total_qty, 
-            a.sturu
-          FROM ads_adisyon a
-          WHERE a.tarih = $1
-          GROUP BY COALESCE(a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
-        `, [date]);
+      if (code === '42P01') {
+        salesRes = { rows: [] };
       } else {
         console.error('LiveStock sales query error:', err);
-        throw err;
+        salesRes = { rows: [] };
       }
     }
 
-    salesRes.rows.forEach(row => {
+    salesRes.rows.forEach((row: any) => {
       const item = stockMap.get(row.product_name);
       if (item) {
         const qty = Number(row.total_qty);
         if (row.sturu === 4) { // İptal
-            item.cancelled += qty;
-            // İptal stoktan düşmez (elimizde kalır)
-        } else if (row.sturu === 2) { // İade
-             // İade de stoktan düşmez
-        } else {
-            // Normal Satış
-            item.sold += qty;
-            item.remaining -= qty;
+          item.cancelled += qty;
+        } else if (row.sturu !== 2) { // Normal Satış (İade değilse)
+          item.sold += qty;
+          item.remaining -= qty;
         }
       }
     });
 
+    // Açık siparişleri al
     let openRes;
     try {
       openRes = await pool.query(`
@@ -272,46 +295,39 @@ export class StockService {
           SUM(a.miktar) as total_qty, 
           a.sturu
         FROM ads_acik a
-        LEFT JOIN product p ON a.pluid = p.id
+        LEFT JOIN product p ON a.pluid = p.plu
         WHERE a.tarih = $1
         GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
       `, [date]);
     } catch (err) {
       const code = (err as any)?.code;
-      const message = ((err as any)?.message || '').toLowerCase();
-      if (code === '42P01' || message.includes('relation') && message.includes('product')) {
-        openRes = await pool.query(`
-          SELECT 
-            COALESCE(a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-            SUM(a.miktar) as total_qty, 
-            a.sturu
-          FROM ads_acik a
-          WHERE a.tarih = $1
-          GROUP BY COALESCE(a.product_name, CAST(a.pluid AS VARCHAR)), a.sturu
-        `, [date]);
+      if (code === '42P01') {
+        openRes = { rows: [] };
       } else {
         console.error('LiveStock open query error:', err);
-        throw err;
+        openRes = { rows: [] };
       }
     }
 
-    openRes.rows.forEach(row => {
+    openRes.rows.forEach((row: any) => {
       const item = stockMap.get(row.product_name);
       if (item) {
         const qty = Number(row.total_qty);
         if (row.sturu !== 4) { 
-            item.open += qty;
-            item.remaining -= qty;
+          item.open += qty;
+          item.remaining -= qty;
         }
       }
     });
 
-    // Sonuçları diziye çevir ve sırala (Çok satılana göre)
+    // Sonuçları diziye çevir ve sırala
     const result = Array.from(stockMap.values()).sort((a, b) => (b.sold + b.open) - (a.sold + a.open));
+    const hasAnyStockEntry = result.some(item => item.hasStockEntry);
 
     return {
       date,
-      items: result
+      items: result,
+      hasAnyStockEntry
     };
   }
 
