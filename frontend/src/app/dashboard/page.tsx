@@ -197,8 +197,20 @@ export default function Dashboard() {
     if (!token) return;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     
+    // Cancel previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
     const myId = ++reqIdRef.current;
-    setLoading(true);
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Clear previous data immediately when period changes to prevent stale data
+    if (!data || period !== 'today') {
+      setLoading(true);
+    }
+    
     const fetchData = async () => {
       try {
         let url = `${getApiUrl()}/dashboard?period=${period}`;
@@ -207,17 +219,26 @@ export default function Dashboard() {
         }
 
         const res = await axios.get(url, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: abortController.signal
         });
-        if (reqIdRef.current === myId) {
+        
+        // Only update if this is still the current request
+        if (reqIdRef.current === myId && !abortController.signal.aborted) {
           setData(res.data);
+          setIsOffline(false);
         }
-        setIsOffline(false);
-      } catch (e) {
+      } catch (e: any) {
+        // Ignore abort errors
+        if (e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+          return;
+        }
         console.error(e);
-        setIsOffline(true);
-      } finally {
         if (reqIdRef.current === myId) {
+          setIsOffline(true);
+        }
+      } finally {
+        if (reqIdRef.current === myId && !abortController.signal.aborted) {
           setLoading(false);
         }
       }
