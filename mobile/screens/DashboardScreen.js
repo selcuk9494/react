@@ -11,6 +11,62 @@ import Svg, { Circle, G } from 'react-native-svg';
 
 const screenWidth = Dimensions.get('window').width;
 
+// DonutChart Component - Görsel görseldeki gibi
+const DonutChart = ({ size = 80, strokeWidth = 12, data, centerText }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+  
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
+  let currentAngle = -90; // Start from top
+  
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size}>
+        {/* Background circle */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={radius}
+          stroke="#f0f0f0"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        {/* Data segments */}
+        {data.map((item, index) => {
+          if (!item.value || total === 0) return null;
+          const percentage = item.value / total;
+          const strokeDasharray = `${circumference * percentage} ${circumference * (1 - percentage)}`;
+          const rotation = currentAngle;
+          currentAngle += percentage * 360;
+          
+          return (
+            <Circle
+              key={index}
+              cx={center}
+              cy={center}
+              r={radius}
+              stroke={item.color}
+              strokeWidth={strokeWidth}
+              fill="transparent"
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={0}
+              strokeLinecap="round"
+              rotation={rotation}
+              origin={`${center}, ${center}`}
+            />
+          );
+        })}
+      </Svg>
+      {centerText && (
+        <View style={{ position: 'absolute', alignItems: 'center' }}>
+          <Text style={{ fontSize: 12, fontWeight: '800', color: '#1e293b' }}>{centerText}</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
 export default function DashboardScreen({ navigation, route }) {
   const [user, setUser] = useState(route.params?.user || null);
   const [loading, setLoading] = useState(!route.params?.user);
