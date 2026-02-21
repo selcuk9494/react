@@ -148,10 +148,11 @@ export default function LiveStockPage() {
   const stats = useMemo(() => {
     const totalSold = items.reduce((sum, item) => sum + item.sold, 0);
     const totalOpen = items.reduce((sum, item) => sum + item.open, 0);
-    const criticalCount = items.filter(item => item.remaining <= criticalThreshold).length;
-    const outOfStock = items.filter(item => item.remaining <= 0).length;
+    const criticalCount = items.filter(item => item.remaining <= criticalThreshold && item.hasStockEntry).length;
+    const outOfStock = items.filter(item => item.remaining <= 0 && item.hasStockEntry).length;
+    const stockEntryCount = items.filter(item => item.hasStockEntry).length;
     
-    return { totalSold, totalOpen, criticalCount, outOfStock };
+    return { totalSold, totalOpen, criticalCount, outOfStock, stockEntryCount };
   }, [items, criticalThreshold]);
 
   return (
