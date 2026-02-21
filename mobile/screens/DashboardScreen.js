@@ -490,55 +490,112 @@ export default function DashboardScreen({ navigation, route }) {
 
             {/* Closed Orders */}
             {isReportAllowed('closed_orders') && (
-            <View style={[styles.statCard, { borderColor: '#d1fae5' }]}>
+            <View style={[styles.statCard, { borderColor: '#d1fae5', backgroundColor: '#ecfdf5' }]}>
                 <TouchableOpacity onPress={() => navigation.navigate('Orders', { type: 'closed' })}>
                     <View style={styles.statHeader}>
                         <View style={[styles.iconBox, { backgroundColor: '#10b981' }]}>
                                 <Text style={{fontSize: 16}}>✅</Text>
                         </View>
-                        <Text style={styles.statTitle}>Kapalı Adisyon</Text>
+                        <Text style={[styles.statTitle, { color: '#047857' }]}>Kapalı Adisyon</Text>
                     </View>
-                    <Text style={styles.statValue}>{formatCurrency(dashboardData?.kapali_adisyon_toplam)}</Text>
-                    <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
-                        <Text style={styles.statCount}>{dashboardData?.kapali_adisyon_adet || 0} Adet Sipariş</Text>
-                        {(dashboardData?.kapali_iskonto_toplam || 0) > 0 && (
-                            <View style={styles.discountBadge}>
-                                <Feather name="tag" size={10} color="#fff" />
-                                <Text style={styles.discountText}>-{formatCurrency(dashboardData?.kapali_iskonto_toplam)}</Text>
+                    <View style={styles.cardMainRow}>
+                        <View style={styles.cardValueSection}>
+                            <Text style={[styles.statValue, { color: '#059669' }]}>{formatCurrency(dashboardData?.kapali_adisyon_toplam)}</Text>
+                            <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
+                                <Text style={styles.statCount}>{dashboardData?.kapali_adisyon_adet || 0} adet adisyon</Text>
+                                {(dashboardData?.kapali_iskonto_toplam || 0) > 0 && (
+                                    <View style={styles.discountBadge}>
+                                        <Feather name="tag" size={10} color="#fff" />
+                                        <Text style={styles.discountText}>-{formatCurrency(dashboardData?.kapali_iskonto_toplam)}</Text>
+                                    </View>
+                                )}
                             </View>
-                        )}
+                        </View>
+                        <DonutChart 
+                            size={70} 
+                            strokeWidth={10}
+                            data={[
+                                { value: dashboardData?.dagilim?.adisyon.kapali_toplam || 0, color: '#10b981' },
+                                { value: dashboardData?.dagilim?.paket.kapali_toplam || 0, color: '#fbbf24' },
+                                { value: dashboardData?.dagilim?.hizli?.kapali_toplam || 0, color: '#ec4899' },
+                            ]}
+                        />
                     </View>
                 </TouchableOpacity>
 
                 {/* Breakdown */}
                 <View style={styles.breakdownContainer}>
+                    {/* Adisyon */}
                     <TouchableOpacity 
-                        style={[styles.breakdownItem, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}
+                        style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#a7f3d0' }]}
                         onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
                     >
                         <View style={styles.breakdownRow}>
-                            <View style={[styles.miniIcon, { backgroundColor: '#10b981' }]}><Text>🍽️</Text></View>
-                            <View>
-                                <Text style={[styles.breakdownLabel, { color: '#065f46' }]}>Adisyon</Text>
+                            <View style={[styles.miniIcon, { backgroundColor: '#ecfdf5' }]}><Text>🍽️</Text></View>
+                            <View style={{flex: 1}}>
+                                <Text style={[styles.breakdownLabel, { color: '#059669' }]}>Adisyon</Text>
                                 <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}</Text>
                             </View>
                         </View>
-                        <Text style={[styles.breakdownCount, { color: '#047857' }]}>{dashboardData?.dagilim?.adisyon.kapali_adet} Adet</Text>
+                        <View style={styles.breakdownRight}>
+                            <View style={[styles.countBadge, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                                <Text style={[styles.countBadgeText, { color: '#047857' }]}>{dashboardData?.dagilim?.adisyon.kapali_adet || 0}</Text>
+                                <Text style={[styles.countBadgeLabel, { color: '#047857' }]}>adet</Text>
+                            </View>
+                            <View style={[styles.percentBadge, { backgroundColor: '#10b981' }]}>
+                                <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
+                            </View>
+                            <Feather name="chevron-right" size={16} color="#10b981" />
+                        </View>
                     </TouchableOpacity>
 
+                    {/* Hızlı Satış - Her zaman göster */}
+                    <TouchableOpacity 
+                        style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fbcfe8', marginTop: 8 }]}
+                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 3 })}
+                    >
+                        <View style={styles.breakdownRow}>
+                            <View style={[styles.miniIcon, { backgroundColor: '#fdf2f8' }]}><Text>⚡</Text></View>
+                            <View style={{flex: 1}}>
+                                <Text style={[styles.breakdownLabel, { color: '#db2777' }]}>Hızlı Satış</Text>
+                                <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.hizli?.kapali_toplam || 0)}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.breakdownRight}>
+                            <View style={[styles.countBadge, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
+                                <Text style={[styles.countBadgeText, { color: '#be185d' }]}>{dashboardData?.dagilim?.hizli?.kapali_adet || 0}</Text>
+                                <Text style={[styles.countBadgeLabel, { color: '#be185d' }]}>adet</Text>
+                            </View>
+                            <View style={[styles.percentBadge, { backgroundColor: '#ec4899' }]}>
+                                <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round(((dashboardData?.dagilim?.hizli?.kapali_toplam || 0) / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
+                            </View>
+                            <Feather name="chevron-right" size={16} color="#ec4899" />
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Paket - Sadece varsa göster */}
                     {(dashboardData?.dagilim?.paket.kapali_toplam || 0) > 0 && (
                         <TouchableOpacity 
-                            style={[styles.breakdownItem, { backgroundColor: '#fffbeb', borderColor: '#fde68a', marginTop: 8 }]}
+                            style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fde68a', marginTop: 8 }]}
                             onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
                         >
                             <View style={styles.breakdownRow}>
-                                <View style={[styles.miniIcon, { backgroundColor: '#fbbf24' }]}><Text>📦</Text></View>
-                                <View>
-                                    <Text style={[styles.breakdownLabel, { color: '#92400e' }]}>Paket</Text>
+                                <View style={[styles.miniIcon, { backgroundColor: '#fffbeb' }]}><Text>📦</Text></View>
+                                <View style={{flex: 1}}>
+                                    <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
                                     <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}</Text>
                                 </View>
                             </View>
-                            <Text style={[styles.breakdownCount, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.kapali_adet} Adet</Text>
+                            <View style={styles.breakdownRight}>
+                                <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                    <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.kapali_adet || 0}</Text>
+                                    <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
+                                </View>
+                                <View style={[styles.percentBadge, { backgroundColor: '#fbbf24' }]}>
+                                    <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
+                                </View>
+                                <Feather name="chevron-right" size={16} color="#fbbf24" />
+                            </View>
                         </TouchableOpacity>
                     )}
                 </View>
