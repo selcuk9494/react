@@ -98,7 +98,12 @@ export default function LiveStockScreen({ navigation }) {
 
     // Kritik filtresi
     if (showCriticalOnly) {
-      result = result.filter(item => item.remaining <= CRITICAL_THRESHOLD);
+      result = result.filter(item => item.remaining <= CRITICAL_THRESHOLD && item.hasStockEntry);
+    }
+
+    // Stok girişi yapılanlar filtresi
+    if (showStockEntryOnly) {
+      result = result.filter(item => item.hasStockEntry);
     }
 
     // Sıralama
