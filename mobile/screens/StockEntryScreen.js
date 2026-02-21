@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function StockEntryScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [products, setProducts] = useState([]);
   const [stockInputs, setStockInputs] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,8 +24,10 @@ export default function StockEntryScreen({ navigation }) {
     fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (showRefreshIndicator = false) => {
     try {
+      if (showRefreshIndicator) setRefreshing(true);
+      
       const token = await AsyncStorage.getItem('token');
       const userData = JSON.parse(await AsyncStorage.getItem('user'));
       const branchId = userData?.selected_branch_id;
@@ -42,10 +45,17 @@ export default function StockEntryScreen({ navigation }) {
       setProducts(response.data || []);
     } catch (error) {
       console.error(error);
-      Alert.alert('Hata', 'Ürün listesi alınamadı.');
+      if (!showRefreshIndicator) {
+        Alert.alert('Hata', 'Ürün listesi alınamadı.');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    fetchProducts(true);
   };
 
   // Ürün gruplarını çıkar
