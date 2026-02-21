@@ -383,9 +383,10 @@ export default function LiveStockPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredItems.map((item, idx) => {
                     const totalSold = item.sold + item.open;
-                    const isOutOfStock = item.remaining <= 0;
-                    const isCritical = item.remaining <= criticalThreshold && item.remaining > 0;
-                    const isLow = item.remaining <= criticalThreshold * 2 && item.remaining > criticalThreshold;
+                    const isOutOfStock = item.remaining <= 0 && item.hasStockEntry;
+                    const isCritical = item.remaining <= criticalThreshold && item.remaining > 0 && item.hasStockEntry;
+                    const isLow = item.remaining <= criticalThreshold * 2 && item.remaining > criticalThreshold && item.hasStockEntry;
+                    const noStockEntry = !item.hasStockEntry;
 
                     return (
                       <tr 
@@ -394,7 +395,8 @@ export default function LiveStockPage() {
                           "transition-all duration-200",
                           isOutOfStock && "bg-red-50",
                           isCritical && !isOutOfStock && "bg-orange-50",
-                          !isOutOfStock && !isCritical && "hover:bg-gray-50"
+                          noStockEntry && "bg-gray-50/50",
+                          !isOutOfStock && !isCritical && !noStockEntry && "hover:bg-gray-50"
                         )}
                       >
                         <td className="px-6 py-4">
@@ -410,19 +412,29 @@ export default function LiveStockPage() {
                               </div>
                             )}
                             <div>
-                              <p className={clsx(
-                                "font-bold",
-                                isOutOfStock ? "text-red-700" : isCritical ? "text-orange-700" : "text-gray-900"
-                              )}>
-                                {item.name}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className={clsx(
+                                  "font-bold",
+                                  isOutOfStock ? "text-red-700" : isCritical ? "text-orange-700" : noStockEntry ? "text-gray-500" : "text-gray-900"
+                                )}>
+                                  {item.name}
+                                </p>
+                                {item.hasStockEntry && (
+                                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
+                                    STOK
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-gray-500">{item.group || 'Diğer'}</p>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <span className="font-semibold text-gray-600 bg-gray-100 px-3 py-1 rounded-lg">
-                            {item.initial}
+                          <span className={clsx(
+                            "font-semibold px-3 py-1 rounded-lg",
+                            item.hasStockEntry ? "text-gray-600 bg-gray-100" : "text-gray-400 bg-gray-50"
+                          )}>
+                            {item.hasStockEntry ? item.initial : '-'}
                           </span>
                         </td>
                         <td className="px-4 py-4 text-center">
