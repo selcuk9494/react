@@ -138,46 +138,65 @@ export default function LiveStockScreen({ navigation }) {
 
     return (
       <View style={[
-        styles.row, 
-        isOutOfStock && styles.rowCritical,
-        isCritical && styles.rowWarning,
-        !hasStockEntry && styles.rowNoStock
+        styles.cardItem, 
+        isOutOfStock && styles.cardCritical,
+        isCritical && styles.cardWarning,
+        !hasStockEntry && styles.cardNoStock
       ]}>
-        <View style={styles.nameCol}>
-          <View style={styles.nameRow}>
+        {/* Top Row: Name + Remaining */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.cardNameSection}>
             {isOutOfStock && <Feather name="x-circle" size={14} color="#dc2626" style={{marginRight: 4}} />}
             {isCritical && <Feather name="alert-triangle" size={14} color="#ea580c" style={{marginRight: 4}} />}
-            <Text style={[styles.nameText, isOutOfStock && styles.textRed, isCritical && styles.textOrange, !hasStockEntry && styles.textMuted]} numberOfLines={1}>
-              {item.name}
-            </Text>
-            {hasStockEntry && (
-              <View style={styles.stockBadge}>
-                <Text style={styles.stockBadgeText}>STOK</Text>
+            <View style={{flex: 1}}>
+              <View style={styles.cardNameRow}>
+                <Text style={[styles.cardName, isOutOfStock && styles.textRed, isCritical && styles.textOrange, !hasStockEntry && styles.textMuted]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                {hasStockEntry && (
+                  <View style={styles.stockBadge}>
+                    <Text style={styles.stockBadgeText}>STOK</Text>
+                  </View>
+                )}
               </View>
-            )}
+              <Text style={styles.cardGroup}>{item.group || 'Diğer'}</Text>
+            </View>
           </View>
-          <Text style={styles.groupText}>{item.group || 'Diğer'}</Text>
-        </View>
-        <View style={styles.valCol}>
-          <Text style={[styles.initialText, !hasStockEntry && styles.textMuted]}>
-            {hasStockEntry ? (item.initial || 0) : '-'}
-          </Text>
-        </View>
-        <View style={styles.valCol}>
-          <Text style={styles.soldText}>{item.sold || 0}</Text>
-        </View>
-        <View style={styles.valCol}>
-          <Text style={styles.openText}>{item.open || 0}</Text>
-        </View>
-        <View style={styles.valCol}>
-          <Text style={styles.totalText}>{totalSold}</Text>
-        </View>
-        <View style={styles.valColLast}>
-          {hasStockEntry ? (
-            <View style={[
-              styles.badge, 
-              isOutOfStock ? styles.badgeRed : isCritical ? styles.badgeOrange : isLow ? styles.badgeYellow : styles.badgeGreen
+          <View style={[
+            styles.remainingBadge, 
+            isOutOfStock ? styles.remainingRed : isCritical ? styles.remainingOrange : isLow ? styles.remainingYellow : hasStockEntry ? styles.remainingGreen : styles.remainingGray
+          ]}>
+            <Text style={[
+              styles.remainingText,
+              isOutOfStock || isCritical ? styles.remainingTextWhite : hasStockEntry ? styles.remainingTextDark : styles.textMuted
             ]}>
+              {hasStockEntry ? remaining : '-'}
+            </Text>
+          </View>
+        </View>
+        
+        {/* Bottom Row: Stats */}
+        <View style={styles.cardStatsRow}>
+          <View style={styles.cardStat}>
+            <Text style={styles.cardStatLabel}>Giriş</Text>
+            <Text style={[styles.cardStatValue, !hasStockEntry && styles.textMuted]}>{hasStockEntry ? (item.initial || 0) : '-'}</Text>
+          </View>
+          <View style={styles.cardStat}>
+            <Text style={styles.cardStatLabel}>Satılan</Text>
+            <Text style={[styles.cardStatValue, styles.textGreen]}>{item.sold || 0}</Text>
+          </View>
+          <View style={styles.cardStat}>
+            <Text style={styles.cardStatLabel}>Açık</Text>
+            <Text style={[styles.cardStatValue, styles.textAmber]}>{item.open || 0}</Text>
+          </View>
+          <View style={styles.cardStat}>
+            <Text style={styles.cardStatLabel}>Toplam</Text>
+            <Text style={[styles.cardStatValue, styles.textIndigo]}>{totalSold}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }, []);
               <Text style={[
                 styles.badgeText,
                 isOutOfStock ? styles.badgeTextRed : isCritical ? styles.badgeTextOrange : isLow ? styles.badgeTextYellow : styles.badgeTextGreen
