@@ -41,7 +41,8 @@ export default function LiveStockPage() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 30000);
+    // 5 saniyede bir güncelleme (kullanıcı isteği)
+    intervalRef.current = setInterval(fetchData, 5000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
