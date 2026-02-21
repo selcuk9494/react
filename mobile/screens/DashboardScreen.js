@@ -411,47 +411,77 @@ export default function DashboardScreen({ navigation, route }) {
         <View style={styles.statsContainer}>
             {/* Open Orders (Only Today) */}
             {period === 'today' && isReportAllowed('open_orders') && (
-                <View style={[styles.statCard, { borderColor: '#ffedd5' }]}>
+                <View style={[styles.statCard, { borderColor: '#ffedd5', backgroundColor: '#fffbeb' }]}>
                     <TouchableOpacity onPress={() => navigation.navigate('Orders', { type: 'open' })}>
                         <View style={styles.statHeader}>
                             <View style={[styles.iconBox, { backgroundColor: '#f97316' }]}>
                                 <Text style={{fontSize: 16}}>🟠</Text>
                             </View>
-                            <Text style={styles.statTitle}>Açık Adisyon</Text>
+                            <Text style={[styles.statTitle, { color: '#c2410c' }]}>Açık Adisyon</Text>
                         </View>
-                        <Text style={styles.statValue}>{formatCurrency(dashboardData?.acik_adisyon_toplam)}</Text>
-                        <Text style={styles.statCount}>{dashboardData?.acik_adisyon_adet || 0} Adet Sipariş</Text>
+                        <View style={styles.cardMainRow}>
+                            <View style={styles.cardValueSection}>
+                                <Text style={[styles.statValue, { color: '#ea580c' }]}>{formatCurrency(dashboardData?.acik_adisyon_toplam)}</Text>
+                                <Text style={styles.statCount}>{dashboardData?.acik_adisyon_adet || 0} adet adisyon</Text>
+                            </View>
+                            <DonutChart 
+                                size={70} 
+                                strokeWidth={10}
+                                data={[
+                                    { value: dashboardData?.dagilim?.adisyon.acik_toplam || 0, color: '#f97316' },
+                                    { value: dashboardData?.dagilim?.paket.acik_toplam || 0, color: '#fbbf24' },
+                                ]}
+                            />
+                        </View>
                     </TouchableOpacity>
                     
-                    {/* Donut Chart or Breakdown */}
+                    {/* Breakdown Items */}
                      <View style={styles.breakdownContainer}>
                         <TouchableOpacity 
-                            style={[styles.breakdownItem, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}
+                            style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fed7aa' }]}
                             onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
                         >
                             <View style={styles.breakdownRow}>
-                                <View style={[styles.miniIcon, { backgroundColor: '#f97316' }]}><Text>🍽️</Text></View>
-                                <View>
-                                    <Text style={[styles.breakdownLabel, { color: '#9a3412' }]}>Adisyon</Text>
+                                <View style={[styles.miniIcon, { backgroundColor: '#fff7ed' }]}><Text>🍽️</Text></View>
+                                <View style={{flex: 1}}>
+                                    <Text style={[styles.breakdownLabel, { color: '#ea580c' }]}>Adisyon</Text>
                                     <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.acik_toplam)}</Text>
                                 </View>
                             </View>
-                            <Text style={[styles.breakdownCount, { color: '#c2410c' }]}>{dashboardData?.dagilim?.adisyon.acik_adet} Adet</Text>
+                            <View style={styles.breakdownRight}>
+                                <View style={[styles.countBadge, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
+                                    <Text style={[styles.countBadgeText, { color: '#c2410c' }]}>{dashboardData?.dagilim?.adisyon.acik_adet || 0}</Text>
+                                    <Text style={[styles.countBadgeLabel, { color: '#c2410c' }]}>adet</Text>
+                                </View>
+                                <View style={[styles.percentBadge, { backgroundColor: '#f97316' }]}>
+                                    <Text style={styles.percentText}>%{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}</Text>
+                                </View>
+                                <Feather name="chevron-right" size={16} color="#f97316" />
+                            </View>
                         </TouchableOpacity>
 
                         {(dashboardData?.dagilim?.paket.acik_toplam || 0) > 0 && (
                             <TouchableOpacity 
-                                style={[styles.breakdownItem, { backgroundColor: '#fffbeb', borderColor: '#fde68a', marginTop: 8 }]}
+                                style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fde68a', marginTop: 8 }]}
                                 onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
                             >
                                 <View style={styles.breakdownRow}>
-                                    <View style={[styles.miniIcon, { backgroundColor: '#fbbf24' }]}><Text>📦</Text></View>
-                                    <View>
-                                        <Text style={[styles.breakdownLabel, { color: '#92400e' }]}>Paket</Text>
+                                    <View style={[styles.miniIcon, { backgroundColor: '#fffbeb' }]}><Text>📦</Text></View>
+                                    <View style={{flex: 1}}>
+                                        <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
                                         <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}</Text>
                                     </View>
                                 </View>
-                                <Text style={[styles.breakdownCount, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.acik_adet} Adet</Text>
+                                <View style={styles.breakdownRight}>
+                                    <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                        <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.acik_adet || 0}</Text>
+                                        <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
+                                    </View>
+                                    <View style={[styles.percentBadge, { backgroundColor: '#fbbf24' }]}>
+                                        <Text style={styles.percentText}>%{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}</Text>
+                                    </View>
+                                    <Feather name="chevron-right" size={16} color="#fbbf24" />
+                                </View>
                             </TouchableOpacity>
                         )}
                      </View>
