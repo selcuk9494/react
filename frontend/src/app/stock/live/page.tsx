@@ -541,61 +541,6 @@ export default function LiveStockPage() {
               })}
             </div>
           </>
-                                </p>
-                                {item.hasStockEntry && (
-                                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
-                                    STOK
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500">{item.group || 'Diğer'}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className={clsx(
-                            "font-semibold px-3 py-1 rounded-lg",
-                            item.hasStockEntry ? "text-gray-600 bg-gray-100" : "text-gray-400 bg-gray-50"
-                          )}>
-                            {item.hasStockEntry ? item.initial : '-'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
-                            {item.sold}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">
-                            {item.open}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
-                            {totalSold}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={clsx(
-                            "inline-flex items-center justify-center px-4 py-2 rounded-xl text-base font-black min-w-[4rem] shadow-sm",
-                            isOutOfStock 
-                              ? "bg-red-500 text-white shadow-red-500/30" 
-                              : isCritical 
-                              ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-orange-500/30 animate-pulse" 
-                              : isLow
-                              ? "bg-amber-100 text-amber-700 border-2 border-amber-300"
-                              : "bg-emerald-100 text-emerald-700 border-2 border-emerald-300"
-                          )}>
-                            {item.remaining}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
       </div>
     </div>
