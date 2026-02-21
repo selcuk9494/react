@@ -37,47 +37,48 @@ export class StockService {
 
     const pool = await this.getBranchPool(branchId);
     
+    // Önce tablo var mı kontrol et, yoksa oluştur
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS daily_stock (
+          id SERIAL PRIMARY KEY,
+          product_name VARCHAR(255) NOT NULL,
+          quantity INTEGER DEFAULT 0,
+          entry_date DATE NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(product_name, entry_date)
+        )
+      `);
+    } catch (createErr) {
+      console.log('Table check/create:', createErr);
+    }
+    
     try {
       for (const item of items) {
         try {
-          await pool.query(
-            `
-            INSERT INTO daily_stock (product_name, quantity, entry_date)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (product_name, entry_date) 
-            DO UPDATE SET quantity = $2, updated_at = CURRENT_TIMESTAMP
-            `,
-            [item.productName, item.quantity, date],
+          // Önce mevcut kaydı kontrol et
+          const existing = await pool.query(
+            `SELECT id FROM daily_stock WHERE product_name = $1 AND entry_date = $2`,
+            [item.productName, date]
           );
-        } catch (itemError) {
-          const code = (itemError as any)?.code;
-          const message = (itemError as any)?.message || '';
-
-          if (code === '42P01' || message.includes('daily_stock')) {
-            await pool.query(`
-              CREATE TABLE IF NOT EXISTS daily_stock (
-                id SERIAL PRIMARY KEY,
-                product_name VARCHAR(255) NOT NULL,
-                quantity INTEGER DEFAULT 0,
-                entry_date DATE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(product_name, entry_date)
-              )
-            `);
-
+          
+          if (existing.rows.length > 0) {
+            // Güncelle
             await pool.query(
-              `
-              INSERT INTO daily_stock (product_name, quantity, entry_date)
-              VALUES ($1, $2, $3)
-              ON CONFLICT (product_name, entry_date) 
-              DO UPDATE SET quantity = $2, updated_at = CURRENT_TIMESTAMP
-              `,
-              [item.productName, item.quantity, date],
+              `UPDATE daily_stock SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE product_name = $2 AND entry_date = $3`,
+              [item.quantity, item.productName, date]
             );
           } else {
-            console.error(`Error inserting item ${item.productName}:`, itemError);
-            throw itemError;
+            // Yeni kayıt ekle
+            await pool.query(
+              `INSERT INTO daily_stock (product_name, quantity, entry_date) VALUES ($1, $2, $3)`,
+              [item.productName, item.quantity, date]
+            );
+          }
+        } catch (itemError) {
+          console.error(`Error inserting item ${item.productName}:`, itemError);
+          throw itemError;
           }
         }
       }
