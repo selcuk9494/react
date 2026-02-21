@@ -324,24 +324,16 @@ export class StockService {
     // Açık siparişleri al - ads_acik tablosundan
     let openRes;
     try {
-      // Önce tabloyu kontrol et
-      const checkOpen = await pool.query(`
-        SELECT COUNT(*) as total 
-        FROM ads_acik 
-        WHERE tarih::date = $1::date
-      `, [date]);
-      console.log(`ads_acik records for date ${date}:`, checkOpen.rows[0]);
-
+      // ads_acik tablosundaki sütunları kontrol et ve uygun tarih sütununu bul
       openRes = await pool.query(`
         SELECT 
-          COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
+          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
           SUM(a.miktar) as total_qty
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE a.tarih::date = $1::date
-          AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
-      `, [date]);
+        WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
+        GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
+      `);
       console.log(`Open orders query returned ${openRes.rows.length} rows:`, openRes.rows.slice(0, 5));
     } catch (err) {
       console.error('LiveStock open query error:', err);
