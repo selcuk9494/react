@@ -246,9 +246,40 @@ export default function Dashboard() {
     fetchData();
 
     const interval = setInterval(() => {
-      fetchData();
+      // Only auto-refresh if no request in progress
+      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+        const refreshController = new AbortController();
+        abortControllerRef.current = refreshController;
+        
+        (async () => {
+          try {
+            let url = `${getApiUrl()}/dashboard?period=${period}`;
+            if (period === 'custom') {
+              url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+            }
+            const res = await axios.get(url, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: refreshController.signal
+            });
+            if (!refreshController.signal.aborted) {
+              setData(res.data);
+              setIsOffline(false);
+            }
+          } catch (e: any) {
+            if (e.name !== 'AbortError' && e.code !== 'ERR_CANCELED') {
+              setIsOffline(true);
+            }
+          }
+        })();
+      }
     }, 10000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [token, period, customStartDate, customEndDate, user?.selected_branch]);
 
   const formatCurrency = (val: number) => {
