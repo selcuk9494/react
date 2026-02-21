@@ -17,6 +17,7 @@ export default function LiveStockScreen({ navigation }) {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [sortBy, setSortBy] = useState('sales');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
+  const [showStockEntryOnly, setShowStockEntryOnly] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
