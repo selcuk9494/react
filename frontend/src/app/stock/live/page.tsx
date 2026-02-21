@@ -123,7 +123,8 @@ export default function LiveStockPage() {
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesGroup = selectedGroup === 'Tümü' || item.group === selectedGroup;
         const matchesCritical = !showCriticalOnly || item.remaining <= criticalThreshold;
-        return matchesSearch && matchesGroup && matchesCritical;
+        const matchesStockEntry = !showStockEntryOnly || item.hasStockEntry;
+        return matchesSearch && matchesGroup && matchesCritical && matchesStockEntry;
       });
     
     // Sorting
