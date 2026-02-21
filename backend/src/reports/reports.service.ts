@@ -189,7 +189,7 @@ export class ReportsService {
             )
             SELECT 
                 a.adsno,
-                COALESCE(p.toplam_tutar, a.toplam_tutar_adisyon) as tutar,
+                a.toplam_tutar_adisyon as tutar,
                 a.masano,
                 a.masano as masa_no,
                 a.adtur,
