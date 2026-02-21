@@ -280,38 +280,21 @@ export class StockService {
       `, [date]);
       console.log(`Records for date ${date}:`, todayCheck.rows[0]);
 
-      // kaptar (kapanış tarihi) ile sorgula
+      // kaptar (kapanış tarihi) ile sorgula - product_name sadece product tablosundan
       salesRes = await pool.query(`
         SELECT 
-          COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
+          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
           SUM(a.miktar) as total_qty
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
         WHERE a.kaptar::date = $1::date
           AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-        GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
+        GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `, [date]);
       console.log(`Sales query returned ${salesRes.rows.length} rows:`, salesRes.rows.slice(0, 5));
     } catch (err) {
       console.error('LiveStock sales query error:', err);
-      
-      // Alternatif sorgu - tarih ile dene
-      try {
-        salesRes = await pool.query(`
-          SELECT 
-            COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
-            SUM(a.miktar) as total_qty
-          FROM ads_adisyon a
-          LEFT JOIN product p ON a.pluid = p.plu
-          WHERE a.tarih::date = $1::date
-            AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-          GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR))
-        `, [date]);
-        console.log(`Sales query (tarih) returned ${salesRes.rows.length} rows`);
-      } catch (err2) {
-        console.error('LiveStock sales query (tarih) error:', err2);
-        salesRes = { rows: [] };
-      }
+      salesRes = { rows: [] };
     }
 
     salesRes.rows.forEach((row: any) => {
