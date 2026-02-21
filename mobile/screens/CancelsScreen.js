@@ -80,19 +80,18 @@ export default function CancelsScreen({ navigation }) {
       <TouchableOpacity 
         style={[styles.card, { borderLeftColor: color }]}
         onPress={() => {
-            if (item.adsno) {
-                // İptal listesindeki ürünler için order_type belirsiz olabilir
-                // Backend'e sadece adsno gönderiyoruz, backend kendi belirleyecek
+            if (item.order_id) {
                 navigation.navigate('OrderDetail', { 
-                  id: item.adsno, 
-                  type: item.order_type || 'closed',
+                  id: item.order_id, 
+                  type: item.status || 'closed',
+                  adtur: typeof item.adtur !== 'undefined' ? item.adtur : undefined,
                   fromCancels: true 
                 });
             } else {
                 alert('Adisyon numarası bulunamadı');
             }
         }}
-        disabled={!item.adsno}
+        disabled={!item.order_id}
       >
         <View style={styles.cardHeader}>
             <View style={[styles.iconBox, { backgroundColor: `${color}20` }]}>

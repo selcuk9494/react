@@ -1225,6 +1225,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 16,
+    width: '100%',
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1251,7 +1252,7 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#111827',
     marginBottom: 4,
@@ -1321,15 +1322,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 8,
   },
   cardValueSection: {
     flex: 1,
+    marginRight: 12,
   },
   breakdownRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 0,
   },
   countBadge: {
     paddingHorizontal: 8,
@@ -1339,7 +1343,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   countBadgeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
   },
   countBadgeLabel: {
@@ -1353,7 +1357,7 @@ const styles = StyleSheet.create({
   },
   percentText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   reportsSection: {

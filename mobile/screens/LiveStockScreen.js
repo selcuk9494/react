@@ -9,6 +9,31 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
+const getAuthContext = async () => {
+  const token = await AsyncStorage.getItem('token');
+  if (!token) return { token: null, user: null };
+
+  let user = null;
+  const userRaw = await AsyncStorage.getItem('user');
+  if (userRaw) {
+    try {
+      user = JSON.parse(userRaw);
+    } catch (e) {
+      user = null;
+    }
+  }
+
+  if (!user) {
+    const response = await axios.get(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    user = response.data;
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+  }
+
+  return { token, user };
+};
+
 export default function LiveStockScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
@@ -45,12 +70,11 @@ export default function LiveStockScreen({ navigation }) {
 
   const fetchData = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      const userRaw = await AsyncStorage.getItem('user');
-      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const { token, user } = await getAuthContext();
+      if (!token || !user) return;
       const branchId =
-        userData?.selected_branch_id ||
-        userData?.branches?.[userData?.selected_branch || 0]?.id;
+        user?.selected_branch_id ||
+        user?.branches?.[user?.selected_branch || 0]?.id;
 
       if (!branchId) return;
 
@@ -367,9 +391,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    paddingTop: Platform.OS === 'android' ? 45 : 55,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 50,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -397,8 +421,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     backgroundColor: '#f0f9ff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0f2fe',
@@ -423,15 +447,15 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   alertBanner: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 14,
+    marginHorizontal: 14,
+    marginTop: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   alertGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    padding: 10,
   },
   alertContent: {
     flex: 1,
@@ -440,27 +464,27 @@ const styles = StyleSheet.create({
   alertTitle: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
   },
   alertDesc: {
     color: '#fecaca',
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    gap: 6,
   },
   statCard: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     marginTop: 4,
   },
@@ -473,11 +497,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    height: 48,
+    marginHorizontal: 14,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    height: 44,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -490,16 +514,16 @@ const styles = StyleSheet.create({
   filtersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    paddingRight: 16,
+    marginTop: 10,
+    paddingRight: 14,
   },
   groupContent: {
-    paddingLeft: 16,
-    paddingRight: 8,
+    paddingLeft: 14,
+    paddingRight: 6,
   },
   groupChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: '#fff',
     borderRadius: 10,
     borderWidth: 1,
@@ -513,14 +537,14 @@ const styles = StyleSheet.create({
   groupChipText: {
     color: '#64748b',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 12,
   },
   groupChipTextActive: {
     color: '#fff',
   },
   criticalBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#fef2f2',
     borderWidth: 1,
@@ -535,8 +559,8 @@ const styles = StyleSheet.create({
   stockEntryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    height: 40,
+    paddingHorizontal: 8,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#eff6ff',
     borderWidth: 1,
@@ -548,7 +572,7 @@ const styles = StyleSheet.create({
     borderColor: '#3b82f6',
   },
   stockEntryBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#3b82f6',
     marginLeft: 4,
@@ -577,10 +601,10 @@ const styles = StyleSheet.create({
   // Card Styles
   cardItem: {
     backgroundColor: '#fff',
-    marginHorizontal: 12,
-    marginVertical: 4,
-    padding: 12,
-    borderRadius: 14,
+    marginHorizontal: 10,
+    marginVertical: 2,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -612,21 +636,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1e293b',
     flexShrink: 1,
   },
   cardGroup: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#64748b',
     marginTop: 2,
   },
   remainingBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    minWidth: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minWidth: 40,
     alignItems: 'center',
   },
   remainingRed: {
@@ -649,7 +673,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
   },
   remainingText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
   remainingTextWhite: {
@@ -660,8 +684,8 @@ const styles = StyleSheet.create({
   },
   cardStatsRow: {
     flexDirection: 'row',
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
@@ -670,12 +694,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardStatLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#94a3b8',
     marginBottom: 2,
   },
   cardStatValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#334155',
   },

@@ -10,6 +10,31 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
+const getAuthContext = async () => {
+  const token = await AsyncStorage.getItem('token');
+  if (!token) return { token: null, user: null };
+
+  let user = null;
+  const userRaw = await AsyncStorage.getItem('user');
+  if (userRaw) {
+    try {
+      user = JSON.parse(userRaw);
+    } catch (e) {
+      user = null;
+    }
+  }
+
+  if (!user) {
+    const response = await axios.get(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    user = response.data;
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+  }
+
+  return { token, user };
+};
+
 export default function StockEntryScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,12 +53,16 @@ export default function StockEntryScreen({ navigation }) {
     try {
       if (showRefreshIndicator) setRefreshing(true);
       
-      const token = await AsyncStorage.getItem('token');
-      const userRaw = await AsyncStorage.getItem('user');
-      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const { token, user } = await getAuthContext();
+      if (!token || !user) {
+        Alert.alert('Hata', 'Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+
       const branchId =
-        userData?.selected_branch_id ||
-        userData?.branches?.[userData?.selected_branch || 0]?.id;
+        user?.selected_branch_id ||
+        user?.branches?.[user?.selected_branch || 0]?.id;
 
       if (!branchId) {
         Alert.alert('Hata', 'Lütfen önce bir şube seçin.');
@@ -137,12 +166,21 @@ export default function StockEntryScreen({ navigation }) {
 
     setSaving(true);
     try {
-      const token = await AsyncStorage.getItem('token');
-      const userRaw = await AsyncStorage.getItem('user');
-      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const { token, user } = await getAuthContext();
+      if (!token || !user) {
+        Alert.alert('Hata', 'Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+
       const branchId =
-        userData?.selected_branch_id ||
-        userData?.branches?.[userData?.selected_branch || 0]?.id;
+        user?.selected_branch_id ||
+        user?.branches?.[user?.selected_branch || 0]?.id;
+
+      if (!branchId) {
+        Alert.alert('Hata', 'Lütfen önce bir şube seçin.');
+        return;
+      }
 
       await axios.post(`${API_URL}/stock/entry?branchId=${branchId}`, { items: entries }, {
         headers: { Authorization: `Bearer ${token}` }
