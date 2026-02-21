@@ -95,66 +95,72 @@ export class StockService {
       const pool = await this.getBranchPool(branchId);
       let rows: any[] = [];
 
+      // Önce product tablosundan dene
       try {
         const res = await pool.query(`
           SELECT 
-            id,
-            product_name AS urun_adi,
-            grup2
-          FROM product 
-          WHERE silindi = 0 OR silindi IS NULL
-          ORDER BY product_name
+            p.plu as id,
+            p.product_name AS urun_adi,
+            COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
+          FROM product p
+          LEFT JOIN product_group pg ON p.tip = pg.id
+          WHERE p.silindi = 0 OR p.silindi IS NULL
+          ORDER BY pg.adi, p.product_name
         `);
         rows = res.rows || [];
       } catch (err) {
         const code = (err as any)?.code;
         const message = ((err as any)?.message || '').toLowerCase();
         if (code !== '42P01' && code !== '42703' && !message.includes('silindi')) {
-          throw err;
+          console.error('Products query error:', err);
         }
       }
 
+      // Eğer silindi sütunu yoksa, o sütun olmadan dene
       if (!rows || rows.length === 0) {
         try {
           const res = await pool.query(`
             SELECT 
-              id,
-              product_name AS urun_adi,
-              grup2
-            FROM product 
-            ORDER BY product_name
+              p.plu as id,
+              p.product_name AS urun_adi,
+              COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
+            FROM product p
+            LEFT JOIN product_group pg ON p.tip = pg.id
+            ORDER BY pg.adi, p.product_name
           `);
           rows = res.rows || [];
         } catch (err) {
-          const code = (err as any)?.code;
-          const message = ((err as any)?.message || '').toLowerCase();
-          if (code !== '42P01' && code !== '42703') {
-            throw err;
-          }
+          console.error('Products fallback query error:', err);
         }
       }
 
+      // Eğer hala boşsa, son 60 gündeki satışlardan ürün listesi çıkar
       if (!rows || rows.length === 0) {
         const date = this.getCurrentBusinessDate();
-        const derived = await pool.query(
-          `
-          SELECT 
-            COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as urun_adi,
-            COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
-          FROM ads_adisyon a
-          LEFT JOIN product p ON a.pluid = p.plu
-          LEFT JOIN product_group pg ON p.tip = pg.id
-          WHERE a.kaptar >= $1::date - INTERVAL '60 days'
-          GROUP BY COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), COALESCE(pg.adi, p.grup2, 'Diğer')
-          ORDER BY urun_adi
-        `,
-          [date],
-        );
-        rows = derived.rows.map((r: any, idx: number) => ({
-          id: idx + 1,
-          urun_adi: r.urun_adi,
-          grup2: r.grup2,
-        }));
+        try {
+          const derived = await pool.query(
+            `
+            SELECT 
+              COALESCE(p.plu, a.pluid) as id,
+              COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as urun_adi,
+              COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
+            FROM ads_adisyon a
+            LEFT JOIN product p ON a.pluid = p.plu
+            LEFT JOIN product_group pg ON p.tip = pg.id
+            WHERE a.kaptar >= $1::date - INTERVAL '60 days'
+            GROUP BY COALESCE(p.plu, a.pluid), COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)), COALESCE(pg.adi, p.grup2, 'Diğer')
+            ORDER BY grup2, urun_adi
+          `,
+            [date],
+          );
+          rows = derived.rows.map((r: any) => ({
+            id: r.id,
+            urun_adi: r.urun_adi,
+            grup2: r.grup2,
+          }));
+        } catch (err) {
+          console.error('Products derived query error:', err);
+        }
       }
 
       return rows;
