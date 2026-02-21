@@ -104,7 +104,7 @@ export class StockService {
             COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
           FROM product p
           LEFT JOIN product_group pg ON p.tip = pg.id
-          WHERE p.silindi = 0 OR p.silindi IS NULL
+          WHERE p.silindi = false OR p.silindi IS NULL
           ORDER BY pg.adi, p.product_name
         `);
         rows = res.rows || [];
