@@ -46,8 +46,11 @@ export default function LiveStockScreen({ navigation }) {
   const fetchData = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const userData = JSON.parse(await AsyncStorage.getItem('user'));
-      const branchId = userData?.selected_branch_id;
+      const userRaw = await AsyncStorage.getItem('user');
+      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const branchId =
+        userData?.selected_branch_id ||
+        userData?.branches?.[userData?.selected_branch || 0]?.id;
 
       if (!branchId) return;
 

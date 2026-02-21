@@ -29,8 +29,11 @@ export default function StockEntryScreen({ navigation }) {
       if (showRefreshIndicator) setRefreshing(true);
       
       const token = await AsyncStorage.getItem('token');
-      const userData = JSON.parse(await AsyncStorage.getItem('user'));
-      const branchId = userData?.selected_branch_id;
+      const userRaw = await AsyncStorage.getItem('user');
+      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const branchId =
+        userData?.selected_branch_id ||
+        userData?.branches?.[userData?.selected_branch || 0]?.id;
 
       if (!branchId) {
         Alert.alert('Hata', 'Lütfen önce bir şube seçin.');
@@ -135,8 +138,11 @@ export default function StockEntryScreen({ navigation }) {
     setSaving(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const userData = JSON.parse(await AsyncStorage.getItem('user'));
-      const branchId = userData?.selected_branch_id;
+      const userRaw = await AsyncStorage.getItem('user');
+      const userData = userRaw ? JSON.parse(userRaw) : null;
+      const branchId =
+        userData?.selected_branch_id ||
+        userData?.branches?.[userData?.selected_branch || 0]?.id;
 
       await axios.post(`${API_URL}/stock/entry?branchId=${branchId}`, { items: entries }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -495,6 +501,7 @@ const styles = StyleSheet.create({
     color: '#334155',
     flex: 1,
     marginRight: 12,
+    flexShrink: 1,
   },
   itemNameActive: {
     color: '#1d4ed8',
