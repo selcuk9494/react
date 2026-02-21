@@ -336,12 +336,29 @@ export class StockService {
     }
 
     openRes.rows.forEach((row: any) => {
-      const item = stockMap.get(row.product_name);
+      const productName = row.product_name;
+      const item = stockMap.get(productName);
+      
       if (item) {
         const qty = Number(row.total_qty);
         if (row.sturu !== 4) { 
           item.open += qty;
           item.remaining -= qty;
+        }
+      } else {
+        // Ürün stock map'te yok, yeni ekle
+        const qty = Number(row.total_qty);
+        if (row.sturu !== 4) {
+          stockMap.set(productName, {
+            name: productName,
+            group: 'Açık Sipariş',
+            initial: 0,
+            sold: 0,
+            open: qty,
+            cancelled: 0,
+            remaining: -qty,
+            hasStockEntry: false
+          });
         }
       }
     });
