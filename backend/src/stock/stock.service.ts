@@ -95,46 +95,24 @@ export class StockService {
       const pool = await this.getBranchPool(branchId);
       let rows: any[] = [];
 
-      // Önce product tablosundan dene
+      // 1. Önce tüm ürünleri product tablosundan çek (silindi filtresi olmadan)
       try {
         const res = await pool.query(`
           SELECT 
             p.plu as id,
             p.product_name AS urun_adi,
-            COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
+            COALESCE(pg.adi, 'Diğer') as grup2
           FROM product p
           LEFT JOIN product_group pg ON p.tip = pg.id
-          WHERE p.silindi = false OR p.silindi IS NULL
           ORDER BY pg.adi, p.product_name
         `);
         rows = res.rows || [];
+        console.log(`Products query returned ${rows.length} items`);
       } catch (err) {
-        const code = (err as any)?.code;
-        const message = ((err as any)?.message || '').toLowerCase();
-        if (code !== '42P01' && code !== '42703' && !message.includes('silindi')) {
-          console.error('Products query error:', err);
-        }
+        console.error('Products query error:', err);
       }
 
-      // Eğer silindi sütunu yoksa, o sütun olmadan dene
-      if (!rows || rows.length === 0) {
-        try {
-          const res = await pool.query(`
-            SELECT 
-              p.plu as id,
-              p.product_name AS urun_adi,
-              COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
-            FROM product p
-            LEFT JOIN product_group pg ON p.tip = pg.id
-            ORDER BY pg.adi, p.product_name
-          `);
-          rows = res.rows || [];
-        } catch (err) {
-          console.error('Products fallback query error:', err);
-        }
-      }
-
-      // Eğer hala boşsa, son 60 gündeki satışlardan ürün listesi çıkar
+      // 2. Eğer product tablosu boşsa veya hata varsa, ads_adisyon'dan türet
       if (!rows || rows.length === 0) {
         const date = this.getCurrentBusinessDate();
         try {
@@ -142,13 +120,13 @@ export class StockService {
             `
             SELECT 
               COALESCE(p.plu, a.pluid) as id,
-              COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as urun_adi,
-              COALESCE(pg.adi, p.grup2, 'Diğer') as grup2
+              COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) as urun_adi,
+              COALESCE(pg.adi, 'Diğer') as grup2
             FROM ads_adisyon a
             LEFT JOIN product p ON a.pluid = p.plu
             LEFT JOIN product_group pg ON p.tip = pg.id
-            WHERE a.kaptar >= $1::date - INTERVAL '60 days'
-            GROUP BY COALESCE(p.plu, a.pluid), COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)), COALESCE(pg.adi, p.grup2, 'Diğer')
+            WHERE a.kaptar >= $1::date - INTERVAL '90 days'
+            GROUP BY COALESCE(p.plu, a.pluid), COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)), COALESCE(pg.adi, 'Diğer')
             ORDER BY grup2, urun_adi
           `,
             [date],
@@ -158,9 +136,26 @@ export class StockService {
             urun_adi: r.urun_adi,
             grup2: r.grup2,
           }));
+          console.log(`Derived products from ads_adisyon: ${rows.length} items`);
         } catch (err) {
           console.error('Products derived query error:', err);
         }
+      }
+
+      // 3. Grupları da ayrıca getir
+      let groups: string[] = [];
+      try {
+        const groupRes = await pool.query(`
+          SELECT DISTINCT adi as grup_adi 
+          FROM product_group 
+          WHERE adi IS NOT NULL AND adi != ''
+          ORDER BY adi
+        `);
+        groups = groupRes.rows.map((r: any) => r.grup_adi);
+        console.log(`Product groups: ${groups.length}`);
+      } catch (err) {
+        // Grupları ürünlerden çıkar
+        groups = [...new Set(rows.map((r: any) => r.grup2).filter(Boolean))];
       }
 
       return rows;
