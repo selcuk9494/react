@@ -197,18 +197,6 @@ export default function LiveStockScreen({ navigation }) {
       </View>
     );
   }, []);
-              <Text style={[
-                styles.badgeText,
-                isOutOfStock ? styles.badgeTextRed : isCritical ? styles.badgeTextOrange : isLow ? styles.badgeTextYellow : styles.badgeTextGreen
-              ]}>{remaining}</Text>
-            </View>
-          ) : (
-            <Text style={styles.textMuted}>-</Text>
-          )}
-        </View>
-      </View>
-    );
-  }, []);
 
   return (
     <View style={styles.container}>
