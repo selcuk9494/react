@@ -81,8 +81,18 @@ export default function DashboardScreen({ navigation, route }) {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (showLoading = true) => {
+    // Cancel previous request if exists
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+    
     try {
+        if (showLoading) setIsLoadingData(true);
+        
         const token = await AsyncStorage.getItem('token');
         if (!token) return;
 
@@ -96,11 +106,24 @@ export default function DashboardScreen({ navigation, route }) {
         }
 
         const response = await axios.get(url, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal
         });
-        setDashboardData(response.data);
+        
+        // Only update if this request wasn't cancelled
+        if (!controller.signal.aborted) {
+          setDashboardData(response.data);
+        }
     } catch (error) {
+        // Ignore abort errors
+        if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+          return;
+        }
         console.error("Dashboard Data Error:", error);
+    } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingData(false);
+        }
     }
   };
 
