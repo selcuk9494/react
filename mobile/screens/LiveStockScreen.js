@@ -121,7 +121,7 @@ export default function LiveStockScreen({ navigation }) {
     }
 
     return result;
-  }, [data, searchQuery, selectedGroup, sortBy, showCriticalOnly]);
+  }, [data, searchQuery, selectedGroup, sortBy, showCriticalOnly, showStockEntryOnly]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
