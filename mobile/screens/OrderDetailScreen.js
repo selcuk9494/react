@@ -8,7 +8,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 export default function OrderDetailScreen({ navigation, route }) {
-  const { id, type = 'closed', adtur } = route.params;
+  const { id, type = 'closed', adtur, fromCancels = false } = route.params;
   const [loading, setLoading] = useState(true);
   const [orderData, setOrderData] = useState(null);
 
@@ -19,18 +19,42 @@ export default function OrderDetailScreen({ navigation, route }) {
   const fetchOrderDetail = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
+      
+      // İptal listesinden geliyorsa önce closed dene, boş gelirse open dene
       let url = `${API_URL}/reports/order-detail/${id}?order_type=${type}`;
-      if (adtur !== undefined) { // Fix: check undefined, as 0 is valid
+      if (adtur !== undefined) {
         url += `&adtur=${adtur}`;
       }
+      
+      console.log('Fetching order detail:', url);
       
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setOrderData(response.data);
+      let data = response.data;
+      
+      // Eğer iptal listesinden geliyorsa ve items boş veya undefined ise, diğer type'ı dene
+      if (fromCancels && (!data?.items || data.items.length === 0)) {
+        const alternativeType = type === 'closed' ? 'open' : 'closed';
+        const altUrl = `${API_URL}/reports/order-detail/${id}?order_type=${alternativeType}`;
+        console.log('Trying alternative type:', altUrl);
+        
+        try {
+          const altResponse = await axios.get(altUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (altResponse.data?.items && altResponse.data.items.length > 0) {
+            data = altResponse.data;
+          }
+        } catch (altError) {
+          console.log('Alternative type failed:', altError.message);
+        }
+      }
+      
+      setOrderData(data);
     } catch (error) {
-      console.error(error);
+      console.error('Order detail error:', error);
       Alert.alert('Hata', 'Adisyon detayları alınamadı.');
     } finally {
       setLoading(false);
