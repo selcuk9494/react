@@ -224,7 +224,9 @@ export default function StockEntryScreen({ navigation }) {
           <Feather name="package" size={20} color="#fff" style={{marginRight: 8}} />
           <Text style={styles.headerTitle}>Günlük Stok Girişi</Text>
         </View>
-        <View style={{width: 24}} />
+        <TouchableOpacity onPress={handleRefresh} disabled={refreshing} style={styles.refreshButton}>
+          <Feather name="refresh-cw" size={20} color="#fff" style={refreshing ? {opacity: 0.5} : {}} />
+        </TouchableOpacity>
       </LinearGradient>
 
       {/* Stats Bar */}
