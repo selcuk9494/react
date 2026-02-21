@@ -354,6 +354,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  refreshButton: {
+    padding: 4,
+  },
   headerTitle: {
     color: '#fff',
     fontSize: 18,
