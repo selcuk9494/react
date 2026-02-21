@@ -291,11 +291,11 @@ function ClosedOrdersContent() {
                         <div className="mr-4">
                             {Number(order.iskonto || 0) > 0 && (
                               <p className="text-xs text-gray-500 whitespace-nowrap">
-                                İndirimsiz: <span className="font-semibold line-through">{formatCurrency(Number(order.tutar || 0))}</span>
+                                Brüt: <span className="font-semibold line-through">{formatCurrency(Number(order.tutar || 0))}</span>
                               </p>
                             )}
                             <p className="text-2xl font-black text-emerald-600 whitespace-nowrap drop-shadow-sm">
-                                {formatCurrency(Math.max(0, Number(order.tutar || 0) - Number(order.iskonto || 0)))}
+                                {formatCurrency(Number(order.tutar || 0) - Number(order.iskonto || 0))}
                             </p>
                         </div>
                         
