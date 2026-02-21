@@ -1,0 +1,17 @@
+{
+  "name": "Micrapor React",
+  "short_name": "Micrapor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/file.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
