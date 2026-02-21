@@ -335,7 +335,9 @@ export default function DashboardScreen({ navigation, route }) {
                 <View style={styles.badgeDot} />
                 <Text style={styles.badgeText}>TOPLAM CİRO</Text>
             </View>
-            <Text style={styles.mainCardValue}>{formatCurrency(grandTotal)}</Text>
+            <Text style={styles.mainCardValue}>
+              {isLoadingData && !dashboardData ? '...' : formatCurrency(grandTotal)}
+            </Text>
             <View style={styles.mainCardFooter}>
                 <View style={styles.footerDot} />
                 <Text style={styles.footerText}>Açık + Kapalı Toplam</Text>
