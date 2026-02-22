@@ -858,34 +858,38 @@ export class ReportsService {
     );
     const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
     const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    
+    // raptar (rapor tarihi) kullanarak sorgula - gün dönüm saatine göre doğru filtreleme
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
 
     const baseQuery = `
       SELECT 
-          DATE(kaptar) as tarih,
+          raptar as tarih,
           SUM(COALESCE(tutar, 0)) as toplam
       FROM ads_adisyon
-      WHERE kaptar >= $1 AND kaptar < $2
+      WHERE raptar >= $1::date AND raptar <= $2::date
     `;
 
     const primaryQuery = `
       ${baseQuery} AND kasa = ANY($3)
-      GROUP BY DATE(kaptar)
-      ORDER BY DATE(kaptar)
+      GROUP BY raptar
+      ORDER BY raptar
     `;
 
     let rows = await this.db.executeQuery(pool, primaryQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
     if (!rows || rows.length === 0) {
       const fallbackQuery = `
         ${baseQuery}
-        GROUP BY DATE(kaptar)
-        ORDER BY DATE(kaptar)
+        GROUP BY raptar
+        ORDER BY raptar
       `;
-      rows = await this.db.executeQuery(pool, fallbackQuery, [dStart, dEnd]);
+      rows = await this.db.executeQuery(pool, fallbackQuery, [startDateOnly, endDateOnly]);
     }
 
     return rows.map((row) => ({
