@@ -186,20 +186,59 @@ export default function LiveStockPage() {
                 </p>
               </div>
             </div>
-            <button 
-              onClick={handleManualRefresh}
-              disabled={refreshing}
-              className="p-2.5 bg-cyan-50 hover:bg-cyan-100 rounded-xl text-cyan-600 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCcw className={clsx("w-5 h-5", refreshing && "animate-spin")} />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Connection Status Badge */}
+              <div className={clsx(
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
+                loading || refreshing ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                connectionError ? "bg-red-50 text-red-600 border border-red-200" : 
+                "bg-emerald-50 text-emerald-600 border border-emerald-200"
+              )}>
+                <div className={clsx(
+                  "w-2 h-2 rounded-full", 
+                  loading || refreshing ? "bg-blue-500 animate-ping" :
+                  connectionError ? "bg-red-500" : "bg-emerald-500 animate-pulse"
+                )}></div>
+                <span>
+                  {loading || refreshing ? 'Yükleniyor...' : connectionError ? 'Bağlantı Yok' : 'Bağlı'}
+                </span>
+              </div>
+              <button 
+                onClick={handleManualRefresh}
+                disabled={refreshing}
+                className="p-2.5 bg-cyan-50 hover:bg-cyan-100 rounded-xl text-cyan-600 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <RefreshCcw className={clsx("w-5 h-5", refreshing && "animate-spin")} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Connection Error Banner */}
+        {connectionError && !loading && (
+          <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">Şube Bağlantısı Kurulamadı</h3>
+              <p className="text-red-100 text-sm">
+                Şube veritabanına bağlanılamıyor. Şube kapalı olabilir veya internet bağlantınızı kontrol edin.
+              </p>
+            </div>
+            <button
+              onClick={handleManualRefresh}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold transition-all"
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        )}
+
         {/* Critical Alert Banner */}
-        {stats.criticalCount > 0 && (
+        {!connectionError && stats.criticalCount > 0 && (
           <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="w-6 h-6" />
@@ -232,7 +271,7 @@ export default function LiveStockPage() {
               </div>
               <span className="text-sm text-gray-500 font-medium">Satılan</span>
             </div>
-            <p className="text-2xl font-black text-emerald-600">{stats.totalSold}</p>
+            <p className={clsx("text-2xl font-black text-emerald-600", loading && "opacity-50")}>{loading ? '...' : stats.totalSold}</p>
           </div>
           
           <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
@@ -242,7 +281,7 @@ export default function LiveStockPage() {
               </div>
               <span className="text-sm text-gray-500 font-medium">Açık Sipariş</span>
             </div>
-            <p className="text-2xl font-black text-amber-600">{stats.totalOpen}</p>
+            <p className={clsx("text-2xl font-black text-amber-600", loading && "opacity-50")}>{loading ? '...' : stats.totalOpen}</p>
           </div>
           
           <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
