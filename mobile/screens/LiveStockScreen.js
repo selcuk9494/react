@@ -44,6 +44,9 @@ export default function LiveStockScreen({ navigation }) {
   const [sortBy, setSortBy] = useState('sales');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [showStockEntryOnly, setShowStockEntryOnly] = useState(false);
+  const [filterSold, setFilterSold] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterOutOfStock, setFilterOutOfStock] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -114,29 +117,42 @@ export default function LiveStockScreen({ navigation }) {
   const filteredData = useMemo(() => {
     let result = [...data];
 
-    // Arama
     if (searchQuery) {
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.name?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Grup
     if (selectedGroup !== 'Tümü') {
       result = result.filter(item => item.group === selectedGroup);
     }
 
-    // Kritik filtresi
-    if (showCriticalOnly) {
-      result = result.filter(item => item.remaining <= CRITICAL_THRESHOLD && item.hasStockEntry);
-    }
-
-    // Stok girişi yapılanlar filtresi
     if (showStockEntryOnly) {
       result = result.filter(item => item.hasStockEntry);
     }
 
-    // Sıralama
+    const hasStatusFilter =
+      filterSold || filterOpen || showCriticalOnly || filterOutOfStock;
+
+    if (hasStatusFilter) {
+      result = result.filter(item => {
+        const sold = item.sold || 0;
+        const open = item.open || 0;
+        const remaining = item.remaining || 0;
+        const hasStockEntry = item.hasStockEntry;
+        const isOutOfStock = remaining <= 0 && hasStockEntry;
+        const isCritical =
+          remaining <= CRITICAL_THRESHOLD && remaining > 0 && hasStockEntry;
+
+        const matchSold = filterSold && sold > 0;
+        const matchOpen = filterOpen && open > 0;
+        const matchCritical = showCriticalOnly && (isCritical || isOutOfStock);
+        const matchOutOfStock = filterOutOfStock && isOutOfStock;
+
+        return matchSold || matchOpen || matchCritical || matchOutOfStock;
+      });
+    }
+
     if (sortBy === 'sales') {
       result.sort((a, b) => (b.sold + b.open) - (a.sold + a.open));
     } else if (sortBy === 'remaining') {
@@ -151,7 +167,17 @@ export default function LiveStockScreen({ navigation }) {
     }
 
     return result;
-  }, [data, searchQuery, selectedGroup, sortBy, showCriticalOnly, showStockEntryOnly]);
+  }, [
+    data,
+    searchQuery,
+    selectedGroup,
+    sortBy,
+    showCriticalOnly,
+    showStockEntryOnly,
+    filterSold,
+    filterOpen,
+    filterOutOfStock,
+  ]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -290,26 +316,54 @@ export default function LiveStockScreen({ navigation }) {
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: '#ecfdf5' }]}>
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            { backgroundColor: '#ecfdf5' },
+            filterSold && styles.statCardActive,
+          ]}
+          onPress={() => setFilterSold(!filterSold)}
+        >
           <Feather name="trending-up" size={18} color="#10b981" />
           <Text style={[styles.statValue, { color: '#059669' }]}>{stats.totalSold}</Text>
           <Text style={styles.statLabel}>Satılan</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#fff7ed' }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            { backgroundColor: '#fff7ed' },
+            filterOpen && styles.statCardActive,
+          ]}
+          onPress={() => setFilterOpen(!filterOpen)}
+        >
           <Feather name="clock" size={18} color="#f97316" />
           <Text style={[styles.statValue, { color: '#ea580c' }]}>{stats.totalOpen}</Text>
           <Text style={styles.statLabel}>Açık</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#fef2f2' }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            { backgroundColor: '#fef2f2' },
+            showCriticalOnly && styles.statCardActive,
+          ]}
+          onPress={() => setShowCriticalOnly(!showCriticalOnly)}
+        >
           <Feather name="alert-circle" size={18} color="#ef4444" />
           <Text style={[styles.statValue, { color: '#dc2626' }]}>{stats.criticalCount}</Text>
           <Text style={styles.statLabel}>Kritik</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#fef2f2' }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            { backgroundColor: '#fef2f2' },
+            filterOutOfStock && styles.statCardActive,
+          ]}
+          onPress={() => setFilterOutOfStock(!filterOutOfStock)}
+        >
           <Feather name="x" size={18} color="#991b1b" />
           <Text style={[styles.statValue, { color: '#991b1b' }]}>{stats.outOfStock}</Text>
           <Text style={styles.statLabel}>Tükenen</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Search & Filters */}
@@ -507,6 +561,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  statCardActive: {
+    borderColor: '#0ea5e9',
+    backgroundColor: '#e0f2fe',
   },
   statValue: {
     fontSize: 18,

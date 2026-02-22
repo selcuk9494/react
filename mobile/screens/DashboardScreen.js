@@ -60,7 +60,16 @@ const DonutChart = ({ size = 80, strokeWidth = 12, data, centerText }) => {
       </Svg>
       {centerText && (
         <View style={{ position: 'absolute', alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: '#1e293b' }}>{centerText}</Text>
+          <Text
+            style={{
+              fontSize: 10,
+              fontWeight: '700',
+              color: '#1e293b',
+              textAlign: 'center',
+            }}
+          >
+            {centerText}
+          </Text>
         </View>
       )}
     </View>
@@ -491,7 +500,7 @@ export default function DashboardScreen({ navigation, route }) {
                         <TouchableOpacity
                           style={[
                             styles.breakdownCircle,
-                            { backgroundColor: '#fff7ed', borderColor: '#fed7aa' },
+                            { backgroundColor: '#ffedd5', borderColor: '#fdba74' },
                           ]}
                           onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
                         >
@@ -521,7 +530,7 @@ export default function DashboardScreen({ navigation, route }) {
                           <TouchableOpacity
                             style={[
                               styles.breakdownCircle,
-                              { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+                              { backgroundColor: '#fef3c7', borderColor: '#facc15' },
                             ]}
                             onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
                           >
@@ -592,7 +601,7 @@ export default function DashboardScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={[
                         styles.breakdownCircle,
-                        { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
+                        { backgroundColor: '#dcfce7', borderColor: '#4ade80' },
                       ]}
                       onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
                     >
@@ -622,7 +631,7 @@ export default function DashboardScreen({ navigation, route }) {
                       <TouchableOpacity
                         style={[
                           styles.breakdownCircle,
-                          { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+                          { backgroundColor: '#fef3c7', borderColor: '#fb923c' },
                         ]}
                         onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
                       >
@@ -1423,34 +1432,33 @@ const styles = StyleSheet.create({
   breakdownCircleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   breakdownCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    flex: 1,
+    minHeight: 80,
+    borderRadius: 16,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
+    justifyContent: 'space-between',
   },
   breakdownCircleLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     marginBottom: 4,
   },
   breakdownCircleValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: '#111827',
   },
   breakdownCircleStats: {
     marginTop: 6,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   breakdownCircleStatText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
   breakdownItem: {
