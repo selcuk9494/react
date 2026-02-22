@@ -190,6 +190,10 @@ export default function Dashboard() {
   };
 
   // Initial fetch
+  // Track previous values to detect changes
+  const prevPeriodRef = useRef(period);
+  const prevBranchRef = useRef(user?.selected_branch);
+
   useEffect(() => {
     if (!token && !loading) {
       router.replace('/auth/login');
@@ -207,8 +211,17 @@ export default function Dashboard() {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
-    // Clear previous data immediately when period changes to prevent stale data
-    if (!data || period !== 'today') {
+    // Detect if period or branch changed - clear data and show loading
+    const periodChanged = prevPeriodRef.current !== period;
+    const branchChanged = prevBranchRef.current !== user?.selected_branch;
+    
+    if (periodChanged || branchChanged) {
+      setData(null); // Clear old data immediately
+      setLoading(true);
+      setIsOffline(false); // Reset offline state
+      prevPeriodRef.current = period;
+      prevBranchRef.current = user?.selected_branch;
+    } else if (!data) {
       setLoading(true);
     }
     
@@ -226,8 +239,14 @@ export default function Dashboard() {
         
         // Only update if this is still the current request
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
-          setData(res.data);
-          setIsOffline(false);
+          // Check if response indicates connection error
+          if (res.data?.connection_error) {
+            setIsOffline(true);
+            setData(null);
+          } else {
+            setData(res.data);
+            setIsOffline(false);
+          }
         }
       } catch (e: any) {
         // Ignore abort errors
@@ -237,6 +256,7 @@ export default function Dashboard() {
         console.error(e);
         if (reqIdRef.current === myId) {
           setIsOffline(true);
+          setData(null); // Clear stale data on error
         }
       } finally {
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
@@ -263,8 +283,12 @@ export default function Dashboard() {
               signal: refreshController.signal
             });
             if (!refreshController.signal.aborted) {
-              setData(res.data);
-              setIsOffline(false);
+              if (res.data?.connection_error) {
+                setIsOffline(true);
+              } else {
+                setData(res.data);
+                setIsOffline(false);
+              }
             }
           } catch (e: any) {
             if (e.name !== 'AbortError' && e.code !== 'ERR_CANCELED') {
