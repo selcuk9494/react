@@ -35,6 +35,7 @@ export class StockService {
   private async getCurrentBusinessDate(branchId: string): Promise<string> {
     const closingHour = await this.getClosingHour(branchId);
 
+    // Türkiye saatini hesapla (UTC+3)
     const now = new Date();
     const turkeyOffset = 3 * 60;
     const utcOffset = now.getTimezoneOffset();
@@ -43,24 +44,30 @@ export class StockService {
     );
 
     const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
-    const todayClosing = new Date(
-      turkeyTime.getFullYear(),
-      turkeyTime.getMonth(),
-      turkeyTime.getDate(),
-      safeClosing,
-      0,
-      0,
-      0,
-    );
+    
+    // Türkiye zamanındaki saat ve dakika
+    const turkeyHour = turkeyTime.getUTCHours();
+    const turkeyMinute = turkeyTime.getUTCMinutes();
+    const currentTurkeyHourMinutes = turkeyHour * 60 + turkeyMinute;
+    const closingHourMinutes = safeClosing * 60;
 
-    const businessDate = new Date(turkeyTime);
-    if (turkeyTime < todayClosing) {
-      businessDate.setDate(businessDate.getDate() - 1);
+    // Türkiye zamanındaki yıl, ay, gün
+    let turkeyYear = turkeyTime.getUTCFullYear();
+    let turkeyMonth = turkeyTime.getUTCMonth();
+    let turkeyDay = turkeyTime.getUTCDate();
+
+    // Kapanış saatinden önceyse, iş günü dün
+    if (currentTurkeyHourMinutes < closingHourMinutes) {
+      // Bir gün geri git
+      const yesterday = new Date(Date.UTC(turkeyYear, turkeyMonth, turkeyDay - 1));
+      turkeyYear = yesterday.getUTCFullYear();
+      turkeyMonth = yesterday.getUTCMonth();
+      turkeyDay = yesterday.getUTCDate();
     }
 
-    const year = businessDate.getFullYear();
-    const month = String(businessDate.getMonth() + 1).padStart(2, '0');
-    const day = String(businessDate.getDate()).padStart(2, '0');
+    const year = turkeyYear;
+    const month = String(turkeyMonth + 1).padStart(2, '0');
+    const day = String(turkeyDay).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
   }
