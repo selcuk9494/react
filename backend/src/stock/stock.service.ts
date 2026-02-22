@@ -478,9 +478,27 @@ export class StockService {
       }
     });
 
-    // Açık siparişleri al - ads_acik tablosundan - acsaat (açılış saati) kullanarak
+    // Açık siparişleri al - ads_acik tablosundan - actar (açılış tarihi) kullanarak
+    // actar date tipinde olduğu için sadece tarih karşılaştırması yapıyoruz
     let openRes;
     try {
+      // Önce actar ve acsaat alanlarının varlığını kontrol et
+      const checkOpen = await pool.query(`
+        SELECT COUNT(*) as total, MIN(actar) as min_date, MAX(actar) as max_date 
+        FROM ads_acik
+      `);
+      console.log('ads_acik table check (actar):', checkOpen.rows[0]);
+
+      const todayOpenCheck = await pool.query(
+        `
+        SELECT COUNT(*) as today_count 
+        FROM ads_acik 
+        WHERE actar = $1::date
+      `,
+        [startDateOnly],
+      );
+      console.log(`Open records for date ${startDateOnly} (actar):`, todayOpenCheck.rows[0]);
+
       openRes = await pool.query(
         `
         SELECT 
@@ -489,13 +507,13 @@ export class StockService {
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
         WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-          AND a.acsaat >= $1 AND a.acsaat < $2
+          AND a.actar = $1::date
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
-        [start, end],
+        [startDateOnly],
       );
       console.log(
-        `Open orders query (acsaat) returned ${openRes.rows.length} rows for range ${start} - ${end}:`,
+        `Open orders query (actar=${startDateOnly}) returned ${openRes.rows.length} rows:`,
         openRes.rows.slice(0, 5),
       );
     } catch (err) {
