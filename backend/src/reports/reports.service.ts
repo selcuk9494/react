@@ -1677,4 +1677,122 @@ export class ReportsService {
     ]);
     return rows;
   }
+
+  // Yeni Personel Raporu - Detaylı
+  async getPersonnelReport(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
+    
+    // raptar için sadece tarih formatı kullan
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
+
+    console.log(`[getPersonnelReport] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
+
+    // Personel bazlı satış ve sipariş özeti - raptar kullan
+    const personnelQuery = `
+      SELECT 
+          a.garsonno as personnel_id,
+          per.adi as personnel_name,
+          COUNT(DISTINCT a.adsno) as order_count,
+          COALESCE(SUM(a.tutar), 0) as total_sales,
+          COALESCE(SUM(CASE WHEN a.sturu = 1 THEN a.tutar ELSE 0 END), 0) as ikram_total,
+          COALESCE(SUM(CASE WHEN a.sturu = 2 THEN a.tutar ELSE 0 END), 0) as iade_total,
+          COALESCE(SUM(CASE WHEN a.sturu = 4 THEN a.tutar ELSE 0 END), 0) as iptal_total,
+          COUNT(CASE WHEN a.sturu = 1 THEN 1 END) as ikram_count,
+          COUNT(CASE WHEN a.sturu = 2 THEN 1 END) as iade_count,
+          COUNT(CASE WHEN a.sturu = 4 THEN 1 END) as iptal_count
+      FROM ads_adisyon a
+      LEFT JOIN personel per ON a.garsonno = per.id
+      WHERE a.raptar >= $1::date AND a.raptar <= $2::date 
+        AND a.kasa = ANY($3)
+      GROUP BY a.garsonno, per.adi
+      ORDER BY total_sales DESC
+    `;
+
+    const personnelRows = await this.db.executeQuery(pool, personnelQuery, [
+      startDateOnly,
+      endDateOnly,
+      kasa_nos,
+    ]);
+
+    // Açık siparişleri de dahil et (bugün için) - actar kullan
+    let openOrdersMap = new Map();
+    if (period === 'today') {
+      const openQuery = `
+        SELECT 
+            a.garsonno as personnel_id,
+            COUNT(DISTINCT a.adsno) as open_order_count,
+            COALESCE(SUM(a.tutar), 0) as open_total
+        FROM ads_acik a
+        WHERE a.actar >= $1::date AND a.actar <= $2::date 
+          AND a.kasa = ANY($3)
+        GROUP BY a.garsonno
+      `;
+      const openRows = await this.db.executeQuery(pool, openQuery, [
+        startDateOnly,
+        endDateOnly,
+        kasa_nos,
+      ]);
+      openRows.forEach((row: any) => {
+        openOrdersMap.set(row.personnel_id, {
+          open_order_count: parseInt(row.open_order_count) || 0,
+          open_total: parseFloat(row.open_total) || 0,
+        });
+      });
+    }
+
+    // Toplam hesapla
+    let grandTotal = 0;
+    let grandOrderCount = 0;
+
+    const personnel = personnelRows.map((row: any) => {
+      const openData = openOrdersMap.get(row.personnel_id) || { open_order_count: 0, open_total: 0 };
+      const closedTotal = parseFloat(row.total_sales) || 0;
+      const total = closedTotal + openData.open_total;
+      const orderCount = (parseInt(row.order_count) || 0) + openData.open_order_count;
+      
+      grandTotal += total;
+      grandOrderCount += orderCount;
+
+      return {
+        id: row.personnel_id,
+        name: row.personnel_name || 'Bilinmiyor',
+        order_count: orderCount,
+        closed_order_count: parseInt(row.order_count) || 0,
+        open_order_count: openData.open_order_count,
+        total_sales: total,
+        closed_sales: closedTotal,
+        open_sales: openData.open_total,
+        avg_ticket: orderCount > 0 ? total / orderCount : 0,
+        ikram_total: parseFloat(row.ikram_total) || 0,
+        iade_total: parseFloat(row.iade_total) || 0,
+        iptal_total: parseFloat(row.iptal_total) || 0,
+        ikram_count: parseInt(row.ikram_count) || 0,
+        iade_count: parseInt(row.iade_count) || 0,
+        iptal_count: parseInt(row.iptal_count) || 0,
+      };
+    });
+
+    return {
+      period: { start: startDateOnly, end: endDateOnly },
+      summary: {
+        total_sales: grandTotal,
+        total_orders: grandOrderCount,
+        personnel_count: personnel.length,
+        avg_per_personnel: personnel.length > 0 ? grandTotal / personnel.length : 0,
+      },
+      personnel,
+    };
+  }
 }
