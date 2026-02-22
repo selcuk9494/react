@@ -89,9 +89,7 @@ export default function OrdersScreen({ navigation, route }) {
     }
   };
 
-  // Local filtering for Table No & Type (since API might not support all filters directly in this endpoint version)
   const filteredOrders = orders.filter(order => {
-    // Filter by Table No / ID
     if (filterMasa) {
         const search = filterMasa.toLowerCase();
         const masaMatch = order.masa_no?.toString().toLowerCase().includes(search);
@@ -99,12 +97,29 @@ export default function OrdersScreen({ navigation, route }) {
         if (!masaMatch && !idMatch) return false;
     }
     
-    // Filter by Adtur (Type)
     if (adturFilter !== 'all') {
-        // adtur: 0=Adisyon, 1=Paket, 3=Hızlı
-        // If adtur is missing, try to infer or skip
-        const type = order.adtur ?? (order.sipyer === 2 ? 1 : 0);
-        if (type !== Number(adturFilter)) return false;
+        const selectedType = Number(adturFilter);
+
+        if (isClosed) {
+          const actualType = typeof order.adtur !== 'undefined' && order.adtur !== null
+            ? Number(order.adtur)
+            : -1;
+          if (actualType !== selectedType) return false;
+        } else {
+          const pickType = (o) => {
+            if (typeof o.adtur !== 'undefined' && o.adtur !== null) return Number(o.adtur);
+            if (typeof o.sipyer !== 'undefined' && o.sipyer !== null) {
+              const s = Number(o.sipyer);
+              if (s === 2) return 1;
+              return 0;
+            }
+            return -1;
+          };
+          const a = pickType(order);
+          if (selectedType === 0 && a !== 0) return false;
+          if (selectedType === 1 && a !== 1) return false;
+          if (selectedType === 3 && a !== 3) return false;
+        }
     }
 
     return true;
@@ -120,10 +135,45 @@ export default function OrdersScreen({ navigation, route }) {
   };
 
   const getOrderTypeLabel = (order) => {
-    const type = order.adtur ?? (order.sipyer === 2 ? 1 : 0);
-    if (type === 1) return { label: 'Paket', color: '#fbbf24', bg: '#fffbeb' }; // Amber
-    if (type === 3) return { label: 'Hızlı', color: '#ec4899', bg: '#fdf2f8' }; // Pink
-    return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' }; // Emerald
+    const fromAdtur = () => {
+      if (typeof order.adtur === 'undefined' || order.adtur === null) return null;
+      const t = Number(order.adtur);
+      if (t === 1) return { label: 'Paket', color: '#fbbf24', bg: '#fffbeb' };
+      if (t === 3) return { label: 'Hızlı Satış', color: '#ec4899', bg: '#fdf2f8' };
+      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+    };
+
+    if (isClosed) {
+      const byAdtur = fromAdtur();
+      if (byAdtur) return byAdtur;
+
+      if (order.type_label) {
+        const text = String(order.type_label).toLowerCase();
+        if (text.includes('paket')) return { label: order.type_label, color: '#fbbf24', bg: '#fffbeb' };
+        if (text.includes('hızlı')) return { label: order.type_label, color: '#ec4899', bg: '#fdf2f8' };
+        return { label: order.type_label, color: '#10b981', bg: '#ecfdf5' };
+      }
+
+      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+    } else {
+      const byAdtur = fromAdtur();
+      if (byAdtur) return byAdtur;
+
+      if (order.type_label) {
+        const text = String(order.type_label).toLowerCase();
+        if (text.includes('paket')) return { label: order.type_label, color: '#fbbf24', bg: '#fffbeb' };
+        if (text.includes('hızlı')) return { label: order.type_label, color: '#ec4899', bg: '#fdf2f8' };
+        return { label: order.type_label, color: '#10b981', bg: '#ecfdf5' };
+      }
+
+      if (typeof order.sipyer !== 'undefined' && order.sipyer !== null) {
+        const s = Number(order.sipyer);
+        if (s === 2) return { label: 'Paket', color: '#fbbf24', bg: '#fffbeb' };
+        return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+      }
+
+      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+    }
   };
 
   const renderItem = ({ item }) => {
@@ -238,8 +288,7 @@ export default function OrdersScreen({ navigation, route }) {
         </View>
 
         <View style={styles.filterRow}>
-             {/* Type Filter */}
-             {['all', '0', '1', '3'].map((t) => (
+             {(isClosed ? ['all', '0', '1', '3'] : ['all', '0', '1']).map((t) => (
                 <TouchableOpacity 
                     key={t}
                     onPress={() => setAdturFilter(t)}
@@ -249,7 +298,7 @@ export default function OrdersScreen({ navigation, route }) {
                     ]}
                 >
                     <Text style={[styles.typeText, adturFilter === t && { color: '#1e293b' }]}>
-                        {t === 'all' ? 'Tümü' : t === '0' ? 'Adisyon' : t === '1' ? 'Paket' : 'Hızlı'}
+                        {t === 'all' ? 'Tümü' : t === '0' ? 'Adisyon' : t === '1' ? 'Paket' : 'Hızlı Satış'}
                     </Text>
                 </TouchableOpacity>
             ))}
@@ -287,8 +336,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    padding: 20,
-    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingTop: 48,
+    paddingBottom: 14,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: '#000',
@@ -311,15 +361,16 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   controlsContainer: {
-    padding: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 6,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
   filterRow: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   searchBox: {
     flex: 1,
@@ -328,7 +379,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    height: 40,
   },
   searchInput: {
     flex: 1,
@@ -340,8 +391,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   periodButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -357,8 +408,8 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   typeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -371,13 +422,14 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

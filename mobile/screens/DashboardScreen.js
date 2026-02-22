@@ -127,6 +127,7 @@ export default function DashboardScreen({ navigation, route }) {
       });
       const userData = response.data;
       setUser(userData);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
       initializeUserBranches(userData);
       fetchDashboardData();
     } catch (error) {
@@ -450,11 +451,11 @@ export default function DashboardScreen({ navigation, route }) {
                             </View>
                             <View style={styles.breakdownRight}>
                                 <View style={[styles.countBadge, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
+                                    <Text style={[styles.countBadgePercent, { color: '#c2410c' }]}>
+                                        %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
+                                    </Text>
                                     <Text style={[styles.countBadgeText, { color: '#c2410c' }]}>{dashboardData?.dagilim?.adisyon.acik_adet || 0}</Text>
                                     <Text style={[styles.countBadgeLabel, { color: '#c2410c' }]}>adet</Text>
-                                </View>
-                                <View style={[styles.percentBadge, { backgroundColor: '#f97316' }]}>
-                                    <Text style={styles.percentText}>%{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}</Text>
                                 </View>
                                 <Feather name="chevron-right" size={16} color="#f97316" />
                             </View>
@@ -474,11 +475,11 @@ export default function DashboardScreen({ navigation, route }) {
                                 </View>
                                 <View style={styles.breakdownRight}>
                                     <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                        <Text style={[styles.countBadgePercent, { color: '#b45309' }]}>
+                                            %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
+                                        </Text>
                                         <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.acik_adet || 0}</Text>
                                         <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
-                                    </View>
-                                    <View style={[styles.percentBadge, { backgroundColor: '#fbbf24' }]}>
-                                        <Text style={styles.percentText}>%{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}</Text>
                                     </View>
                                     <Feather name="chevron-right" size={16} color="#fbbf24" />
                                 </View>
@@ -539,11 +540,11 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
                         <View style={styles.breakdownRight}>
                             <View style={[styles.countBadge, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                                <Text style={[styles.countBadgePercent, { color: '#047857' }]}>
+                                    %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                </Text>
                                 <Text style={[styles.countBadgeText, { color: '#047857' }]}>{dashboardData?.dagilim?.adisyon.kapali_adet || 0}</Text>
                                 <Text style={[styles.countBadgeLabel, { color: '#047857' }]}>adet</Text>
-                            </View>
-                            <View style={[styles.percentBadge, { backgroundColor: '#10b981' }]}>
-                                <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
                             </View>
                             <Feather name="chevron-right" size={16} color="#10b981" />
                         </View>
@@ -563,11 +564,11 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
                         <View style={styles.breakdownRight}>
                             <View style={[styles.countBadge, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
+                                <Text style={[styles.countBadgePercent, { color: '#be185d' }]}>
+                                    %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round(((dashboardData?.dagilim?.hizli?.kapali_toplam || 0) / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                </Text>
                                 <Text style={[styles.countBadgeText, { color: '#be185d' }]}>{dashboardData?.dagilim?.hizli?.kapali_adet || 0}</Text>
                                 <Text style={[styles.countBadgeLabel, { color: '#be185d' }]}>adet</Text>
-                            </View>
-                            <View style={[styles.percentBadge, { backgroundColor: '#ec4899' }]}>
-                                <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round(((dashboardData?.dagilim?.hizli?.kapali_toplam || 0) / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
                             </View>
                             <Feather name="chevron-right" size={16} color="#ec4899" />
                         </View>
@@ -588,11 +589,11 @@ export default function DashboardScreen({ navigation, route }) {
                             </View>
                             <View style={styles.breakdownRight}>
                                 <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                    <Text style={[styles.countBadgePercent, { color: '#b45309' }]}>
+                                        %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                    </Text>
                                     <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.kapali_adet || 0}</Text>
                                     <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
-                                </View>
-                                <View style={[styles.percentBadge, { backgroundColor: '#fbbf24' }]}>
-                                    <Text style={styles.percentText}>%{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}</Text>
                                 </View>
                                 <Feather name="chevron-right" size={16} color="#fbbf24" />
                             </View>
@@ -1147,7 +1148,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   mainCardValue: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
     color: '#fff',
     marginBottom: 8,
@@ -1247,12 +1248,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   statTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#4b5563',
   },
   statValue: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: '#111827',
     marginBottom: 4,
@@ -1336,14 +1337,20 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   countBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
+    minWidth: 54,
+  },
+  countBadgePercent: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   countBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
   },
   countBadgeLabel: {
