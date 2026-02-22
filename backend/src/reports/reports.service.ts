@@ -668,10 +668,13 @@ export class ReportsService {
           ),
         ]);
 
-      const mapSipyer = (sip: number) => {
-        if (sip === 1) return 'hizli';
-        if (sip === 2) return 'paket';
-        if (sip === 3) return 'adisyon';
+      const mapOrderType = (row: any) => {
+        const adturNum =
+          typeof row.adtur === 'number'
+            ? row.adtur
+            : parseInt(row.adtur ?? '0', 10) || 0;
+        if (adturNum === 1) return 'paket';
+        if (adturNum === 3) return 'hizli';
         return 'adisyon';
       };
 
@@ -679,7 +682,7 @@ export class ReportsService {
       let totalClosedAmount = 0;
 
       (openOrders as any[]).forEach((o) => {
-        const key = mapSipyer(o.sipyer);
+        const key = mapOrderType(o);
         const tutar = Number(o.tutar) || 0;
         result.acik_adisyon_toplam += tutar;
         result.acik_adisyon_adet += 1;
@@ -692,7 +695,7 @@ export class ReportsService {
       });
 
       (closedOrders as any[]).forEach((o) => {
-        const key = mapSipyer(o.sipyer);
+        const key = mapOrderType(o);
         const tutar = Number(o.tutar) || 0;
         result.kapali_adisyon_toplam += tutar;
         result.kapali_adisyon_adet += 1;
