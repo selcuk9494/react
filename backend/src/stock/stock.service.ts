@@ -72,38 +72,77 @@ export class StockService {
   }> {
     const closingHour = await this.getClosingHour(branchId);
 
+    // Türkiye saatini hesapla (UTC+3)
     const now = new Date();
-    const turkeyOffset = 3 * 60;
+    const turkeyOffset = 3 * 60; // dakika cinsinden
     const utcOffset = now.getTimezoneOffset();
     const turkeyTime = new Date(
       now.getTime() + (utcOffset + turkeyOffset) * 60000,
     );
 
     const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
-    const todayClosing = new Date(
-      turkeyTime.getFullYear(),
-      turkeyTime.getMonth(),
-      turkeyTime.getDate(),
-      safeClosing,
-      0,
-      0,
-      0,
-    );
+    
+    // Türkiye zamanındaki bugünün yılı, ayı ve günü
+    const turkeyYear = turkeyTime.getUTCFullYear();
+    const turkeyMonth = turkeyTime.getUTCMonth();
+    const turkeyDay = turkeyTime.getUTCDate();
+    const turkeyHour = turkeyTime.getUTCHours();
+    const turkeyMinute = turkeyTime.getUTCMinutes();
+
+    // Bugünkü kapanış saatini Türkiye saatinde hesapla
+    // Türkiye saati = UTC + 3 saat, yani UTC = Türkiye - 3 saat
+    // Kapanış saati Türkiye'de safeClosing:00 olduğunda, UTC'de (safeClosing-3):00 olur
+    const todayClosingUTC = Date.UTC(turkeyYear, turkeyMonth, turkeyDay, safeClosing - 3, 0, 0, 0);
+    const todayClosing = new Date(todayClosingUTC);
 
     let startDate: Date;
     let endDate: Date;
 
-    if (turkeyTime < todayClosing) {
+    // Şu anki Türkiye saati kapanış saatinden önce mi sonra mı?
+    const currentTurkeyHourMinutes = turkeyHour * 60 + turkeyMinute;
+    const closingHourMinutes = safeClosing * 60;
+
+    console.log(`[getBusinessDayRange] branchId=${branchId}, closingHour=${safeClosing}`);
+    console.log(`[getBusinessDayRange] Turkey time: ${turkeyYear}-${turkeyMonth + 1}-${turkeyDay} ${turkeyHour}:${turkeyMinute}`);
+    console.log(`[getBusinessDayRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`);
+
+    if (currentTurkeyHourMinutes < closingHourMinutes) {
+      // Kapanış saatinden önce: devam eden iş günü dünden başladı
       endDate = todayClosing;
       startDate = new Date(todayClosing.getTime() - 24 * 60 * 60 * 1000);
+      console.log(`[getBusinessDayRange] Before closing hour - using yesterday's business day`);
     } else {
+      // Kapanış saatinden sonra: yeni iş günü bugün başladı
       startDate = todayClosing;
       endDate = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
+      console.log(`[getBusinessDayRange] After closing hour - using today's business day`);
     }
 
-    const dateLabel = format(startDate, 'yyyy-MM-dd');
-    const start = format(startDate, 'yyyy-MM-dd HH:mm:ss');
-    const end = format(endDate, 'yyyy-MM-dd HH:mm:ss');
+    // Tarihleri Türkiye saatinde formatla
+    const formatTurkeyDate = (d: Date) => {
+      const turkeyD = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+      const y = turkeyD.getUTCFullYear();
+      const m = String(turkeyD.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(turkeyD.getUTCDate()).padStart(2, '0');
+      const h = String(turkeyD.getUTCHours()).padStart(2, '0');
+      const min = String(turkeyD.getUTCMinutes()).padStart(2, '0');
+      const s = String(turkeyD.getUTCSeconds()).padStart(2, '0');
+      return `${y}-${m}-${day} ${h}:${min}:${s}`;
+    };
+
+    const formatTurkeyDateOnly = (d: Date) => {
+      const turkeyD = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+      const y = turkeyD.getUTCFullYear();
+      const m = String(turkeyD.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(turkeyD.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const dateLabel = formatTurkeyDateOnly(startDate);
+    const start = formatTurkeyDate(startDate);
+    const end = formatTurkeyDate(endDate);
+
+    console.log(`[getBusinessDayRange] Result: start=${start}, end=${end}, date=${dateLabel}`);
 
     return { start, end, date: dateLabel };
   }
