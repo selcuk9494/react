@@ -1,13 +1,32 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { 
-  StyleSheet, Text, View, ActivityIndicator, FlatList, 
-  TouchableOpacity, RefreshControl, TextInput, ScrollView, Platform, Animated 
+import {
+  StyleSheet,
+  Text,
+  View,
+  ActivityIndicator,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  TextInput,
+  ScrollView,
+  Platform,
+  Animated,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+const formatDate = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const getAuthContext = async () => {
   const token = await AsyncStorage.getItem('token');
@@ -47,32 +66,16 @@ export default function LiveStockScreen({ navigation }) {
   const [filterSold, setFilterSold] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterOutOfStock, setFilterOutOfStock] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [iosTempDate, setIosTempDate] = useState(new Date());
   const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const CRITICAL_THRESHOLD = 5;
 
-  useEffect(() => {
-    fetchData();
-    
-    // 5 saniyede bir güncelleme
-    intervalRef.current = setInterval(fetchData, 5000);
-    
-    // Pulse animation for live indicator
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-      ])
-    ).start();
-    
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { token, user } = await getAuthContext();
       if (!token || !user) return;
@@ -82,8 +85,17 @@ export default function LiveStockScreen({ navigation }) {
 
       if (!branchId) return;
 
-      const response = await axios.get(`${API_URL}/stock/live?branchId=${branchId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const todayStr = formatDate(new Date());
+      const selectedStr = formatDate(selectedDate);
+      const isToday = selectedStr === todayStr;
+
+      let url = `${API_URL}/stock/live?branchId=${branchId}`;
+      if (!isToday) {
+        url += `&date=${selectedStr}`;
+      }
+
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       
       setData(response.data.items || []);
@@ -96,7 +108,48 @@ export default function LiveStockScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchData();
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    const todayStr = formatDate(new Date());
+    const selectedStr = formatDate(selectedDate);
+    const isToday = selectedStr === todayStr;
+
+    if (isToday) {
+      intervalRef.current = setInterval(() => {
+        fetchData();
+      }, 5000);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [fetchData, selectedDate]);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.4,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [pulseAnim]);
 
   // Grupları çıkar
   const groups = useMemo(() => {
@@ -182,7 +235,7 @@ export default function LiveStockScreen({ navigation }) {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const renderItem = useCallback(({ item }) => {
     const totalSold = (item.sold || 0) + (item.open || 0);
@@ -254,6 +307,17 @@ export default function LiveStockScreen({ navigation }) {
     );
   }, []);
 
+  const todayStr = formatDate(new Date());
+  const selectedStr = formatDate(selectedDate);
+  const isToday = selectedStr === todayStr;
+  const dateLabel = isToday
+    ? 'Bugün'
+    : selectedDate.toLocaleDateString('tr-TR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -313,6 +377,28 @@ export default function LiveStockScreen({ navigation }) {
           </LinearGradient>
         </TouchableOpacity>
       )}
+
+      <View style={styles.dateFilterContainer}>
+        <TouchableOpacity
+          style={styles.dateFilterButton}
+          onPress={() => {
+            if (Platform.OS === 'ios') {
+              setIosTempDate(selectedDate);
+              setShowDatePicker(true);
+            } else {
+              setShowDatePicker(true);
+            }
+          }}
+        >
+          <Feather
+            name="calendar"
+            size={14}
+            color="#0369a1"
+            style={{ marginRight: 6 }}
+          />
+          <Text style={styles.dateFilterText}>{dateLabel}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
@@ -414,6 +500,71 @@ export default function LiveStockScreen({ navigation }) {
           <Feather name="bell" size={16} color={showCriticalOnly ? '#fff' : '#ef4444'} />
         </TouchableOpacity>
       </View>
+
+      {Platform.OS === 'android' && showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            if (event.type === 'set' && date) {
+              setSelectedDate(date);
+            }
+            setShowDatePicker(false);
+          }}
+          maximumDate={new Date()}
+        />
+      )}
+
+      {Platform.OS === 'ios' && (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowDatePicker(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Tarih Seç</Text>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Feather name="x" size={24} color="#333" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.datePickerContainer}>
+                    <Text style={styles.dateLabel}>Tarih:</Text>
+                    <DateTimePicker
+                      value={iosTempDate}
+                      mode="date"
+                      display="default"
+                      onChange={(event, date) => {
+                        if (date) {
+                          setIosTempDate(date);
+                        }
+                      }}
+                      maximumDate={new Date()}
+                      style={{ width: 120 }}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.applyButton}
+                    onPress={() => {
+                      setSelectedDate(iosTempDate);
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.applyButtonText}>Uygula</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -549,6 +700,77 @@ const styles = StyleSheet.create({
     color: '#fecaca',
     fontSize: 11,
     marginTop: 2,
+  },
+  dateFilterContainer: {
+    paddingHorizontal: 14,
+    paddingTop: 8,
+  },
+  dateFilterButton: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  dateFilterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369a1',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  datePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dateLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  applyButton: {
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  applyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',

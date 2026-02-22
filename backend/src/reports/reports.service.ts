@@ -1181,8 +1181,14 @@ export class ReportsService {
     );
     
     // raptar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+
+    // Bugün döneminde, raptar bazlı sorgularda iki farklı tarihi kapsayıp
+    // dünkü ve bugünkü satışları birlikte toplamamak için tek iş günü tarihi kullan
+    if (period === 'today') {
+      endDateOnly = startDateOnly;
+    }
     
     console.log(`[getPerformance] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
 
