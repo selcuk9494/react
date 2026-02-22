@@ -1175,21 +1175,23 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    
+    // raptar için sadece tarih formatı kullan
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
 
-    // Totals
+    // Totals - raptar kullan
     const totalsQuery = `
       SELECT 
           COALESCE(SUM(o.otutar), 0) as total_sales,
           COUNT(DISTINCT o.adsno) as orders_count,
           COALESCE(SUM(o.iskonto), 0) as total_discount
       FROM ads_odeme o
-      WHERE o.raptar >= $1 AND o.raptar < $2 AND o.kasa = ANY($3)
+      WHERE o.raptar >= $1::date AND o.raptar <= $2::date AND o.kasa = ANY($3)
     `;
     const totalsRows = await this.db.executeQuery(pool, totalsQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
     const totals = totalsRows[0] || {
@@ -1201,20 +1203,20 @@ export class ReportsService {
       parseFloat(totals.total_sales) /
       Math.max(1, parseInt(totals.orders_count));
 
-    // Duration
+    // Duration - raptar kullan
     const durationQuery = `
       SELECT 
           a.adsno,
           MAX(a.acsaat) as acilis_saati,
           MAX(a.kapsaat) as kapanis_saati,
-          MAX(a.kaptar) as tarih
+          MAX(a.raptar) as tarih
       FROM ads_adisyon a
-      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
     const durations = await this.db.executeQuery(pool, durationQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
@@ -1240,7 +1242,7 @@ export class ReportsService {
     const avg_duration =
       durations.length > 0 ? totalMinutes / durations.length : 0;
 
-    // Waiters
+    // Waiters - raptar kullan
     const waitersQuery = `
       SELECT 
           a.garsonno,
@@ -1250,19 +1252,19 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = ANY($1)
-      WHERE a.kaptar >= $2 AND a.kaptar < $3 AND a.kasa = ANY($4)
+      WHERE a.raptar >= $2::date AND a.raptar <= $3::date AND a.kasa = ANY($4)
       GROUP BY a.garsonno
       ORDER BY total DESC
       LIMIT 10
     `;
     const waiters = await this.db.executeQuery(pool, waitersQuery, [
       kasa_nos,
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
-    // Products
+    // Products - raptar kullan
     const productsQuery = `
       SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
@@ -1270,18 +1272,18 @@ export class ReportsService {
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
-      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
       GROUP BY p.product_name, a.pluid
       ORDER BY total DESC
       LIMIT 10
     `;
     const products = await this.db.executeQuery(pool, productsQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
-    // Groups
+    // Groups - raptar kullan
     const groupsQuery = `
       SELECT 
           pg.adi as group_name,
@@ -1290,14 +1292,14 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN product_group pg ON p.tip = pg.id
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
       GROUP BY pg.adi
       ORDER BY total DESC
       LIMIT 10
     `;
     const groups = await this.db.executeQuery(pool, groupsQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
@@ -1306,7 +1308,7 @@ export class ReportsService {
 
     return {
       branch: { name: branchName, kasa_no, kasa_nos },
-      period: { start: dStart, end: dEnd },
+      period: { start: startDateOnly, end: endDateOnly },
       totals: {
         total_sales: parseFloat(totals.total_sales),
         orders_count: parseInt(totals.orders_count),
