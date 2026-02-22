@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, ScrollView, RefreshControl, Dimensions, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, ScrollView, RefreshControl, Dimensions, Platform, Modal, TouchableWithoutFeedback, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
@@ -112,6 +112,21 @@ export default function DashboardScreen({ navigation, route }) {
             }
         }
     }
+  };
+
+  const getWebBaseUrl = () => {
+    if (!API_URL) return '';
+    return API_URL.replace(/\/api\/?$/, '');
+  };
+
+  const openAdminPage = (path) => {
+    const baseUrl = getWebBaseUrl();
+    if (!baseUrl) return;
+    const url = `${baseUrl}${path}`;
+    Linking.openURL(url).catch((err) => {
+      console.error('Failed to open admin page', err);
+      Alert.alert('Hata', 'Admin sayfası açılamadı.');
+    });
   };
 
   const fetchUserProfile = async () => {
@@ -741,6 +756,41 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
             </View>
         </View>
+
+        {user?.is_admin && (
+        <View style={styles.reportsSection}>
+            <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIconBox, { backgroundColor: '#6366f1' }]}>
+                    <Feather name="shield" size={16} color="#fff" />
+                </View>
+                <Text style={styles.sectionTitle}>Admin</Text>
+            </View>
+
+            <View style={styles.gridContainer}>
+                <ReportCard 
+                    title="Admin — Kullanıcılar" 
+                    desc="Kullanıcı ekle / düzenle" 
+                    icon="users" 
+                    colors={['#4f46e5', '#7c3aed']} 
+                    onPress={() => openAdminPage('/admin/users')} 
+                />
+                <ReportCard 
+                    title="Admin — Şubeler" 
+                    desc="Şube bağlantıları" 
+                    icon="map-pin" 
+                    colors={['#0d9488', '#14b8a6']} 
+                    onPress={() => openAdminPage('/admin/branches')} 
+                />
+                <ReportCard 
+                    title="Admin — Tek Form" 
+                    desc="Kullanıcı + şube yönetimi" 
+                    icon="settings" 
+                    colors={['#f59e0b', '#ea580c']} 
+                    onPress={() => openAdminPage('/admin/manage')} 
+                />
+            </View>
+        </View>
+        )}
 
         <View style={{height: 40}} />
       </ScrollView>
