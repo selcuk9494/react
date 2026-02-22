@@ -25,13 +25,29 @@ export class ReportsService {
     return new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
   }
 
+  private getTurkeyTimeComponents() {
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+    
+    return {
+      year: turkeyTime.getUTCFullYear(),
+      month: turkeyTime.getUTCMonth(),
+      day: turkeyTime.getUTCDate(),
+      hour: turkeyTime.getUTCHours(),
+      minute: turkeyTime.getUTCMinutes(),
+      turkeyTime
+    };
+  }
+
   private getDateRange(
     period: string,
     closingHour: number,
     startDate?: string,
     endDate?: string,
   ) {
-    const now = this.getTurkeyTime();
+    const { year, month, day, hour, minute, turkeyTime } = this.getTurkeyTimeComponents();
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -39,25 +55,35 @@ export class ReportsService {
     let start: Date;
     let end: Date;
 
-    // İş günü sınırını (kapanış saatine göre) hesapla
-    const todayClosing = startOfDay(now);
-    todayClosing.setHours(safeClosing, 0, 0, 0);
+    // Şu anki Türkiye saatini dakika cinsinden hesapla
+    const currentTurkeyHourMinutes = hour * 60 + minute;
+    const closingHourMinutes = safeClosing * 60;
+
+    // Bugünkü kapanış saatini UTC olarak hesapla (Türkiye = UTC+3)
+    const todayClosingUTC = Date.UTC(year, month, day, safeClosing - 3, 0, 0, 0);
+    const todayClosing = new Date(todayClosingUTC);
+
+    console.log(`[getDateRange] period=${period}, closingHour=${safeClosing}`);
+    console.log(`[getDateRange] Turkey time: ${year}-${month + 1}-${day} ${hour}:${minute}`);
+    console.log(`[getDateRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`);
 
     if (period === 'today') {
-      if (now < todayClosing) {
+      if (currentTurkeyHourMinutes < closingHourMinutes) {
         // Kapanış saatinden önce: devam eden iş günü dündür
         end = todayClosing;
         start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        console.log(`[getDateRange] Before closing hour - using yesterday's business day`);
       } else {
         // Kapanıştan sonra: yeni iş günü bugün kapanışta başladı
         start = todayClosing;
         end = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
+        console.log(`[getDateRange] After closing hour - using today's business day`);
       }
     } else if (period === 'yesterday') {
       let todayStart: Date;
       let todayEnd: Date;
 
-      if (now < todayClosing) {
+      if (currentTurkeyHourMinutes < closingHourMinutes) {
         todayEnd = todayClosing;
         todayStart = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
       } else {
@@ -68,25 +94,46 @@ export class ReportsService {
       start = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
       end = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
     } else if (period === 'week') {
-      start = startOfWeek(now, { weekStartsOn: 1 });
-      end = endOfDay(now);
+      // Türkiye saatinde haftanın başını bul (Pazartesi)
+      const dayOfWeek = turkeyTime.getUTCDay(); // 0 = Pazar
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const weekStartUTC = Date.UTC(year, month, day - daysToMonday, 0 - 3, 0, 0, 0);
+      start = new Date(weekStartUTC);
+      // Bugünün sonuna kadar
+      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      end = new Date(todayEndUTC);
     } else if (period === 'last7days') {
-      start = startOfDay(subDays(now, 6));
-      end = endOfDay(now);
+      const startDayUTC = Date.UTC(year, month, day - 6, 0 - 3, 0, 0, 0);
+      start = new Date(startDayUTC);
+      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      end = new Date(todayEndUTC);
     } else if (period === 'month') {
-      start = startOfMonth(now);
-      end = endOfDay(now);
+      const monthStartUTC = Date.UTC(year, month, 1, 0 - 3, 0, 0, 0);
+      start = new Date(monthStartUTC);
+      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      end = new Date(todayEndUTC);
     } else if (period === 'lastmonth') {
-      const lastMonth = subDays(startOfMonth(now), 1);
-      start = startOfMonth(lastMonth);
-      end = endOfDay(lastMonth);
+      const lastMonthYear = month === 0 ? year - 1 : year;
+      const lastMonth = month === 0 ? 11 : month - 1;
+      const lastDayOfLastMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const lastMonthStartUTC = Date.UTC(lastMonthYear, lastMonth, 1, 0 - 3, 0, 0, 0);
+      start = new Date(lastMonthStartUTC);
+      const lastMonthEndUTC = Date.UTC(lastMonthYear, lastMonth, lastDayOfLastMonth, 23 - 3, 59, 59, 999);
+      end = new Date(lastMonthEndUTC);
     } else if (period === 'custom' && startDate && endDate) {
-      start = startOfDay(parseISO(startDate));
-      end = endOfDay(parseISO(endDate));
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+      start = new Date(Date.UTC(sYear, sMonth - 1, sDay, 0 - 3, 0, 0, 0));
+      end = new Date(Date.UTC(eYear, eMonth - 1, eDay, 23 - 3, 59, 59, 999));
     } else {
-      start = startOfDay(now);
-      end = endOfDay(now);
+      // Default: bugün
+      const todayStartUTC = Date.UTC(year, month, day, 0 - 3, 0, 0, 0);
+      start = new Date(todayStartUTC);
+      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      end = new Date(todayEndUTC);
     }
+
+    console.log(`[getDateRange] Result: start=${start.toISOString()}, end=${end.toISOString()}`);
 
     return { start, end };
   }
