@@ -5,22 +5,27 @@ import { DatabaseService } from '../database/database.service';
 export class StockService {
   constructor(private db: DatabaseService) {}
 
-  // Türkiye saatine ve şube kapanış saatine göre iş günü tarihi
   private async getCurrentBusinessDate(branchId: string): Promise<string> {
-    const mainPool = this.db.getMainPool();
-    const branchRes = await mainPool.query(
-      'SELECT closing_hour FROM branches WHERE id = $1',
-      [branchId],
-    );
-
     let closingHour = 6;
-    if (branchRes.rows.length > 0) {
-      const rawClosing = branchRes.rows[0].closing_hour;
-      if (typeof rawClosing === 'number' && Number.isFinite(rawClosing)) {
-        closingHour = rawClosing;
-      } else if (typeof rawClosing === 'string') {
-        const parsed = parseInt(rawClosing, 10);
-        if (Number.isFinite(parsed)) closingHour = parsed;
+    try {
+      const mainPool = this.db.getMainPool();
+      const branchRes = await mainPool.query(
+        'SELECT closing_hour FROM branches WHERE id = $1',
+        [branchId],
+      );
+      if (branchRes.rows.length > 0) {
+        const rawClosing = branchRes.rows[0].closing_hour;
+        if (typeof rawClosing === 'number' && Number.isFinite(rawClosing)) {
+          closingHour = rawClosing;
+        } else if (typeof rawClosing === 'string') {
+          const parsed = parseInt(rawClosing, 10);
+          if (Number.isFinite(parsed)) closingHour = parsed;
+        }
+      }
+    } catch (e: any) {
+      const code = e?.code;
+      if (code !== '42703') {
+        console.error('getCurrentBusinessDate error', e);
       }
     }
 
@@ -370,19 +375,21 @@ export class StockService {
       }
     });
 
-    // Açık siparişleri al - ads_acik tablosundan
     let openRes;
     try {
-      // ads_acik tablosundaki sütunları kontrol et ve uygun tarih sütununu bul
-      openRes = await pool.query(`
+      openRes = await pool.query(
+        `
         SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
           SUM(a.miktar) as total_qty
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
         WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
+          AND a.actar::date = $1::date
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
-      `);
+      `,
+        [date],
+      );
       console.log(
         `Open orders query returned ${openRes.rows.length} rows:`,
         openRes.rows.slice(0, 5),

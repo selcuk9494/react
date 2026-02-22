@@ -108,6 +108,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      const branchColCheck = async (col: string) => {
+        const r = await client.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_name='branches' AND column_name=$1`,
+          [col],
+        );
+        return r.rows.length > 0;
+      };
+      const hasClosingHour = await branchColCheck('closing_hour');
+      if (!hasClosingHour) {
+        await client.query(
+          `ALTER TABLE branches ADD COLUMN closing_hour INTEGER DEFAULT 6`,
+        );
+        await client.query(
+          `UPDATE branches SET closing_hour = 6 WHERE closing_hour IS NULL`,
+        );
+      }
       await client.query(`
         CREATE TABLE IF NOT EXISTS branch_kasas (
           id SERIAL PRIMARY KEY,
