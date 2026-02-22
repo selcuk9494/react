@@ -366,12 +366,6 @@ export class StockService {
       `,
         [dateToUse],
       );
-        SELECT d.product_name, d.quantity as initial_stock
-        FROM daily_stock d
-        WHERE d.entry_date = $1
-      `,
-        [date],
-      );
     } catch (err) {
       const code = (err as any)?.code;
       if (code === '42P01') {
@@ -426,7 +420,7 @@ export class StockService {
     }
 
     if (stockMap.size === 0) {
-      return { date, items: [], hasAnyStockEntry: false };
+      return { date: dateToUse, items: [], hasAnyStockEntry: false };
     }
 
     // Satış verilerini al - kapalı adisyonlardan (ads_adisyon) - raptar (rapor tarihi) kullanarak
