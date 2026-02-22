@@ -34,17 +34,21 @@ export default function DiscountPage() {
   }, [data, isLoading, error]);
 
   const formatCurrency = (val: number) => {
-    if (isNaN(val) || val === null || val === undefined) return '₺0,00';
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
+    if (val === null || val === undefined) return '₺0,00';
+    const n = Number(val) || 0;
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+    }).format(n);
   };
 
-  // Safe total calculation - backend returns order-based discounts
-  const totalDiscount = Array.isArray(data) && data.length > 0
-    ? data.reduce((acc: number, curr: any) => {
-        const discount = curr.iskonto || curr.total_discount || curr.discount || 0;
-        return acc + (parseFloat(discount) || 0);
-      }, 0)
-    : 0;
+  const totalDiscount =
+    Array.isArray(data) && data.length > 0
+      ? data.reduce((acc: number, curr: any) => {
+          const discount = Number(curr.iskonto ?? 0);
+          return acc + discount;
+        }, 0)
+      : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
@@ -91,39 +95,56 @@ export default function DiscountPage() {
         ) : (
           <>
             <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-8 text-center text-white shadow-2xl">
-              <p className="text-orange-100 text-sm font-bold mb-3">🏷️ {t('total_discount')}</p>
+              <p className="text-orange-100 text-sm font-bold mb-3">
+                🏷️ {t('total_discount')}
+              </p>
               <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalDiscount)}</h2>
               <p className="text-orange-200 text-sm mt-2">{data.length} {t('discount_records')}</p>
             </div>
 
             <div className="space-y-3">
               {data.map((item: any, index: number) => {
-                const discountAmount = item.iskonto || item.discount || 0;
-                const orderAmount = item.tutar || item.total || 0;
+                const iskonto = Number(item.iskonto ?? 0);
+                const netTutar = Number(item.net_tutar ?? 0);
+                const tutar =
+                  item.tutar !== undefined && item.tutar !== null
+                    ? Number(item.tutar)
+                    : netTutar + iskonto;
                 const orderNo = item.adsno || item.order_no || index + 1;
-                const customerName = item.customer_name || item.mustid || t('customer');
+                const customerName =
+                  item.customer_name || item.mustid || t('customer');
                 const orderDate = item.tarih || item.date || '';
 
                 return (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className="bg-white rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all cursor-pointer active:scale-98"
-                    onClick={() => router.push(`/reports/orders/detail?id=${orderNo}&type=closed`)}
+                    onClick={() =>
+                      router.push(
+                        `/reports/orders/detail?id=${orderNo}&type=closed`,
+                      )
+                    }
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white font-bold">
                         {orderNo}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-bold text-gray-900">{customerName}</h3>
+                        <h3 className="font-bold text-gray-900">
+                          {customerName}
+                        </h3>
                         <p className="text-xs text-gray-500">{orderDate}</p>
                         <p className="text-sm text-gray-600 mt-1">
-                          {t('order_total')}: {formatCurrency(parseFloat(orderAmount) || 0)}
+                          {t('order_total')}: {formatCurrency(tutar)}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-500 mb-1">{t('discount')}</p>
-                        <p className="text-lg font-bold text-red-600">{formatCurrency(parseFloat(discountAmount) || 0)}</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          {t('discount')}
+                        </p>
+                        <p className="text-lg font-bold text-red-600">
+                          {formatCurrency(iskonto)}
+                        </p>
                       </div>
                     </div>
                   </div>

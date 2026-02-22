@@ -120,6 +120,10 @@ export default function DashboardScreen({ navigation, route }) {
   };
 
   const openAdminPage = (path) => {
+    if (path === '/admin/branches') {
+      navigation.navigate('AdminBranches');
+      return;
+    }
     const baseUrl = getWebBaseUrl();
     if (!baseUrl) return;
     const url = `${baseUrl}${path}`;

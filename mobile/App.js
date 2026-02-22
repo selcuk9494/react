@@ -22,6 +22,7 @@ import CourierScreen from './screens/CourierScreen';
 import UnpayableScreen from './screens/UnpayableScreen';
 import StockEntryScreen from './screens/StockEntryScreen';
 import LiveStockScreen from './screens/LiveStockScreen';
+import AdminBranchesScreen from './screens/AdminBranchesScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -116,6 +117,11 @@ export default function App() {
           <Stack.Screen 
             name="OrderDetail" 
             component={OrderDetailScreen} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="AdminBranches" 
+            component={AdminBranchesScreen} 
             options={{ headerShown: false }} 
           />
           <Stack.Screen 

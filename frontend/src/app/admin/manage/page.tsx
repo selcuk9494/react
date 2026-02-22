@@ -88,7 +88,20 @@ export default function AdminManagePage() {
   };
 
   const addBranchRow = () => {
-    setFormBranches([...formBranches, { id: null, name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 }]);
+    setFormBranches([
+      ...formBranches,
+      {
+        id: null,
+        name: '',
+        db_host: '',
+        db_port: 5432,
+        db_name: '',
+        db_user: '',
+        db_password: '',
+        kasa_no: 1,
+        closing_hour: 6,
+      },
+    ]);
   };
 
   const updateBranchRow = (idx: number, patch: any) => {
@@ -137,9 +150,23 @@ export default function AdminManagePage() {
         }, { headers: { Authorization: `Bearer ${token}` } });
         const uid = created.data?.id;
         for (const b of formBranches) {
-          await axios.post(`${getApiUrl()}/admin/users/${uid}/branches`, {
-            name: b.name, db_host: b.db_host, db_port: b.db_port, db_name: b.db_name, db_user: b.db_user, db_password: b.db_password, kasa_no: b.kasa_no
-          }, { headers: { Authorization: `Bearer ${token}` } });
+          await axios.post(
+            `${getApiUrl()}/admin/users/${uid}/branches`,
+            {
+              name: b.name,
+              db_host: b.db_host,
+              db_port: b.db_port,
+              db_name: b.db_name,
+              db_user: b.db_user,
+              db_password: b.db_password,
+              kasa_no: b.kasa_no,
+              closing_hour:
+                typeof b.closing_hour === 'number' && Number.isFinite(b.closing_hour)
+                  ? b.closing_hour
+                  : 6,
+            },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
         }
       } else if (selectedUser) {
         await axios.put(`${getApiUrl()}/admin/users/${selectedUser.id}`, {
@@ -155,9 +182,23 @@ export default function AdminManagePage() {
         }
         for (const b of formBranches) {
           if (b.id) {
-            await axios.put(`${getApiUrl()}/admin/users/${selectedUser.id}/branches/${b.id}`, {
-              name: b.name, db_host: b.db_host, db_port: b.db_port, db_name: b.db_name, db_user: b.db_user, db_password: b.db_password, kasa_no: b.kasa_no
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.put(
+              `${getApiUrl()}/admin/users/${selectedUser.id}/branches/${b.id}`,
+              {
+                name: b.name,
+                db_host: b.db_host,
+                db_port: b.db_port,
+                db_name: b.db_name,
+                db_user: b.db_user,
+                db_password: b.db_password,
+                kasa_no: b.kasa_no,
+                closing_hour:
+                  typeof b.closing_hour === 'number' && Number.isFinite(b.closing_hour)
+                    ? b.closing_hour
+                    : 6,
+              },
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
           } else {
             await axios.post(`${getApiUrl()}/admin/users/${selectedUser.id}/branches`, {
               name: b.name, db_host: b.db_host, db_port: b.db_port, db_name: b.db_name, db_user: b.db_user, db_password: b.db_password, kasa_no: b.kasa_no
@@ -251,7 +292,30 @@ export default function AdminManagePage() {
                   <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Password" type="password" value={b.db_password} onChange={e => updateBranchRow(idx, { db_password: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                  <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={b.kasa_no || 1} onChange={e => updateBranchRow(idx, { kasa_no: parseInt(e.target.value || '1', 10) })} />
+                  <input
+                    className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                    placeholder="Kasa No"
+                    type="number"
+                    value={b.kasa_no || 1}
+                    onChange={e =>
+                      updateBranchRow(idx, {
+                        kasa_no: parseInt(e.target.value || '1', 10),
+                      })
+                    }
+                  />
+                  <input
+                    className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                    placeholder="Kapanış Saati (Saat)"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={typeof b.closing_hour === 'number' ? b.closing_hour : 6}
+                    onChange={e =>
+                      updateBranchRow(idx, {
+                        closing_hour: parseInt(e.target.value || '6', 10),
+                      })
+                    }
+                  />
                 </div>
                 <div className="flex justify-end">
                   <button className="px-3 py-1 rounded bg-red-100" onClick={() => removeBranchRow(idx)}>Satırı Sil</button>

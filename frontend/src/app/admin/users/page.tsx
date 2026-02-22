@@ -60,9 +60,27 @@ export default function AdminUsersPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ email: string; is_admin: boolean; expiry_date?: string; password?: string }>({ email: '', is_admin: false });
   const [addingBranchFor, setAddingBranchFor] = useState<string | null>(null);
-  const [branchForm, setBranchForm] = useState({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    db_host: '',
+    db_port: 5432,
+    db_name: '',
+    db_user: '',
+    db_password: '',
+    kasa_no: 1,
+    closing_hour: 6,
+  });
   const [editingBranchId, setEditingBranchId] = useState<number | null>(null);
-  const [editingBranchForm, setEditingBranchForm] = useState({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
+  const [editingBranchForm, setEditingBranchForm] = useState({
+    name: '',
+    db_host: '',
+    db_port: 5432,
+    db_name: '',
+    db_user: '',
+    db_password: '',
+    kasa_no: 1,
+    closing_hour: 6,
+  });
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState<number | null>(null);
   const [savingSelectedBranchUserId, setSavingSelectedBranchUserId] = useState<string | null>(null);
@@ -171,7 +189,16 @@ export default function AdminUsersPage() {
       headers: { Authorization: `Bearer ${token}` }
     });
     setAddingBranchFor(null);
-    setBranchForm({ name: '', db_host: '', db_port: 5432, db_name: '', db_user: '', db_password: '', kasa_no: 1 });
+    setBranchForm({
+      name: '',
+      db_host: '',
+      db_port: 5432,
+      db_name: '',
+      db_user: '',
+      db_password: '',
+      kasa_no: 1,
+      closing_hour: 6,
+    });
     await refresh();
   };
 
@@ -368,6 +395,20 @@ export default function AdminUsersPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
                               <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={editingBranchForm.kasa_no} onChange={e => setEditingBranchForm({ ...editingBranchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
+                              <input
+                                className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                                placeholder="Kapanış Saati (Saat)"
+                                type="number"
+                                min={0}
+                                max={23}
+                                value={editingBranchForm.closing_hour}
+                                onChange={e =>
+                                  setEditingBranchForm({
+                                    ...editingBranchForm,
+                                    closing_hour: parseInt(e.target.value || '6', 10),
+                                  })
+                                }
+                              />
                             </div>
                             <div className="flex gap-2">
                               <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleUpdateBranch(u.id)}>Kaydet</button>
@@ -381,7 +422,28 @@ export default function AdminUsersPage() {
                               <div className="text-xs text-gray-700">{b.db_host}:{b.db_port} / {b.db_name} ({b.db_user})</div>
                             </div>
                             <div className="flex gap-2 items-center">
-                              <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => { setEditingBranchId(b.id); setEditingBranchForm({ name: b.name, db_host: b.db_host, db_port: b.db_port, db_name: b.db_name, db_user: b.db_user, db_password: b.db_password, kasa_no: b.kasa_no || 1 }); }}>Düzenle</button>
+                              <button
+                                className="px-3 py-1 rounded bg-indigo-600 text-white"
+                                onClick={() => {
+                                  setEditingBranchId(b.id);
+                                  setEditingBranchForm({
+                                    name: b.name,
+                                    db_host: b.db_host,
+                                    db_port: b.db_port,
+                                    db_name: b.db_name,
+                                    db_user: b.db_user,
+                                    db_password: b.db_password,
+                                    kasa_no: b.kasa_no || 1,
+                                    closing_hour:
+                                      typeof b.closing_hour === 'number' &&
+                                      Number.isFinite(b.closing_hour)
+                                        ? b.closing_hour
+                                        : 6,
+                                  });
+                                }}
+                              >
+                                Düzenle
+                              </button>
                               {typeof u.selected_branch === 'number' && (u.branches || []).indexOf(b) === u.selected_branch ? (
                                 <span className="px-3 py-1 rounded bg-emerald-100 text-emerald-700 text-xs font-bold">Seçili</span>
                               ) : (
@@ -443,6 +505,20 @@ export default function AdminUsersPage() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
                         <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={branchForm.kasa_no} onChange={e => setBranchForm({ ...branchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
+                        <input
+                          className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                          placeholder="Kapanış Saati (Saat)"
+                          type="number"
+                          min={0}
+                          max={23}
+                          value={branchForm.closing_hour}
+                          onChange={e =>
+                            setBranchForm({
+                              ...branchForm,
+                              closing_hour: parseInt(e.target.value || '6', 10),
+                            })
+                          }
+                        />
                       </div>
                       <div className="flex gap-2">
                         <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleAddBranch(u.id)}>Kaydet</button>

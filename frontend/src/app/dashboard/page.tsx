@@ -118,14 +118,15 @@ export default function Dashboard() {
   const [editingBranch, setEditingBranch] = useState<any>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [branchForm, setBranchForm] = useState({
-      name: '',
-      db_host: '',
-      db_port: 5432,
-      db_name: 'fasrest',
-      db_user: 'begum',
-      db_password: 'KORDO',
-      kasa_no: 1,
-      kasalar: [] as number[]
+    name: '',
+    db_host: '',
+    db_port: 5432,
+    db_name: 'fasrest',
+    db_user: 'begum',
+    db_password: 'KORDO',
+    kasa_no: 1,
+    kasalar: [] as number[],
+    closing_hour: 6,
   });
 
   // Helper Functions from reference
@@ -1306,7 +1307,12 @@ export default function Dashboard() {
                                                 db_user: branch.db_user,
                                                 db_password: branch.db_password,
                                                 kasa_no: branch.kasa_no,
-                                                kasalar: (branch.kasalar || []).filter((k: any) => typeof k === 'number')
+                                                kasalar: (branch.kasalar || []).filter((k: any) => typeof k === 'number'),
+                                                closing_hour:
+                                                  typeof branch.closing_hour === 'number' &&
+                                                  Number.isFinite(branch.closing_hour)
+                                                    ? branch.closing_hour
+                                                    : 6,
                                             });
                                         }}
                                         className="p-2 bg-white border border-gray-200 rounded-lg text-indigo-600 hover:bg-indigo-50 transition"
@@ -1333,7 +1339,8 @@ export default function Dashboard() {
                                         db_user: 'begum',
                                         db_password: 'KORDO',
                                         kasa_no: 1,
-                                        kasalar: []
+                                        kasalar: [],
+                                        closing_hour: 6,
                                     });
                                 }}
                                 className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
@@ -1384,7 +1391,7 @@ export default function Dashboard() {
                                     required
                                     className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                     value={branchForm.db_name}
-                                    onChange={(e) => setBranchForm({...branchForm, db_name: e.target.value})}
+                                    onChange={(e) => setBranchForm({ ...branchForm, db_name: e.target.value })}
                                 />
                             </div>
                             <div>
@@ -1394,9 +1401,32 @@ export default function Dashboard() {
                                     required
                                     className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                                     value={branchForm.kasa_no}
-                                    onChange={(e) => setBranchForm({...branchForm, kasa_no: parseInt(e.target.value)})}
+                                    onChange={(e) =>
+                                      setBranchForm({
+                                        ...branchForm,
+                                        kasa_no: parseInt(e.target.value || '1', 10),
+                                      })
+                                    }
                                 />
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Kapanış Saati (Saat)
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                              min={0}
+                              max={23}
+                              value={branchForm.closing_hour}
+                              onChange={(e) =>
+                                setBranchForm({
+                                  ...branchForm,
+                                  closing_hour: parseInt(e.target.value || '6', 10),
+                                })
+                              }
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Ek Kasa Numaraları</label>

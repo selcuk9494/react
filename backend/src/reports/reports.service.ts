@@ -18,13 +18,20 @@ export class ReportsService {
     private cache: CacheService,
   ) {}
 
+  private getTurkeyTime() {
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    return new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+  }
+
   private getDateRange(
     period: string,
     closingHour: number,
     startDate?: string,
     endDate?: string,
   ) {
-    const now = new Date();
+    const now = this.getTurkeyTime();
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -1551,8 +1558,9 @@ export class ReportsService {
         MAX(a.acsaat) as acilis_saati,
         MAX(COALESCE(a.masano, 0)) as masano,
         MAX(COALESCE(a.masano, 0)) as masa_no,
-        SUM(o.otutar) as tutar,
+        SUM(o.otutar) as net_tutar,
         SUM(o.iskonto) as iskonto,
+        SUM(o.otutar + o.iskonto) as tutar,
         MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name,
         MAX(o.mustid) as mustid,
         MAX(p.adi) as garson_adi,
