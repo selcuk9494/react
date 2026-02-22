@@ -626,6 +626,25 @@ export default function Dashboard() {
       </div>
 
       <main className="px-4 py-4 space-y-5 overflow-hidden max-w-full" style={{ paddingTop: user?.days_left !== undefined ? '230px' : '195px' }}>
+        {/* Connection Error Banner */}
+        {isOffline && !loading && (
+          <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">{lang === 'tr' ? 'Şube Bağlantısı Kurulamadı' : 'Branch Connection Failed'}</h3>
+              <p className="text-red-100 text-sm">
+                {lang === 'tr' 
+                  ? 'Şube veritabanına bağlanılamıyor. Şube kapalı olabilir veya internet bağlantınızı kontrol edin.' 
+                  : 'Cannot connect to branch database. Branch may be closed or check your internet connection.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Main Summary Card - Premium Design */}
         <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-[28px] p-6 text-white shadow-2xl shadow-emerald-500/40 text-center relative overflow-hidden group">
           {/* Animated Background Elements */}
@@ -635,8 +654,10 @@ export default function Dashboard() {
           
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-1.5 rounded-full mb-3 border border-white/20">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              <span className="text-white/90 text-xs font-semibold uppercase tracking-wider">{t('range_label_total')}</span>
+              <span className={clsx("w-2 h-2 rounded-full", loading ? "bg-white animate-ping" : "bg-white animate-pulse")}></span>
+              <span className="text-white/90 text-xs font-semibold uppercase tracking-wider">
+                {loading ? (lang === 'tr' ? 'Güncelleniyor...' : 'Updating...') : t('range_label_total')}
+              </span>
             </div>
             {(() => {
               const base = (data?.kapali_adisyon_toplam || 0) + (period === 'today' ? (data?.acik_adisyon_toplam || 0) : 0);
@@ -649,8 +670,8 @@ export default function Dashboard() {
                   <div className="w-full">
                     {/* Auto-fit amount */}
                     <AutoFitText
-                      text={formatCurrency(grand)}
-                      className="font-black mb-2 tracking-tight drop-shadow-lg transition-all"
+                      text={loading ? '...' : formatCurrency(grand)}
+                      className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", loading && "opacity-50")}
                       maxPx={36}
                       minPx={22}
                     />
