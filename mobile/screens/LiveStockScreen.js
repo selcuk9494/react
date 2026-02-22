@@ -39,6 +39,7 @@ export default function LiveStockScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [sortBy, setSortBy] = useState('sales');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
@@ -84,8 +85,10 @@ export default function LiveStockScreen({ navigation }) {
       
       setData(response.data.items || []);
       setLastUpdate(new Date());
+      setConnectionError(false);
     } catch (error) {
       console.error(error);
+      setConnectionError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -254,6 +257,13 @@ export default function LiveStockScreen({ navigation }) {
           </Text>
         )}
       </View>
+
+      {connectionError && (
+        <View style={styles.offlineAlert}>
+          <Feather name="alert-triangle" size={16} color="#b91c1c" />
+          <Text style={styles.offlineAlertText}>Bağlantı kurulamadı. Şubeye erişilemiyor.</Text>
+        </View>
+      )}
 
       {/* Critical Alert */}
       {stats.criticalCount > 0 && (
@@ -445,6 +455,21 @@ const styles = StyleSheet.create({
   lastUpdateText: {
     fontSize: 11,
     color: '#64748b',
+  },
+  offlineAlert: {
+    marginHorizontal: 14,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#fef2f2',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  offlineAlertText: {
+    marginLeft: 8,
+    color: '#b91c1c',
+    fontSize: 12,
   },
   alertBanner: {
     marginHorizontal: 14,

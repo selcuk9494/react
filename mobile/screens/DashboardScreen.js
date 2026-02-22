@@ -429,7 +429,7 @@ export default function DashboardScreen({ navigation, route }) {
         {isOffline && !isLoadingData && (
           <View style={styles.offlineAlert}>
             <Feather name="alert-triangle" size={16} color="#b91c1c" />
-            <Text style={styles.offlineAlertText}>Veri alınamadı. Şube kapalı olabilir.</Text>
+            <Text style={styles.offlineAlertText}>Bağlantı kurulamadı. Şubeye erişilemiyor.</Text>
           </View>
         )}
         {/* Main Summary Card */}
