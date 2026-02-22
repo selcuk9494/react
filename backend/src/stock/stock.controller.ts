@@ -17,8 +17,11 @@ export class StockController {
 
   @UseGuards(JwtAuthGuard)
   @Get('live')
-  async getLiveStock(@Query('branchId') branchId: string) {
-    return this.stockService.getLiveStock(branchId);
+  async getLiveStock(
+    @Query('branchId') branchId: string,
+    @Query('date') date?: string,
+  ) {
+    return this.stockService.getLiveStock(branchId, date);
   }
 
   @UseGuards(JwtAuthGuard)
