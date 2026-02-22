@@ -569,7 +569,7 @@ export class StockService {
     const hasAnyStockEntry = result.some((item) => item.hasStockEntry);
 
     return {
-      date,
+      date: dateToUse,
       items: result,
       hasAnyStockEntry,
     };
