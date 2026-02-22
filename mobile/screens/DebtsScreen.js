@@ -94,9 +94,15 @@ export default function DebtsScreen({ navigation }) {
          </View>
          
          <View style={styles.summaryContent}>
-            <Text style={styles.summaryLabel}>TOPLAM BORÇ</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(totalDebt)}</Text>
-            <Text style={styles.summarySub}>{filteredData.length} Kayıt</Text>
+            {loading ? (
+              <View style={styles.summarySkeleton} />
+            ) : (
+              <>
+                <Text style={styles.summaryLabel}>TOPLAM BORÇ</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totalDebt)}</Text>
+                <Text style={styles.summarySub}>{`${filteredData.length} Kayıt`}</Text>
+              </>
+            )}
          </View>
       </View>
 
@@ -176,6 +182,12 @@ const styles = StyleSheet.create({
   summaryContent: {
     alignItems: 'center',
     paddingBottom: 10,
+  },
+  summarySkeleton: {
+    width: 160,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(254, 243, 199, 0.6)',
   },
   summaryLabel: {
     color: '#fef3c7',

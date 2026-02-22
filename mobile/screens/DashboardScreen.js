@@ -78,6 +78,7 @@ export default function DashboardScreen({ navigation, route }) {
   const [period, setPeriod] = useState('today');
   const [branchModalVisible, setBranchModalVisible] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const fetchControllerRef = useRef(null);
 
   // Custom Date States
@@ -198,6 +199,7 @@ export default function DashboardScreen({ navigation, route }) {
         // Only update if this request wasn't cancelled
         if (!controller.signal.aborted) {
           setDashboardData(response.data);
+          setIsOffline(false);
         }
     } catch (error) {
         // Ignore abort errors
@@ -205,6 +207,10 @@ export default function DashboardScreen({ navigation, route }) {
           return;
         }
         console.error("Dashboard Data Error:", error);
+        if (!controller.signal.aborted) {
+          setIsOffline(true);
+          setDashboardData(null);
+        }
     } finally {
         if (!controller.signal.aborted) {
           setIsLoadingData(false);
@@ -369,9 +375,20 @@ export default function DashboardScreen({ navigation, route }) {
                 </TouchableOpacity>
             )}
             
-            <View style={styles.statusBadge}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Online</Text>
+            <View style={[
+              styles.statusBadge,
+              isOffline && styles.statusBadgeOffline
+            ]}>
+                <View style={[
+                  styles.statusDot,
+                  isOffline && styles.statusDotOffline
+                ]} />
+                <Text style={[
+                  styles.statusText,
+                  isOffline && styles.statusTextOffline
+                ]}>
+                  {isOffline ? 'Offline' : 'Online'}
+                </Text>
             </View>
         </View>
 
@@ -409,6 +426,12 @@ export default function DashboardScreen({ navigation, route }) {
         contentContainerStyle={styles.contentContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {isOffline && !isLoadingData && (
+          <View style={styles.offlineAlert}>
+            <Feather name="alert-triangle" size={16} color="#b91c1c" />
+            <Text style={styles.offlineAlertText}>Veri alınamadı. Şube kapalı olabilir.</Text>
+          </View>
+        )}
         {/* Main Summary Card */}
         <LinearGradient
             colors={['#10b981', '#14b8a6', '#0891b2']}
@@ -1152,6 +1175,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#059669',
+  },
+  statusBadgeOffline: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  statusDotOffline: {
+    backgroundColor: '#ef4444',
+  },
+  statusTextOffline: {
+    color: '#b91c1c',
+  },
+  offlineAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+    marginBottom: 12,
+  },
+  offlineAlertText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#b91c1c',
+    fontWeight: '500',
   },
   dateFilterScroll: {
     paddingLeft: 16,

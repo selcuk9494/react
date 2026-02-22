@@ -33,7 +33,7 @@ export default function CancelsScreen({ navigation }) {
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        url = `${API_URL}/reports/cancelled-items?period=custom&startDate=${startStr}&endDate=${endStr}`;
+        url = `${API_URL}/reports/cancelled-items?period=custom&start_date=${startStr}&end_date=${endStr}`;
       }
 
       const response = await axios.get(url, {
@@ -129,8 +129,14 @@ export default function CancelsScreen({ navigation }) {
          </View>
          
          <View style={styles.summaryContent}>
-            <Text style={styles.summaryValue}>{totalCancelled}</Text>
-            <Text style={styles.summaryLabel}>TOPLAM İŞLEM</Text>
+            {loading ? (
+              <View style={styles.summarySkeleton} />
+            ) : (
+              <>
+                <Text style={styles.summaryValue}>{totalCancelled}</Text>
+                <Text style={styles.summaryLabel}>TOPLAM İŞLEM</Text>
+              </>
+            )}
          </View>
       </View>
 
@@ -246,6 +252,12 @@ const styles = StyleSheet.create({
   summaryContent: {
     alignItems: 'center',
     paddingBottom: 10,
+  },
+  summarySkeleton: {
+    width: 120,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(248, 250, 252, 0.4)',
   },
   summaryValue: {
     color: '#fff',

@@ -34,7 +34,7 @@ export default function CourierScreen({ navigation }) {
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        url = `${API_URL}/reports/courier-tracking?period=custom&startDate=${startStr}&endDate=${endStr}`;
+        url = `${API_URL}/reports/courier-tracking?period=custom&start_date=${startStr}&end_date=${endStr}`;
       }
 
       const response = await axios.get(url, {

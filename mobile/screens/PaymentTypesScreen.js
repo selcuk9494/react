@@ -109,9 +109,15 @@ export default function PaymentTypesScreen({ navigation }) {
          </View>
          
          <View style={styles.summaryContent}>
-            <Text style={styles.summaryLabel}>TOPLAM ÖDEME</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
-            <Text style={styles.summarySub}>{totalCount} Adet İşlem</Text>
+            {loading ? (
+              <View style={styles.summarySkeleton} />
+            ) : (
+              <>
+                <Text style={styles.summaryLabel}>TOPLAM ÖDEME</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
+                <Text style={styles.summarySub}>{`${totalCount} Adet İşlem`}</Text>
+              </>
+            )}
          </View>
       </View>
 
@@ -207,6 +213,12 @@ const styles = StyleSheet.create({
   summaryContent: {
     alignItems: 'center',
     paddingBottom: 10,
+  },
+  summarySkeleton: {
+    width: 180,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(209, 250, 229, 0.6)',
   },
   summaryLabel: {
     color: '#d1fae5',

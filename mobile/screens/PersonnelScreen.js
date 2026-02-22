@@ -30,7 +30,7 @@ export default function PersonnelScreen({ navigation }) {
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        url = `${API_URL}/reports/performance?period=custom&startDate=${startStr}&endDate=${endStr}`;
+        url = `${API_URL}/reports/performance?period=custom&start_date=${startStr}&end_date=${endStr}`;
       }
 
       const response = await axios.get(url, {
@@ -94,8 +94,14 @@ export default function PersonnelScreen({ navigation }) {
          </View>
          
          <View style={styles.summaryContent}>
-            <Text style={styles.summaryLabel}>TOPLAM SATIŞ</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(totalSales)}</Text>
+            {loading ? (
+              <View style={styles.summarySkeleton} />
+            ) : (
+              <>
+                <Text style={styles.summaryLabel}>TOPLAM SATIŞ</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totalSales)}</Text>
+              </>
+            )}
          </View>
       </View>
 
@@ -166,6 +172,12 @@ const styles = StyleSheet.create({
   summaryContent: {
     alignItems: 'center',
     paddingBottom: 10,
+  },
+  summarySkeleton: {
+    width: 140,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: 'rgba(129, 140, 248, 0.35)',
   },
   summaryLabel: {
     color: '#ddd6fe',

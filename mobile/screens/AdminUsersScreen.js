@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const AVAILABLE_REPORTS = [
   { id: 'open_orders', label: 'Açık Adisyon' },
@@ -49,6 +51,35 @@ export default function AdminUsersScreen({ navigation }) {
     is_admin: false,
     expiry_date: '',
   });
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+  const [expiryPickerDate, setExpiryPickerDate] = useState(new Date());
+
+  const [allBranches, setAllBranches] = useState([]);
+  const [addingBranchFor, setAddingBranchFor] = useState(null);
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    db_host: '',
+    db_port: 5432,
+    db_name: '',
+    db_user: '',
+    db_password: '',
+    kasa_no: 1,
+    closing_hour: 6,
+  });
+  const [editingBranchId, setEditingBranchId] = useState(null);
+  const [editingBranchForm, setEditingBranchForm] = useState({
+    name: '',
+    db_host: '',
+    db_port: 5432,
+    db_name: '',
+    db_user: '',
+    db_password: '',
+    kasa_no: 1,
+    closing_hour: 6,
+  });
+  const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState(null);
+  const [assigningFor, setAssigningFor] = useState(null);
+  const [assignBranchId, setAssignBranchId] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -71,6 +102,10 @@ export default function AdminUsersScreen({ navigation }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data || []);
+      const br = await axios.get(`${API_URL}/admin/branches`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setAllBranches(br.data || []);
     } catch (e) {
       console.error(e);
       Alert.alert('Hata', 'Kullanıcı listesi alınamadı.');
@@ -186,6 +221,132 @@ export default function AdminUsersScreen({ navigation }) {
         ? prev.allowed_reports.filter((r) => r !== id)
         : [...prev.allowed_reports, id],
     }));
+  };
+
+  const formatDateYMD = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleChangeExpiryDate = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowExpiryPicker(false);
+    }
+    if (selectedDate) {
+      setExpiryPickerDate(selectedDate);
+      const ymd = formatDateYMD(selectedDate);
+      setEditForm((prev) => ({
+        ...prev,
+        expiry_date: ymd,
+      }));
+    }
+  };
+
+  const handleAddBranch = async (userId) => {
+    try {
+      if (
+        !branchForm.name ||
+        !branchForm.db_host ||
+        !branchForm.db_name ||
+        !branchForm.db_user ||
+        !branchForm.db_password
+      ) {
+        Alert.alert('Uyarı', 'Şube alanlarının tümünü doldurun.');
+        return;
+      }
+      const token = await getToken();
+      await axios.post(
+        `${API_URL}/admin/users/${userId}/branches`,
+        branchForm,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      setAddingBranchFor(null);
+      setBranchForm({
+        name: '',
+        db_host: '',
+        db_port: 5432,
+        db_name: '',
+        db_user: '',
+        db_password: '',
+        kasa_no: 1,
+        closing_hour: 6,
+      });
+      await fetchUsers();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Hata', 'Şube eklenemedi.');
+    }
+  };
+
+  const handleUpdateBranch = async (userId) => {
+    try {
+      if (editingBranchId === null) return;
+      if (
+        !editingBranchForm.name ||
+        !editingBranchForm.db_host ||
+        !editingBranchForm.db_name ||
+        !editingBranchForm.db_user ||
+        !editingBranchForm.db_password
+      ) {
+        Alert.alert('Uyarı', 'Şube alanlarının tümünü doldurun.');
+        return;
+      }
+      const token = await getToken();
+      await axios.put(
+        `${API_URL}/admin/users/${userId}/branches/${editingBranchId}`,
+        editingBranchForm,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      setEditingBranchId(null);
+      await fetchUsers();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Hata', 'Şube güncellenemedi.');
+    }
+  };
+
+  const handleDeleteBranch = async (userId, branchId) => {
+    try {
+      const token = await getToken();
+      await axios.delete(
+        `${API_URL}/admin/users/${userId}/branches/${branchId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      setDeleteConfirmBranchId(null);
+      await fetchUsers();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Hata', 'Şube silinemedi.');
+    }
+  };
+
+  const handleAssignBranch = async (userId) => {
+    try {
+      if (!assignBranchId) {
+        Alert.alert('Uyarı', 'Atanacak şubeyi seçin.');
+        return;
+      }
+      const token = await getToken();
+      await axios.post(
+        `${API_URL}/admin/users/${userId}/branches/assign`,
+        { branch_id: assignBranchId },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setAssigningFor(null);
+      setAssignBranchId(null);
+      await fetchUsers();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Hata', 'Şube atanamadı.');
+    }
   };
 
   return (
@@ -328,6 +489,14 @@ export default function AdminUsersScreen({ navigation }) {
                         ? new Date(u.expiry_date).toLocaleDateString('tr-TR')
                         : '-'}
                     </Text>
+                    {(u.branches || []).length > 0 && (
+                      <Text style={styles.userMeta}>
+                        Şubeler:{' '}
+                        {(u.branches || [])
+                          .map((b) => b.name)
+                          .join(', ')}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.userActions}>
                     <TouchableOpacity
@@ -374,12 +543,31 @@ export default function AdminUsersScreen({ navigation }) {
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Bitiş Tarihi (YYYY-MM-DD)"
-                      value={editForm.expiry_date}
-                      onChangeText={(v) =>
-                        setEditForm({ ...editForm, expiry_date: v })
+                      placeholder="Bitiş Tarihi (GG.AA.YYYY)"
+                      value={
+                        editForm.expiry_date
+                          ? new Date(
+                              editForm.expiry_date,
+                            ).toLocaleDateString('tr-TR')
+                          : ''
                       }
+                      editable={false}
                     />
+                    <TouchableOpacity
+                      style={styles.dateOverlay}
+                      onPress={() => {
+                        const baseDate = editForm.expiry_date
+                          ? new Date(editForm.expiry_date)
+                          : new Date();
+                        setExpiryPickerDate(baseDate);
+                        setShowExpiryPicker(true);
+                      }}
+                    >
+                      <Feather name="calendar" size={16} color="#6b7280" />
+                      <Text style={styles.dateOverlayText}>
+                        Tarih seçmek için dokun
+                      </Text>
+                    </TouchableOpacity>
                     <View style={styles.switchRow}>
                       <TouchableOpacity
                         style={[
@@ -413,6 +601,422 @@ export default function AdminUsersScreen({ navigation }) {
                       >
                         <Text style={styles.saveButtonText}>Kaydet</Text>
                       </TouchableOpacity>
+                    </View>
+
+                    {showExpiryPicker && (
+                      <DateTimePicker
+                        value={expiryPickerDate}
+                        mode="date"
+                        display="default"
+                        onChange={handleChangeExpiryDate}
+                      />
+                    )}
+
+                    <View style={styles.sectionBranches}>
+                      <Text style={styles.sectionLabel}>Şubeler</Text>
+                      {(u.branches || []).map((b) => (
+                        <View key={b.id} style={styles.branchRow}>
+                          {editingBranchId === b.id ? (
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Şube Adı"
+                                value={editingBranchForm.name}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    name: v,
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="DB Host"
+                                value={editingBranchForm.db_host}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    db_host: v,
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="DB Port"
+                                keyboardType="number-pad"
+                                value={String(editingBranchForm.db_port)}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    db_port: parseInt(v || '5432', 10),
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="DB Adı"
+                                value={editingBranchForm.db_name}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    db_name: v,
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="DB Kullanıcı"
+                                value={editingBranchForm.db_user}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    db_user: v,
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="DB Şifre"
+                                secureTextEntry
+                                value={editingBranchForm.db_password}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    db_password: v,
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Kasa No"
+                                keyboardType="number-pad"
+                                value={String(editingBranchForm.kasa_no || 1)}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    kasa_no: parseInt(v || '1', 10),
+                                  }))
+                                }
+                              />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Kapanış Saati (0-23)"
+                                keyboardType="number-pad"
+                                value={String(
+                                  editingBranchForm.closing_hour ?? 6,
+                                )}
+                                onChangeText={(v) =>
+                                  setEditingBranchForm((prev) => ({
+                                    ...prev,
+                                    closing_hour: parseInt(v || '6', 10),
+                                  }))
+                                }
+                              />
+                              <View style={styles.branchActionsRow}>
+                                <TouchableOpacity
+                                  style={styles.saveButton}
+                                  onPress={() => handleUpdateBranch(u.id)}
+                                >
+                                  <Text style={styles.saveButtonText}>
+                                    Şubeyi Kaydet
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.cancelButton}
+                                  onPress={() => setEditingBranchId(null)}
+                                >
+                                  <Text style={styles.cancelButtonText}>
+                                    İptal
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.branchName}>{b.name}</Text>
+                                <Text style={styles.branchMeta}>
+                                  {b.db_host}:{b.db_port} / {b.db_name} (
+                                  {b.db_user})
+                                </Text>
+                              </View>
+                              <View style={styles.branchButtons}>
+                                <TouchableOpacity
+                                  style={styles.iconButton}
+                                  onPress={() => {
+                                    setEditingBranchId(b.id);
+                                    setEditingBranchForm({
+                                      name: b.name,
+                                      db_host: b.db_host,
+                                      db_port: b.db_port,
+                                      db_name: b.db_name,
+                                      db_user: b.db_user,
+                                      db_password: b.db_password,
+                                      kasa_no: b.kasa_no || 1,
+                                      closing_hour:
+                                        typeof b.closing_hour === 'number' &&
+                                        Number.isFinite(b.closing_hour)
+                                          ? b.closing_hour
+                                          : 6,
+                                    });
+                                  }}
+                                >
+                                  <Feather
+                                    name="edit-2"
+                                    size={16}
+                                    color="#4b5563"
+                                  />
+                                </TouchableOpacity>
+                                {deleteConfirmBranchId === b.id ? (
+                                  <>
+                                    <TouchableOpacity
+                                      style={styles.iconButton}
+                                      onPress={() =>
+                                        handleDeleteBranch(u.id, b.id)
+                                      }
+                                    >
+                                      <Feather
+                                        name="check"
+                                        size={16}
+                                        color="#ef4444"
+                                      />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={styles.iconButton}
+                                      onPress={() =>
+                                        setDeleteConfirmBranchId(null)
+                                      }
+                                    >
+                                      <Feather
+                                        name="x"
+                                        size={16}
+                                        color="#6b7280"
+                                      />
+                                    </TouchableOpacity>
+                                  </>
+                                ) : (
+                                  <TouchableOpacity
+                                    style={styles.iconButton}
+                                    onPress={() =>
+                                      setDeleteConfirmBranchId(b.id)
+                                    }
+                                  >
+                                    <Feather
+                                      name="trash-2"
+                                      size={16}
+                                      color="#ef4444"
+                                    />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </>
+                          )}
+                        </View>
+                      ))}
+
+                      {assigningFor === u.id && (
+                        <View style={styles.assignContainer}>
+                          <Text style={styles.sectionLabel}>
+                            Varolan Şubeyi Ata
+                          </Text>
+                          <View style={styles.assignRow}>
+                            <ScrollView
+                              horizontal
+                              showsHorizontalScrollIndicator={false}
+                            >
+                              {allBranches.map((b) => (
+                                <TouchableOpacity
+                                  key={b.id}
+                                  style={[
+                                    styles.branchChip,
+                                    assignBranchId === b.id &&
+                                      styles.branchChipActive,
+                                  ]}
+                                  onPress={() => setAssignBranchId(b.id)}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.branchChipText,
+                                      assignBranchId === b.id &&
+                                        styles.branchChipTextActive,
+                                    ]}
+                                  >
+                                    {b.name}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                          <View style={styles.branchActionsRow}>
+                            <TouchableOpacity
+                              style={styles.saveButton}
+                              onPress={() => handleAssignBranch(u.id)}
+                            >
+                              <Text style={styles.saveButtonText}>Ata</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.cancelButton}
+                              onPress={() => {
+                                setAssigningFor(null);
+                                setAssignBranchId(null);
+                              }}
+                            >
+                              <Text style={styles.cancelButtonText}>
+                                İptal
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      {addingBranchFor === u.id && (
+                        <View style={styles.assignContainer}>
+                          <Text style={styles.sectionLabel}>Yeni Şube</Text>
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Şube Adı"
+                            value={branchForm.name}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                name: v,
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="DB Host"
+                            value={branchForm.db_host}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                db_host: v,
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="DB Port"
+                            keyboardType="number-pad"
+                            value={String(branchForm.db_port)}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                db_port: parseInt(v || '5432', 10),
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="DB Adı"
+                            value={branchForm.db_name}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                db_name: v,
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="DB Kullanıcı"
+                            value={branchForm.db_user}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                db_user: v,
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="DB Şifre"
+                            secureTextEntry
+                            value={branchForm.db_password}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                db_password: v,
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Kasa No"
+                            keyboardType="number-pad"
+                            value={String(branchForm.kasa_no)}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                kasa_no: parseInt(v || '1', 10),
+                              }))
+                            }
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Kapanış Saati (0-23)"
+                            keyboardType="number-pad"
+                            value={String(branchForm.closing_hour)}
+                            onChangeText={(v) =>
+                              setBranchForm((prev) => ({
+                                ...prev,
+                                closing_hour: parseInt(v || '6', 10),
+                              }))
+                            }
+                          />
+                          <View style={styles.branchActionsRow}>
+                            <TouchableOpacity
+                              style={styles.saveButton}
+                              onPress={() => handleAddBranch(u.id)}
+                            >
+                              <Text style={styles.saveButtonText}>
+                                Şubeyi Kaydet
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.cancelButton}
+                              onPress={() => setAddingBranchFor(null)}
+                            >
+                              <Text style={styles.cancelButtonText}>
+                                İptal
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      <View style={styles.branchToggleRow}>
+                        <TouchableOpacity
+                          style={styles.chipButton}
+                          onPress={() =>
+                            setAddingBranchFor(
+                              addingBranchFor === u.id ? null : u.id,
+                            )
+                          }
+                        >
+                          <Feather
+                            name="plus"
+                            size={14}
+                            color="#4f46e5"
+                          />
+                          <Text style={styles.chipButtonText}>Şube Ekle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.chipButton}
+                          onPress={() =>
+                            setAssigningFor(assigningFor === u.id ? null : u.id)
+                          }
+                        >
+                          <Feather
+                            name="link"
+                            size={14}
+                            color="#f59e0b"
+                          />
+                          <Text style={styles.chipButtonText}>
+                            Varolan Şubeyi Ata
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 )}
@@ -613,5 +1217,104 @@ const styles = StyleSheet.create({
   editSection: {
     marginTop: 10,
   },
+  dateOverlay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dateOverlayText: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginLeft: 6,
+  },
+  sectionBranches: {
+    marginTop: 12,
+  },
+  branchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  branchActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+  },
+  cancelButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+  },
+  cancelButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  branchName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  branchMeta: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  branchButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  assignContainer: {
+    marginTop: 10,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  assignRow: {
+    marginVertical: 6,
+  },
+  branchChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    marginRight: 6,
+  },
+  branchChipActive: {
+    backgroundColor: '#4f46e5',
+    borderColor: '#4f46e5',
+  },
+  branchChipText: {
+    fontSize: 12,
+    color: '#4b5563',
+  },
+  branchChipTextActive: {
+    color: '#fff',
+  },
+  branchToggleRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 8,
+  },
+  chipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+  },
+  chipButtonText: {
+    fontSize: 12,
+    color: '#374151',
+    marginLeft: 4,
+    fontWeight: '600',
+  },
 });
-

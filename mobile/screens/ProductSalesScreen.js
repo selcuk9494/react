@@ -29,7 +29,7 @@ export default function ProductSalesScreen({ navigation }) {
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        url = `${API_URL}/reports/product-sales?period=custom&startDate=${startStr}&endDate=${endStr}`;
+        url = `${API_URL}/reports/product-sales?period=custom&start_date=${startStr}&end_date=${endStr}`;
       }
 
       const response = await axios.get(url, {
@@ -96,14 +96,23 @@ export default function ProductSalesScreen({ navigation }) {
             <View style={{width: 24}} /> 
         </View>
         <View style={styles.summaryRow}>
-            <View>
-                <Text style={styles.summaryLabel}>Toplam Satış</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(totalSales)}</Text>
-            </View>
-            <View style={{alignItems: 'flex-end'}}>
-                <Text style={styles.summaryLabel}>Toplam Adet</Text>
-                <Text style={styles.summaryValue}>{totalQty}</Text>
-            </View>
+            {loading ? (
+              <View style={styles.summarySkeletonRow}>
+                <View style={styles.summarySkeleton} />
+                <View style={styles.summarySkeleton} />
+              </View>
+            ) : (
+              <>
+                <View>
+                    <Text style={styles.summaryLabel}>Toplam Satış</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(totalSales)}</Text>
+                </View>
+                <View style={{alignItems: 'flex-end'}}>
+                    <Text style={styles.summaryLabel}>Toplam Adet</Text>
+                    <Text style={styles.summaryValue}>{totalQty}</Text>
+                </View>
+              </>
+            )}
         </View>
       </View>
 
@@ -177,6 +186,17 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  summarySkeletonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  summarySkeleton: {
+    width: 120,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(239, 246, 255, 0.5)',
   },
   summaryLabel: {
     color: '#e0e7ff',
