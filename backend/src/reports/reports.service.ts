@@ -1551,30 +1551,48 @@ export class ReportsService {
     const dEnd = format(end, 'yyyy-MM-dd');
 
     const query = `
-      SELECT 
-        o.adsno,
-        o.raptar as tarih,
-        MAX(a.kapsaat) as kapanis_saati,
-        MAX(a.acsaat) as acilis_saati,
-        MAX(COALESCE(a.masano, 0)) as masano,
-        MAX(COALESCE(a.masano, 0)) as masa_no,
-        SUM(o.otutar) as net_tutar,
-        SUM(o.iskonto) as iskonto,
-        SUM(o.otutar + o.iskonto) as tutar,
-        MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name,
-        MAX(o.mustid) as mustid,
-        MAX(p.adi) as garson_adi,
-        MAX(od.odmname) as payment_name
-      FROM ads_odeme o
-      LEFT JOIN ads_adisyon a ON o.adsno = a.adsno AND o.kasa = a.kasa
-      LEFT JOIN ads_musteri m ON o.mustid = m.mustid
-      LEFT JOIN personel p ON a.garsonno = p.id
-      LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-      WHERE o.kasa = ANY($1)
-        AND o.raptar BETWEEN $2 AND $3
-        AND o.iskonto > 0
-      GROUP BY o.adsno, o.raptar
-      ORDER BY o.raptar DESC, o.adsno DESC
+      WITH payments AS (
+        SELECT 
+          o.adsno,
+          DATE(o.raptar) as raptar,
+          COALESCE(SUM(o.otutar), 0) as net_tutar,
+          COALESCE(SUM(o.iskonto), 0) as iskonto,
+          COALESCE(SUM(o.otutar + o.iskonto), 0) as tutar,
+          MAX(o.mustid) as mustid
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)
+          AND DATE(o.raptar) BETWEEN $2 AND $3
+          AND o.iskonto > 0
+        GROUP BY o.adsno, DATE(o.raptar)
+      ),
+      adisyon_agg AS (
+        SELECT
+          a.adsno,
+          MAX(a.kapsaat) as kapanis_saati,
+          MAX(a.acsaat) as acilis_saati,
+          MAX(COALESCE(a.masano, 0)) as masa_no,
+          MAX(a.garsonno) as garsonno
+        FROM ads_adisyon a
+        WHERE a.kasa = ANY($1)
+        GROUP BY a.adsno
+      )
+      SELECT
+        p.adsno,
+        p.raptar as tarih,
+        a.kapanis_saati,
+        a.acilis_saati,
+        a.masa_no,
+        p.net_tutar,
+        p.iskonto,
+        p.tutar,
+        COALESCE(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')), '') as customer_name,
+        p.mustid,
+        per.adi as garson_adi
+      FROM payments p
+      LEFT JOIN adisyon_agg a ON a.adsno = p.adsno
+      LEFT JOIN ads_musteri m ON p.mustid = m.mustid
+      LEFT JOIN personel per ON a.garsonno = per.id
+      ORDER BY p.raptar DESC, p.adsno DESC
     `;
 
     const rows = await this.db.executeQuery(pool, query, [
