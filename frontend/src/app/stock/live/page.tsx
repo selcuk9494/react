@@ -17,7 +17,10 @@ import {
   X,
   AlertCircle,
   Bell,
-  Activity
+  Activity,
+  Calendar,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -33,6 +36,19 @@ interface StockItem {
   hasStockEntry?: boolean;
 }
 
+// Tarih formatı için yardımcı fonksiyon
+const formatDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+};
+
 export default function LiveStockPage() {
   const { token, user } = useAuth();
   const router = useRouter();
@@ -47,21 +63,27 @@ export default function LiveStockPage() {
   const [showStockEntryOnly, setShowStockEntryOnly] = useState(false);
   const [criticalThreshold, setCriticalThreshold] = useState(5);
   const [connectionError, setConnectionError] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(formatDate(new Date()));
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevBranchRef = useRef(user?.selected_branch);
+  const prevDateRef = useRef(selectedDate);
+
+  const isToday = selectedDate === formatDate(new Date());
 
   const fetchData = useCallback(async (showRefreshIndicator = false) => {
     try {
       if (!token) return;
       if (showRefreshIndicator) setRefreshing(true);
       
-      // Detect branch change and clear data
-      if (prevBranchRef.current !== user?.selected_branch) {
+      // Detect branch or date change and clear data
+      if (prevBranchRef.current !== user?.selected_branch || prevDateRef.current !== selectedDate) {
         setItems([]);
         setLoading(true);
         setConnectionError(false);
         prevBranchRef.current = user?.selected_branch;
+        prevDateRef.current = selectedDate;
       }
       
       const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
