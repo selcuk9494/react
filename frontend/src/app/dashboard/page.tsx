@@ -517,11 +517,23 @@ export default function Dashboard() {
             </button>
             
             <div className={clsx(
-                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold shadow-sm",
-                isOffline ? "bg-red-50 text-red-600 border border-red-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all",
+                loading ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                isOffline ? "bg-red-50 text-red-600 border border-red-200" : 
+                "bg-emerald-50 text-emerald-600 border border-emerald-200"
             )}>
-                <div className={clsx("w-2 h-2 rounded-full animate-pulse", isOffline ? "bg-red-500" : "bg-emerald-500")}></div>
-                <span>{isOffline ? t('offline') : t('online')}</span>
+                <div className={clsx(
+                  "w-2 h-2 rounded-full", 
+                  loading ? "bg-blue-500 animate-ping" :
+                  isOffline ? "bg-red-500" : "bg-emerald-500 animate-pulse"
+                )}></div>
+                <span>
+                  {loading 
+                    ? (lang === 'tr' ? 'Yükleniyor...' : 'Loading...') 
+                    : isOffline 
+                    ? (lang === 'tr' ? 'Bağlantı Yok' : 'No Connection') 
+                    : t('online')}
+                </span>
             </div>
             </div>
         </div>
