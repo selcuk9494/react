@@ -1183,6 +1183,8 @@ export class ReportsService {
     // raptar için sadece tarih formatı kullan
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
+    
+    console.log(`[getPerformance] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
 
     // Totals - raptar kullan
     const totalsQuery = `
