@@ -124,6 +124,14 @@ export default function DashboardScreen({ navigation, route }) {
       navigation.navigate('AdminBranches');
       return;
     }
+    if (path === '/admin/users') {
+      navigation.navigate('AdminUsers');
+      return;
+    }
+    if (path === '/admin/manage') {
+      navigation.navigate('AdminManage');
+      return;
+    }
     const baseUrl = getWebBaseUrl();
     if (!baseUrl) return;
     const url = `${baseUrl}${path}`;

@@ -23,6 +23,8 @@ import UnpayableScreen from './screens/UnpayableScreen';
 import StockEntryScreen from './screens/StockEntryScreen';
 import LiveStockScreen from './screens/LiveStockScreen';
 import AdminBranchesScreen from './screens/AdminBranchesScreen';
+import AdminUsersScreen from './screens/AdminUsersScreen';
+import AdminManageScreen from './screens/AdminManageScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -122,6 +124,16 @@ export default function App() {
           <Stack.Screen 
             name="AdminBranches" 
             component={AdminBranchesScreen} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="AdminUsers" 
+            component={AdminUsersScreen} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="AdminManage" 
+            component={AdminManageScreen} 
             options={{ headerShown: false }} 
           />
           <Stack.Screen 

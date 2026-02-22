@@ -6,7 +6,7 @@ export class StockService {
   constructor(private db: DatabaseService) {}
 
   // Gün dönümü (06:00) mantığına göre bugünün tarihi - Türkiye saatine göre
-  private getCurrentBusinessDate(): string {
+  private getCurrentBusinessDate(closingHour?: number): string {
     // Türkiye saat dilimi UTC+3
     const now = new Date();
     const turkeyOffset = 3 * 60; // dakika cinsinden
@@ -15,8 +15,14 @@ export class StockService {
       now.getTime() + (utcOffset + turkeyOffset) * 60000,
     );
 
-    // Eğer saat 06:00'dan önceyse, iş günü bir önceki gündür
-    if (turkeyTime.getHours() < 6) {
+    const rawClosing =
+      typeof closingHour === 'number' && Number.isFinite(closingHour)
+        ? closingHour
+        : 6;
+    const safeClosing = Math.min(23, Math.max(0, Math.floor(rawClosing)));
+
+    // Eğer saat kapanış saatinden önceyse, iş günü bir önceki gündür
+    if (turkeyTime.getHours() < safeClosing) {
       turkeyTime.setDate(turkeyTime.getDate() - 1);
     }
 
@@ -44,20 +50,21 @@ export class StockService {
     }
 
     const branch = branchRes.rows[0];
-    return this.db.getBranchPool(branch);
+    const pool = this.db.getBranchPool(branch);
+    return { pool, branch };
   }
 
   async entryStock(
     branchId: string,
     items: { productName: string; quantity: number }[],
   ) {
-    const date = this.getCurrentBusinessDate();
-
     if (this.db.isMockMode()) {
+      const date = this.getCurrentBusinessDate();
       return { success: true, date, mock: true };
     }
 
-    const pool = await this.getBranchPool(branchId);
+    const { pool, branch } = await this.getBranchPool(branchId);
+    const date = this.getCurrentBusinessDate(branch.closing_hour);
 
     // Önce tablo var mı kontrol et, yoksa oluştur
     try {
@@ -114,7 +121,7 @@ export class StockService {
   // Ürün Listesini Getir (Stok Girişi İçin)
   async getProducts(branchId: string) {
     try {
-      const pool = await this.getBranchPool(branchId);
+      const { pool, branch } = await this.getBranchPool(branchId);
       let rows: any[] = [];
 
       // 1. Önce tüm ürünleri product tablosundan çek (silindi filtresi olmadan)
@@ -136,7 +143,7 @@ export class StockService {
 
       // 2. Eğer product tablosu boşsa veya hata varsa, ads_adisyon'dan türet
       if (!rows || rows.length === 0) {
-        const date = this.getCurrentBusinessDate();
+        const date = this.getCurrentBusinessDate(branch.closing_hour);
         try {
           const derived = await pool.query(
             `
@@ -190,8 +197,8 @@ export class StockService {
 
   // Canlı Stok Raporu
   async getLiveStock(branchId: string) {
-    const pool = await this.getBranchPool(branchId);
-    const date = this.getCurrentBusinessDate();
+    const { pool, branch } = await this.getBranchPool(branchId);
+    const date = this.getCurrentBusinessDate(branch.closing_hour);
 
     // Önce TÜM ürünleri al
     let allProducts: any[] = [];

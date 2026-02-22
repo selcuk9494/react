@@ -64,9 +64,20 @@ export default function DiscountScreen({ navigation }) {
     const orderNo = item.adsno || item.order_no || index + 1;
     const customerName = item.customer_name || item.mustid || 'Müşteri';
     const orderDate = item.tarih || item.date || '';
+    const orderId = item.adsno || item.order_no;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        disabled={!orderId}
+        onPress={() => {
+          if (!orderId) return;
+          navigation.navigate('OrderDetail', {
+            id: orderId,
+            type: 'closed',
+          });
+        }}
+      >
         <View style={styles.cardContent}>
           <View style={styles.iconBox}>
              <Text style={styles.orderNo}>{orderNo}</Text>
@@ -81,7 +92,7 @@ export default function DiscountScreen({ navigation }) {
              <Text style={styles.amountText}>{formatCurrency(parseFloat(discountAmount))}</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
