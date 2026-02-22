@@ -320,7 +320,9 @@ export class StockService {
   // Canlı Stok Raporu
   async getLiveStock(branchId: string) {
     const { pool } = await this.getBranchPool(branchId);
-    const { start, end, date } = await this.getBusinessDayRange(branchId);
+    const { start, end, date, startDateOnly, endDateOnly } = await this.getBusinessDayRange(branchId);
+
+    console.log(`[getLiveStock] branchId=${branchId}, date=${date}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
 
     // Önce TÜM ürünleri al
     let allProducts: any[] = [];
