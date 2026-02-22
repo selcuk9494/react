@@ -410,6 +410,7 @@ export class StockService {
     }
 
     // Satış verilerini al - kapalı adisyonlardan (ads_adisyon) - raptar (rapor tarihi) kullanarak
+    // raptar date tipinde olduğu için sadece tarih karşılaştırması yapıyoruz
     let salesRes;
     try {
       // Önce tabloyu ve verileri kontrol et
@@ -419,18 +420,18 @@ export class StockService {
       `);
       console.log('ads_adisyon table check (raptar):', checkQuery.rows[0]);
 
-      // Bugünkü kayıtları kontrol et - raptar alanı ile
+      // Bugünkü kayıtları kontrol et - raptar alanı ile (sadece tarih karşılaştırması)
       const todayCheck = await pool.query(
         `
         SELECT COUNT(*) as today_count 
         FROM ads_adisyon 
-        WHERE raptar >= $1 AND raptar < $2
+        WHERE raptar = $1::date
       `,
-        [start, end],
+        [startDateOnly],
       );
-      console.log(`Records for date range ${start} - ${end} (raptar):`, todayCheck.rows[0]);
+      console.log(`Records for date ${startDateOnly} (raptar):`, todayCheck.rows[0]);
 
-      // raptar (rapor tarihi) ile sorgula - gün dönüm saatine göre doğru filtreleme
+      // raptar (rapor tarihi) ile sorgula - sadece o günün tarihi
       salesRes = await pool.query(
         `
         SELECT 
@@ -438,14 +439,14 @@ export class StockService {
           SUM(a.miktar) as total_qty
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE a.raptar >= $1 AND a.raptar < $2
+        WHERE a.raptar = $1::date
           AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
-        [start, end],
+        [startDateOnly],
       );
       console.log(
-        `Sales query (raptar) returned ${salesRes.rows.length} rows:`,
+        `Sales query (raptar=${startDateOnly}) returned ${salesRes.rows.length} rows:`,
         salesRes.rows.slice(0, 5),
       );
     } catch (err) {
