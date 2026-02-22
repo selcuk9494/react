@@ -11,36 +11,46 @@ export class StockService {
     const now = new Date();
     const turkeyOffset = 3 * 60; // dakika cinsinden
     const utcOffset = now.getTimezoneOffset(); // dakika cinsinden (negatif doğu için)
-    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
-    
+    const turkeyTime = new Date(
+      now.getTime() + (utcOffset + turkeyOffset) * 60000,
+    );
+
     // Eğer saat 06:00'dan önceyse, iş günü bir önceki gündür
     if (turkeyTime.getHours() < 6) {
       turkeyTime.setDate(turkeyTime.getDate() - 1);
     }
-    
+
     const year = turkeyTime.getFullYear();
     const month = String(turkeyTime.getMonth() + 1).padStart(2, '0');
     const day = String(turkeyTime.getDate()).padStart(2, '0');
-    
-    console.log(`Business date calculated: ${year}-${month}-${day} (Turkey time: ${turkeyTime.toISOString()})`);
-    
+
+    console.log(
+      `Business date calculated: ${year}-${month}-${day} (Turkey time: ${turkeyTime.toISOString()})`,
+    );
+
     return `${year}-${month}-${day}`;
   }
 
   // Şube veritabanına bağlanmak için yardımcı fonksiyon
   private async getBranchPool(branchId: string) {
     const mainPool = this.db.getMainPool();
-    const branchRes = await mainPool.query('SELECT * FROM branches WHERE id = $1', [branchId]);
-    
+    const branchRes = await mainPool.query(
+      'SELECT * FROM branches WHERE id = $1',
+      [branchId],
+    );
+
     if (branchRes.rows.length === 0) {
       throw new NotFoundException('Şube bulunamadı');
     }
-    
+
     const branch = branchRes.rows[0];
     return this.db.getBranchPool(branch);
   }
 
-  async entryStock(branchId: string, items: { productName: string; quantity: number }[]) {
+  async entryStock(
+    branchId: string,
+    items: { productName: string; quantity: number }[],
+  ) {
     const date = this.getCurrentBusinessDate();
 
     if (this.db.isMockMode()) {
@@ -48,7 +58,7 @@ export class StockService {
     }
 
     const pool = await this.getBranchPool(branchId);
-    
+
     // Önce tablo var mı kontrol et, yoksa oluştur
     try {
       await pool.query(`
@@ -65,27 +75,27 @@ export class StockService {
     } catch (createErr) {
       console.log('Table check/create:', createErr);
     }
-    
+
     try {
       for (const item of items) {
         try {
           // Önce mevcut kaydı kontrol et
           const existing = await pool.query(
             `SELECT id FROM daily_stock WHERE product_name = $1 AND entry_date = $2`,
-            [item.productName, date]
+            [item.productName, date],
           );
-          
+
           if (existing.rows.length > 0) {
             // Güncelle
             await pool.query(
               `UPDATE daily_stock SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE product_name = $2 AND entry_date = $3`,
-              [item.quantity, item.productName, date]
+              [item.quantity, item.productName, date],
             );
           } else {
             // Yeni kayıt ekle
             await pool.query(
               `INSERT INTO daily_stock (product_name, quantity, entry_date) VALUES ($1, $2, $3)`,
-              [item.productName, item.quantity, date]
+              [item.productName, item.quantity, date],
             );
           }
         } catch (itemError) {
@@ -148,7 +158,9 @@ export class StockService {
             urun_adi: r.urun_adi,
             grup2: r.grup2,
           }));
-          console.log(`Derived products from ads_adisyon: ${rows.length} items`);
+          console.log(
+            `Derived products from ads_adisyon: ${rows.length} items`,
+          );
         } catch (err) {
           console.error('Products derived query error:', err);
         }
@@ -165,8 +177,7 @@ export class StockService {
         `);
         groups = groupRes.rows.map((r: any) => r.grup_adi);
         console.log(`Product groups: ${groups.length}`);
-      } catch (err) {
-        // Grupları ürünlerden çıkar
+      } catch {
         groups = [...new Set(rows.map((r: any) => r.grup2).filter(Boolean))];
       }
 
@@ -202,11 +213,14 @@ export class StockService {
     // Stok girişi yapılan ürünleri al
     let stockRes;
     try {
-      stockRes = await pool.query(`
+      stockRes = await pool.query(
+        `
         SELECT d.product_name, d.quantity as initial_stock
         FROM daily_stock d
         WHERE d.entry_date = $1
-      `, [date]);
+      `,
+        [date],
+      );
     } catch (err) {
       const code = (err as any)?.code;
       if (code === '42P01') {
@@ -228,8 +242,10 @@ export class StockService {
     const stockMap = new Map();
     allProducts.forEach((product: any) => {
       const hasStockEntry = stockEntryMap.has(product.product_name);
-      const initialStock = hasStockEntry ? stockEntryMap.get(product.product_name) : 0;
-      
+      const initialStock = hasStockEntry
+        ? stockEntryMap.get(product.product_name)
+        : 0;
+
       stockMap.set(product.product_name, {
         name: product.product_name,
         group: product.group_name || 'Diğer',
@@ -238,7 +254,7 @@ export class StockService {
         open: 0,
         cancelled: 0,
         remaining: initialStock,
-        hasStockEntry: hasStockEntry  // Stok girişi yapıldı mı?
+        hasStockEntry: hasStockEntry, // Stok girişi yapıldı mı?
       });
     });
 
@@ -253,7 +269,7 @@ export class StockService {
           open: 0,
           cancelled: 0,
           remaining: row.initial_stock,
-          hasStockEntry: true
+          hasStockEntry: true,
         });
       });
     }
@@ -271,17 +287,21 @@ export class StockService {
         FROM ads_adisyon
       `);
       console.log('ads_adisyon table check:', checkQuery.rows[0]);
-      
+
       // Bugünkü kayıtları kontrol et
-      const todayCheck = await pool.query(`
+      const todayCheck = await pool.query(
+        `
         SELECT COUNT(*) as today_count 
         FROM ads_adisyon 
         WHERE kaptar::date = $1::date
-      `, [date]);
+      `,
+        [date],
+      );
       console.log(`Records for date ${date}:`, todayCheck.rows[0]);
 
       // kaptar (kapanış tarihi) ile sorgula - product_name sadece product tablosundan
-      salesRes = await pool.query(`
+      salesRes = await pool.query(
+        `
         SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name, 
           SUM(a.miktar) as total_qty
@@ -290,8 +310,13 @@ export class StockService {
         WHERE a.kaptar::date = $1::date
           AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
-      `, [date]);
-      console.log(`Sales query returned ${salesRes.rows.length} rows:`, salesRes.rows.slice(0, 5));
+      `,
+        [date],
+      );
+      console.log(
+        `Sales query returned ${salesRes.rows.length} rows:`,
+        salesRes.rows.slice(0, 5),
+      );
     } catch (err) {
       console.error('LiveStock sales query error:', err);
       salesRes = { rows: [] };
@@ -301,7 +326,7 @@ export class StockService {
       const productName = row.product_name;
       const item = stockMap.get(productName);
       const qty = Number(row.total_qty);
-      
+
       if (item) {
         // Satılan olarak ekle (sturu 2=iade, 4=iptal hariç - zaten WHERE'de filtrelendi)
         item.sold += qty;
@@ -316,7 +341,7 @@ export class StockService {
           open: 0,
           cancelled: 0,
           remaining: -qty,
-          hasStockEntry: false
+          hasStockEntry: false,
         });
       }
     });
@@ -334,7 +359,10 @@ export class StockService {
         WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `);
-      console.log(`Open orders query returned ${openRes.rows.length} rows:`, openRes.rows.slice(0, 5));
+      console.log(
+        `Open orders query returned ${openRes.rows.length} rows:`,
+        openRes.rows.slice(0, 5),
+      );
     } catch (err) {
       console.error('LiveStock open query error:', err);
       openRes = { rows: [] };
@@ -344,7 +372,7 @@ export class StockService {
       const productName = row.product_name;
       const item = stockMap.get(productName);
       const qty = Number(row.total_qty);
-      
+
       if (item) {
         item.open += qty;
         item.remaining -= qty;
@@ -358,49 +386,57 @@ export class StockService {
           open: qty,
           cancelled: 0,
           remaining: -qty,
-          hasStockEntry: false
+          hasStockEntry: false,
         });
       }
     });
 
     // Sonuçları diziye çevir ve sırala
-    const result = Array.from(stockMap.values()).sort((a, b) => (b.sold + b.open) - (a.sold + a.open));
-    const hasAnyStockEntry = result.some(item => item.hasStockEntry);
+    const result = Array.from(stockMap.values()).sort(
+      (a, b) => b.sold + b.open - (a.sold + a.open),
+    );
+    const hasAnyStockEntry = result.some((item) => item.hasStockEntry);
 
     return {
       date,
       items: result,
-      hasAnyStockEntry
+      hasAnyStockEntry,
     };
   }
 
   async testDemoProducts() {
     try {
-        const mainPool = this.db.getMainPool();
-        const userRes = await mainPool.query("SELECT id FROM users WHERE email = 'demo@micrapor.com'");
-        if (userRes.rows.length === 0) return { error: 'Demo user not found' };
-        
-        const userId = userRes.rows[0].id;
-        const branchRes = await mainPool.query("SELECT * FROM branches WHERE user_id = $1", [userId]);
-        if (branchRes.rows.length === 0) return { error: 'Demo branch not found' };
-        
-        const branch = branchRes.rows[0];
-        const pool = this.db.getBranchPool(branch);
-        
-        const client = await pool.connect();
-        try {
-            const res = await client.query("SELECT * FROM product");
-            return {
-                branch: branch.name,
-                host: branch.db_host,
-                product_count: res.rows.length,
-                products: res.rows
-            };
-        } finally {
-            client.release();
-        }
+      const mainPool = this.db.getMainPool();
+      const userRes = await mainPool.query(
+        "SELECT id FROM users WHERE email = 'demo@micrapor.com'",
+      );
+      if (userRes.rows.length === 0) return { error: 'Demo user not found' };
+
+      const userId = userRes.rows[0].id;
+      const branchRes = await mainPool.query(
+        'SELECT * FROM branches WHERE user_id = $1',
+        [userId],
+      );
+      if (branchRes.rows.length === 0)
+        return { error: 'Demo branch not found' };
+
+      const branch = branchRes.rows[0];
+      const pool = this.db.getBranchPool(branch);
+
+      const client = await pool.connect();
+      try {
+        const res = await client.query('SELECT * FROM product');
+        return {
+          branch: branch.name,
+          host: branch.db_host,
+          product_count: res.rows.length,
+          products: res.rows,
+        };
+      } finally {
+        client.release();
+      }
     } catch (error) {
-        return { error: error.message, stack: error.stack };
+      return { error: error.message, stack: error.stack };
     }
   }
 }

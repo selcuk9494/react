@@ -1,4 +1,14 @@
-import { Controller, Post, Body, UseGuards, Request, Get, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+  UnauthorizedException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -10,41 +20,53 @@ export class AuthController {
   async login(@Body() req) {
     try {
       console.log('Login attempt:', req.email); // Log email
-      
+
       // Allow demo login with both 'demo' and 'demo@micrapor.com'
-      if ((req.email === 'demo' || req.email === 'demo@micrapor.com') && req.password === 'demo') {
-          console.log('Demo login triggered');
-          return await this.authService.loginDemo();
+      if (
+        (req.email === 'demo' || req.email === 'demo@micrapor.com') &&
+        req.password === 'demo'
+      ) {
+        console.log('Demo login triggered');
+        return await this.authService.loginDemo();
       }
-      
-      const result = await this.authService.validateUser(req.email, req.password);
-      
-      if (!result) { // validateUser might return null
-          console.log('User validation failed (null result)');
-          throw new UnauthorizedException('Kullanıcı doğrulanamadı');
+
+      const result = await this.authService.validateUser(
+        req.email,
+        req.password,
+      );
+
+      if (!result) {
+        // validateUser might return null
+        console.log('User validation failed (null result)');
+        throw new UnauthorizedException('Kullanıcı doğrulanamadı');
       }
 
       if (result === 'not_found') {
-          throw new UnauthorizedException('Kullanıcı bulunamadı');
+        throw new UnauthorizedException('Kullanıcı bulunamadı');
       }
       if (result === 'wrong_password') {
-          throw new UnauthorizedException('Girdiğiniz şifre hatalı');
+        throw new UnauthorizedException('Girdiğiniz şifre hatalı');
       }
       if (result === 'expired') {
-          throw new UnauthorizedException('Kullanım süreniz dolmuş. Lütfen yöneticinizle iletişime geçin.');
+        throw new UnauthorizedException(
+          'Kullanım süreniz dolmuş. Lütfen yöneticinizle iletişime geçin.',
+        );
       }
-      
+
       console.log('Login successful for:', req.email);
       return await this.authService.login(result);
     } catch (error) {
       console.error('Login Error Details:', error);
       // Return error details to frontend for debugging
-      throw new HttpException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        error: 'Login Error',
-        message: error.message || 'Unknown error',
-        stack: error.stack // Always show stack for debugging
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          error: 'Login Error',
+          message: error.message || 'Unknown error',
+          stack: error.stack, // Always show stack for debugging
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -61,24 +83,27 @@ export class AuthController {
   @Get('demo-fix')
   async demoFix() {
     try {
-        const email = 'demo@micrapor.com';
-        // 1. Check if user exists
-        const user = await this.authService.validateUser(email, 'demo');
-        
-        if (user && user !== 'not_found' && user !== 'wrong_password') {
-            return { status: 'ok', message: 'User exists and password correct', user };
-        }
-        
-        // 2. Try loginDemo
-        const loginRes = await this.authService.loginDemo();
-        return { status: 'ok', message: 'loginDemo worked', result: loginRes };
+      const email = 'demo@micrapor.com';
+      // 1. Check if user exists
+      const user = await this.authService.validateUser(email, 'demo');
 
-    } catch (error) {
-        return { 
-            status: 'error', 
-            message: error.message, 
-            stack: error.stack 
+      if (user && user !== 'not_found' && user !== 'wrong_password') {
+        return {
+          status: 'ok',
+          message: 'User exists and password correct',
+          user,
         };
+      }
+
+      // 2. Try loginDemo
+      const loginRes = await this.authService.loginDemo();
+      return { status: 'ok', message: 'loginDemo worked', result: loginRes };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        stack: error.stack,
+      };
     }
   }
 

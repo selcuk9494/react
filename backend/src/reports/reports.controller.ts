@@ -1,4 +1,13 @@
-import { Controller, Get, Query, Request, UseGuards, Sse, MessageEvent, Param, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Request,
+  UseGuards,
+  Sse,
+  MessageEvent,
+  Param,
+} from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { interval, Observable, from, map, switchMap } from 'rxjs';
@@ -16,7 +25,12 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
   ) {
     try {
-      return await this.reportsService.getDashboard(req.user, period, startDate, endDate);
+      return await this.reportsService.getDashboard(
+        req.user,
+        period,
+        startDate,
+        endDate,
+      );
     } catch (error: any) {
       console.error('Dashboard Error Details:', error);
       return {
@@ -77,7 +91,14 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
   ) {
-    return this.reportsService.getOrders(req.user, period, status, startDate, endDate, type);
+    return this.reportsService.getOrders(
+      req.user,
+      period,
+      status,
+      startDate,
+      endDate,
+      type,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -88,7 +109,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getDiscountOrders(req.user, period, startDate, endDate);
+    return this.reportsService.getDiscountOrders(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   // Compatibility endpoints to match legacy clients
@@ -101,7 +127,14 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
   ) {
-    return this.reportsService.getOrders(req.user, period, 'open', startDate, endDate, type);
+    return this.reportsService.getOrders(
+      req.user,
+      period,
+      'open',
+      startDate,
+      endDate,
+      type,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -113,7 +146,14 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
   ) {
-    return this.reportsService.getOrders(req.user, period, 'closed', startDate, endDate, type);
+    return this.reportsService.getOrders(
+      req.user,
+      period,
+      'closed',
+      startDate,
+      endDate,
+      type,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -125,7 +165,13 @@ export class ReportsController {
     @Query('adtur') adtur?: number,
     @Query('date') date?: string,
   ) {
-    return this.reportsService.getOrderDetails(req.user, adsno, status, date, adtur);
+    return this.reportsService.getOrderDetails(
+      req.user,
+      adsno,
+      status,
+      date,
+      adtur,
+    );
   }
 
   // Path-param variant to match legacy clients
@@ -138,27 +184,26 @@ export class ReportsController {
     @Query('adtur') adtur?: number,
     @Query('date') date?: string,
   ) {
-    return this.reportsService.getOrderDetails(req.user, id, orderType, date, adtur);
+    return this.reportsService.getOrderDetails(
+      req.user,
+      id,
+      orderType,
+      date,
+      adtur,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/customer')
-  async getCustomer(
-    @Request() req,
-    @Query('id') id: number,
-  ) {
+  async getCustomer(@Request() req, @Query('id') id: number) {
     return this.reportsService.getCustomerById(req.user, id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/order-debug')
-  async debugOrder(
-    @Request() req,
-    @Query('adsno') adsno: string,
-  ) {
+  async debugOrder(@Request() req, @Query('adsno') adsno: string) {
     return this.reportsService.debugOrderCheck(req.user, adsno);
   }
-
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/sales-chart')
@@ -168,7 +213,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getSalesChart(req.user, period, startDate, endDate);
+    return this.reportsService.getSalesChart(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -179,7 +229,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getPaymentTypes(req.user, period, startDate, endDate);
+    return this.reportsService.getPaymentTypes(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -190,7 +245,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getCancelledItems(req.user, period, startDate, endDate);
+    return this.reportsService.getCancelledItems(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -201,7 +261,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getUnsoldCancels(req.user, period, startDate, endDate);
+    return this.reportsService.getUnsoldCancels(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -212,7 +277,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getCourierTracking(req.user, period, startDate, endDate);
+    return this.reportsService.getCourierTracking(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -223,7 +293,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getPerformance(req.user, period, startDate, endDate);
+    return this.reportsService.getPerformance(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -241,7 +316,15 @@ export class ReportsController {
       .split(',')
       .map((n) => parseInt(n))
       .filter((n) => !isNaN(n));
-    return this.reportsService.getProductSales(req.user, period, startDate, endDate, groupId, ids.length ? ids : undefined, typeof plu !== 'undefined' ? Number(plu) : undefined);
+    return this.reportsService.getProductSales(
+      req.user,
+      period,
+      startDate,
+      endDate,
+      groupId,
+      ids.length ? ids : undefined,
+      typeof plu !== 'undefined' ? Number(plu) : undefined,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -264,7 +347,12 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
   ) {
-    return this.reportsService.getUnpayable(req.user, period, startDate, endDate);
+    return this.reportsService.getUnpayable(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -287,11 +375,23 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
   ): Observable<MessageEvent> {
     return interval(5000).pipe(
-      switchMap(() => from(this.reportsService.getDashboard(req.user, period, startDate, endDate))),
-      map((data) => ({
-        data: JSON.stringify(data),
-        type: 'dashboard',
-      } as MessageEvent)),
+      switchMap(() =>
+        from(
+          this.reportsService.getDashboard(
+            req.user,
+            period,
+            startDate,
+            endDate,
+          ),
+        ),
+      ),
+      map(
+        (data) =>
+          ({
+            data: JSON.stringify(data),
+            type: 'dashboard',
+          }) as MessageEvent,
+      ),
     );
   }
 }

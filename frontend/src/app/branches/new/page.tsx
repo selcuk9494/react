@@ -22,7 +22,8 @@ export default function NewBranchPage() {
     db_name: 'fasrest',
     db_user: 'begum',
     db_password: 'KORDO',
-    kasa_no: '1'
+    kasa_no: '1',
+    closing_hour: '6'
   });
   const [kasalar, setKasalar] = useState<number[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -53,6 +54,11 @@ export default function NewBranchPage() {
             db_user: found.db_user || 'begum',
             db_password: found.db_password || 'KORDO',
             kasa_no: String(found.kasa_no || '1'),
+            closing_hour: String(
+              typeof found.closing_hour === 'number' && !isNaN(found.closing_hour)
+                ? found.closing_hour
+                : 6
+            ),
           });
           setKasalar((found.kasalar || []).filter((k: any) => typeof k === 'number'));
         }
@@ -72,6 +78,7 @@ export default function NewBranchPage() {
         ...formData,
         db_port: parseInt(formData.db_port),
         kasa_no: parseInt(formData.kasa_no),
+        closing_hour: parseInt(formData.closing_hour || '6'),
         kasalar,
       };
       if (editingId) {
@@ -155,6 +162,19 @@ export default function NewBranchPage() {
                   required
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   value={formData.kasa_no}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Kapanış Saati (Saat)</label>
+                <input
+                  type="number"
+                  name="closing_hour"
+                  min={0}
+                  max={23}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  value={formData.closing_hour}
                   onChange={handleChange}
                 />
               </div>

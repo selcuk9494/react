@@ -1,7 +1,15 @@
-import { Controller, Post, Body, UseGuards, Query, Get, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Query,
+  Get,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { StockService } from './stock.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { User } from '../decorators/user.decorator';
 
 @Controller('api/stock')
 export class StockController {
@@ -30,13 +38,16 @@ export class StockController {
       const message =
         error?.message ||
         'Stok kaydedilirken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.';
-      throw new HttpException(message, error?.status || HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        message,
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Get('test-products')
   async testProducts() {
-      // Hardcoded branchId query or logic inside service
-      return this.stockService.testDemoProducts();
+    // Hardcoded branchId query or logic inside service
+    return this.stockService.testDemoProducts();
   }
 }

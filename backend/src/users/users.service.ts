@@ -9,15 +9,18 @@ export class UsersService {
   async findOne(email: string): Promise<any> {
     const pool = this.db.getMainPool();
     const cleanEmail = email.trim().toLowerCase();
-    
-    const res = await pool.query(`
+
+    const res = await pool.query(
+      `
       SELECT *, 
              EXTRACT(DAY FROM (expiry_date - CURRENT_DATE))::INTEGER as days_left
       FROM users 
       WHERE LOWER(email) = $1
-    `, [cleanEmail]);
+    `,
+      [cleanEmail],
+    );
     if (res.rows.length === 0) return null;
-    
+
     const user = res.rows[0];
 
     // If allowed_reports is NULL, it means ALL allowed.
@@ -26,7 +29,10 @@ export class UsersService {
     // However, keeping it NULL in DB is better for future updates (new reports automatically allowed).
 
     // Fetch branches
-    const branchesRes = await pool.query('SELECT * FROM branches WHERE user_id = $1', [user.id]);
+    const branchesRes = await pool.query(
+      'SELECT * FROM branches WHERE user_id = $1',
+      [user.id],
+    );
     user.branches = branchesRes.rows;
     return user;
   }
@@ -36,30 +42,56 @@ export class UsersService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
-      const expiryDays = Number.isFinite(userData?.expiry_days) ? Number(userData.expiry_days) : 30;
+
+      const expiryDays = Number.isFinite(userData?.expiry_days)
+        ? Number(userData.expiry_days)
+        : 30;
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + expiryDays);
       const isAdmin = !!userData?.is_admin;
       const allowedReports = userData.allowed_reports || null;
-      
+
       const userRes = await client.query(
         'INSERT INTO users (email, password, selected_branch, expiry_date, is_admin, allowed_reports) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [userData.email, userData.password, 0, expiryDate, isAdmin, allowedReports]
+        [
+          userData.email,
+          userData.password,
+          0,
+          expiryDate,
+          isAdmin,
+          allowedReports,
+        ],
       );
       const user = userRes.rows[0];
 
       if (userData.branches && userData.branches.length > 0) {
         for (const branch of userData.branches) {
+          const rawClosing = (branch as any).closing_hour;
+          const closingHour =
+            typeof rawClosing === 'number'
+              ? rawClosing
+              : typeof rawClosing === 'string'
+                ? parseInt(rawClosing, 10)
+                : 6;
           await client.query(
-            'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-            [user.id, branch.name, branch.db_host, branch.db_port, branch.db_name, branch.db_user, branch.db_password, branch.kasa_no || 1]
+            'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            [
+              user.id,
+              branch.name,
+              branch.db_host,
+              branch.db_port,
+              branch.db_name,
+              branch.db_user,
+              branch.db_password,
+              branch.kasa_no || 1,
+              Number.isFinite(closingHour) ? closingHour : 6,
+            ],
           );
         }
       }
 
       await client.query('COMMIT');
-      
+
       user.branches = userData.branches; // Return with branches
       return user;
     } catch (e) {
@@ -72,7 +104,10 @@ export class UsersService {
 
   async updateSelectedBranch(userId: string, branchIndex: number) {
     const pool = this.db.getMainPool();
-    await pool.query('UPDATE users SET selected_branch = $1 WHERE id = $2', [branchIndex, userId]);
+    await pool.query('UPDATE users SET selected_branch = $1 WHERE id = $2', [
+      branchIndex,
+      userId,
+    ]);
   }
 
   async findAll(): Promise<any[]> {
@@ -112,13 +147,15 @@ export class UsersService {
       values.push(!!data.is_admin);
     }
     if (fields.length === 0) {
-      const res = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+      const res = await pool.query('SELECT * FROM users WHERE id = $1', [
+        userId,
+      ]);
       return res.rows[0];
     }
     values.push(userId);
     const res = await pool.query(
       `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
-      values
+      values,
     );
     return res.rows[0];
   }
@@ -126,7 +163,10 @@ export class UsersService {
   async updatePassword(userId: string, newPassword: string): Promise<void> {
     const pool = this.db.getMainPool();
     const hash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hash, userId]);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [
+      hash,
+      userId,
+    ]);
   }
 
   async remove(userId: string): Promise<void> {
@@ -146,39 +186,41 @@ export class UsersService {
        END) + ($1::int || ' days')::interval
        WHERE id = $2
        RETURNING *`,
-      [d, userId]
+      [d, userId],
     );
     return res.rows[0];
   }
 
   async checkConnection(): Promise<any> {
     try {
-        const pool = this.db.getMainPool();
-        const client = await pool.connect();
-        
-        // Check DB connection
-        const timeRes = await client.query('SELECT NOW() as now');
-        
-        // Check User
-        const userRes = await client.query("SELECT id, email FROM users WHERE email = 'selcuk.yilmaz@microvise.net'");
-        
-        client.release();
-        
-        return {
-            status: 'ok',
-            db_time: timeRes.rows[0].now,
-            user_found: userRes.rows.length > 0,
-            user: userRes.rows[0] || null,
-            env_host: process.env.DB_HOST, // Show which host is being used
-            env_ssl: process.env.DB_SSL
-        };
+      const pool = this.db.getMainPool();
+      const client = await pool.connect();
+
+      // Check DB connection
+      const timeRes = await client.query('SELECT NOW() as now');
+
+      // Check User
+      const userRes = await client.query(
+        "SELECT id, email FROM users WHERE email = 'selcuk.yilmaz@microvise.net'",
+      );
+
+      client.release();
+
+      return {
+        status: 'ok',
+        db_time: timeRes.rows[0].now,
+        user_found: userRes.rows.length > 0,
+        user: userRes.rows[0] || null,
+        env_host: process.env.DB_HOST, // Show which host is being used
+        env_ssl: process.env.DB_SSL,
+      };
     } catch (error) {
-        return {
-            status: 'error',
-            message: error.message,
-            stack: error.stack,
-            env_host: process.env.DB_HOST
-        };
+      return {
+        status: 'error',
+        message: error.message,
+        stack: error.stack,
+        env_host: process.env.DB_HOST,
+      };
     }
   }
 }

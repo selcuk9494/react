@@ -12,7 +12,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const redisUrl = this.configService.get<string>('REDIS_URL');
-    
+
     if (redisUrl) {
       try {
         this.redis = new Redis(redisUrl, {
@@ -31,7 +31,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
         await this.redis.ping();
         console.log('✅ Connected to Redis successfully');
-      } catch (e) {
+      } catch {
         console.warn('⚠️  Redis unavailable, using in-memory cache');
         this.fallbackToMemory();
       }
@@ -77,7 +77,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       const value = await this.redis?.get(key);
       return value ? JSON.parse(value) : null;
     } catch (e) {
-      console.warn(`Cache GET error for key ${key}:`, e.message);
+      console.warn(`Cache GET error for key ${key}:`, (e as any)?.message);
       return null;
     }
   }
@@ -94,7 +94,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
       await this.redis?.setex(key, ttlSeconds, JSON.stringify(value));
     } catch (e) {
-      console.warn(`Cache SET error for key ${key}:`, e.message);
+      console.warn(`Cache SET error for key ${key}:`, (e as any)?.message);
     }
   }
 
@@ -116,7 +116,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       if (this.isMock) {
         const keys = Array.from(this.memoryCache.keys());
         const regex = new RegExp(pattern.replace('*', '.*'));
-        keys.filter(k => regex.test(k)).forEach(k => this.memoryCache.delete(k));
+        keys
+          .filter((k) => regex.test(k))
+          .forEach((k) => this.memoryCache.delete(k));
         return;
       }
 

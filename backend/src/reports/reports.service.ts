@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
-import { startOfDay, endOfDay, subDays, startOfWeek, startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
+import {
+  startOfDay,
+  endOfDay,
+  subDays,
+  startOfWeek,
+  startOfMonth,
+  parseISO,
+  format,
+} from 'date-fns';
 
 @Injectable()
 export class ReportsService {
@@ -10,30 +18,48 @@ export class ReportsService {
     private cache: CacheService,
   ) {}
 
-  private getDateRange(period: string, startDate?: string, endDate?: string) {
-    const today = new Date();
-    let start = startOfDay(today);
-    let end = endOfDay(today);
+  private getDateRange(
+    period: string,
+    closingHour: number,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const now = new Date();
+    const safeClosing = Number.isFinite(closingHour)
+      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
+      : 6;
 
-    if (period === 'yesterday') {
-      start = startOfDay(subDays(today, 1));
-      end = endOfDay(subDays(today, 1));
+    let start: Date;
+    let end: Date;
+
+    if (period === 'today') {
+      const base = now.getHours() < safeClosing ? subDays(now, 1) : now;
+      start = startOfDay(base);
+      end = endOfDay(base);
+    } else if (period === 'yesterday') {
+      const base =
+        now.getHours() < safeClosing ? subDays(now, 2) : subDays(now, 1);
+      start = startOfDay(base);
+      end = endOfDay(base);
     } else if (period === 'week') {
-      start = startOfWeek(today, { weekStartsOn: 1 }); // Monday start
-      end = endOfDay(today);
+      start = startOfWeek(now, { weekStartsOn: 1 });
+      end = endOfDay(now);
     } else if (period === 'last7days') {
-      start = startOfDay(subDays(today, 6));
-      end = endOfDay(today);
+      start = startOfDay(subDays(now, 6));
+      end = endOfDay(now);
     } else if (period === 'month') {
-      start = startOfMonth(today);
-      end = endOfDay(today);
+      start = startOfMonth(now);
+      end = endOfDay(now);
     } else if (period === 'lastmonth') {
-      const lastMonth = subDays(startOfMonth(today), 1);
+      const lastMonth = subDays(startOfMonth(now), 1);
       start = startOfMonth(lastMonth);
       end = endOfDay(lastMonth);
     } else if (period === 'custom' && startDate && endDate) {
       start = startOfDay(parseISO(startDate));
       end = endOfDay(parseISO(endDate));
+    } else {
+      start = startOfDay(now);
+      end = endOfDay(now);
     }
 
     return { start, end };
@@ -41,7 +67,7 @@ export class ReportsService {
 
   // Mock function to decrypt password (replace with actual decryption if needed)
   private decryptPassword(encrypted: string): string {
-    return encrypted; 
+    return encrypted;
   }
 
   private async getBranchPool(user: any) {
@@ -54,14 +80,36 @@ export class ReportsService {
     const primary = branch.kasa_no || 1;
     kasa_nos.push(primary);
     if (Array.isArray(branch.kasalar) && branch.kasalar.length > 0) {
-      kasa_nos = Array.from(new Set([primary, ...branch.kasalar.filter((k: any) => typeof k === 'number')]));
+      kasa_nos = Array.from(
+        new Set([
+          primary,
+          ...branch.kasalar.filter((k: any) => typeof k === 'number'),
+        ]),
+      );
     } else if (branch.id) {
       try {
         const mainPool = this.db.getMainPool();
-        const rows = await this.db.executeQuery(mainPool, 'SELECT kasa_no FROM branch_kasas WHERE branch_id = $1', [branch.id]);
-        const extras = rows.map((r: any) => parseInt(r.kasa_no)).filter((n: any) => !isNaN(n));
+        const rows = await this.db.executeQuery(
+          mainPool,
+          'SELECT kasa_no FROM branch_kasas WHERE branch_id = $1',
+          [branch.id],
+        );
+        const extras = rows
+          .map((r: any) => parseInt(r.kasa_no))
+          .filter((n: any) => !isNaN(n));
         kasa_nos = Array.from(new Set([primary, ...extras]));
-      } catch (e) {}
+      } catch {}
+    }
+
+    let closingHour = 6;
+    const rawClosing = (branch as any).closing_hour;
+    if (typeof rawClosing === 'number' && Number.isFinite(rawClosing)) {
+      closingHour = rawClosing;
+    } else if (typeof rawClosing === 'string') {
+      const parsed = parseInt(rawClosing, 10);
+      if (Number.isFinite(parsed)) {
+        closingHour = parsed;
+      }
     }
 
     return {
@@ -73,25 +121,38 @@ export class ReportsService {
         db_password: this.decryptPassword(branch.db_password),
       }),
       kasa_no: primary,
-      kasa_nos
+      kasa_nos,
+      closingHour,
     };
   }
 
-  async getOrders(user: any, period: string, status: 'open' | 'closed', startDate?: string, endDate?: string, type?: 'adisyon' | 'paket') {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getOrders(
+    user: any,
+    period: string,
+    status: 'open' | 'closed',
+    startDate?: string,
+    endDate?: string,
+    type?: 'adisyon' | 'paket',
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
     let typeCondition = '';
     if (type === 'paket') {
-        typeCondition = 'AND masano = 99999';
+      typeCondition = 'AND masano = 99999';
     } else if (type === 'adisyon') {
-        typeCondition = 'AND masano != 99999';
+      typeCondition = 'AND masano != 99999';
     }
 
     if (status === 'open') {
-        let query = `
+      let query = `
             SELECT 
                 a.adsno,
                 SUM(COALESCE(a.tutar, 0)) as tutar,
@@ -108,18 +169,18 @@ export class ReportsService {
             LEFT JOIN ads_musteri m ON a.mustid = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
-        const params: any[] = [kasa_nos];
-        if (period !== 'all') {
-            query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
-            params.push(dStart, dEnd);
-        }
-        query += `
+      const params: any[] = [kasa_nos];
+      if (period !== 'all') {
+        query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
+        params.push(dStart, dEnd);
+      }
+      query += `
             GROUP BY a.adsno
             ORDER BY a.adsno DESC
         `;
-        let rows = await this.db.executeQuery(pool, query, params);
-        if (!rows || rows.length === 0) {
-            const fbQuery = `
+      let rows = await this.db.executeQuery(pool, query, params);
+      if (!rows || rows.length === 0) {
+        const fbQuery = `
                 SELECT 
                     a.adsno,
                     SUM(COALESCE(a.tutar, 0)) as tutar,
@@ -135,9 +196,9 @@ export class ReportsService {
                 ORDER BY a.adsno DESC
                 LIMIT 200
             `;
-            rows = await this.db.executeQuery(pool, fbQuery, [kasa_nos]);
-            if (!rows || rows.length === 0) {
-                const fbSingleQuery = `
+        rows = await this.db.executeQuery(pool, fbQuery, [kasa_nos]);
+        if (!rows || rows.length === 0) {
+          const fbSingleQuery = `
                     SELECT 
                         a.adsno,
                         SUM(COALESCE(a.tutar, 0)) as tutar,
@@ -148,17 +209,17 @@ export class ReportsService {
                         MAX(COALESCE(a.adtur, 0)) as adtur,
                         MAX(a.kasa) as kasano
                     FROM ads_acik a
-                    WHERE a.kasa = $1
+                    WHERE a.kasa = ANY($1)
                     GROUP BY a.adsno
                     ORDER BY a.adsno DESC
                     LIMIT 200
                 `;
-                rows = await this.db.executeQuery(pool, fbSingleQuery, [kasa_no]);
-            }
+          rows = await this.db.executeQuery(pool, fbSingleQuery, [kasa_nos]);
         }
-        return rows;
+      }
+      return rows;
     } else {
-        let query = `
+      let query = `
             WITH adisyon_agg AS (
                 SELECT 
                     a.adsno,
@@ -206,48 +267,64 @@ export class ReportsService {
             LEFT JOIN personel per ON a.garsonno = per.id
             LEFT JOIN ads_musteri m ON COALESCE(p.payment_mustid, a.mustid) = m.mustid
         `;
-        const params: any[] = [kasa_nos];
-        if (period !== 'all') {
-            query += ` WHERE DATE(p.raptar) BETWEEN $2 AND $3`;
-            params.push(dStart, dEnd);
-        }
-        query += `
+      const params: any[] = [kasa_nos];
+      if (period !== 'all') {
+        query += ` WHERE DATE(p.raptar) BETWEEN $2 AND $3`;
+        params.push(dStart, dEnd);
+      }
+      query += `
             ORDER BY a.adsno DESC
         `;
-        const rows = await this.db.executeQuery(pool, query, params);
-        return rows;
+      const rows = await this.db.executeQuery(pool, query, params);
+      return rows;
     }
   }
 
-  async getOrderDetails(user: any, adsno: string, status: 'open' | 'closed', date?: string, adtur?: number) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
+  async getOrderDetails(
+    user: any,
+    adsno: string,
+    status: 'open' | 'closed',
+    date?: string,
+    adtur?: number,
+  ) {
+    const { pool, kasa_nos } = await this.getBranchPool(user);
     let resolvedAdtur = typeof adtur !== 'undefined' ? adtur : undefined;
     if (typeof resolvedAdtur === 'undefined') {
       try {
         if (status === 'closed') {
-          const r = await this.db.executeQuery(pool, `
+          const r = await this.db.executeQuery(
+            pool,
+            `
             SELECT COALESCE(adtur, CASE WHEN masano = 99999 THEN 1 ELSE 0 END) AS adtur
             FROM ads_adisyon
             WHERE kasa = ANY($1) AND adsno = $2
             ORDER BY kaptar DESC, kapsaat DESC
             LIMIT 1
-          `, [kasa_nos, adsno]);
-          if (r && r[0] && typeof r[0].adtur !== 'undefined') resolvedAdtur = parseInt(r[0].adtur);
+          `,
+            [kasa_nos, adsno],
+          );
+          if (r && r[0] && typeof r[0].adtur !== 'undefined')
+            resolvedAdtur = parseInt(r[0].adtur);
         } else {
-          const r = await this.db.executeQuery(pool, `
+          const r = await this.db.executeQuery(
+            pool,
+            `
             SELECT COALESCE(adtur, CASE WHEN sipyer = 2 OR masano = 99999 THEN 1 ELSE 0 END) AS adtur
             FROM ads_acik
             WHERE kasa = ANY($1) AND adsno = $2
             ORDER BY actar DESC, acsaat DESC
             LIMIT 1
-          `, [kasa_nos, adsno]);
-          if (r && r[0] && typeof r[0].adtur !== 'undefined') resolvedAdtur = parseInt(r[0].adtur);
+          `,
+            [kasa_nos, adsno],
+          );
+          if (r && r[0] && typeof r[0].adtur !== 'undefined')
+            resolvedAdtur = parseInt(r[0].adtur);
         }
-      } catch (e) {}
+      } catch {}
     }
 
     if (status === 'open') {
-        const query = `
+      const query = `
             WITH order_info AS (
                 SELECT 
                     adsno,
@@ -320,11 +397,14 @@ export class ReportsService {
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
         `;
-        const params = typeof resolvedAdtur !== 'undefined' ? [kasa_nos, adsno, resolvedAdtur] : [kasa_nos, adsno];
-        const rows = await this.db.executeQuery(pool, query, params);
-        return rows[0] || null;
+      const params =
+        typeof resolvedAdtur !== 'undefined'
+          ? [kasa_nos, adsno, resolvedAdtur]
+          : [kasa_nos, adsno];
+      const rows = await this.db.executeQuery(pool, query, params);
+      return rows[0] || null;
     } else {
-        const query = `
+      const query = `
             WITH order_info AS (
                 SELECT 
                     adsno,
@@ -407,8 +487,14 @@ export class ReportsService {
             LEFT JOIN order_items items ON items.adsno = oi.adsno
             LIMIT 1
         `;
-        const rows = await this.db.executeQuery(pool, query, typeof resolvedAdtur !== 'undefined' ? [kasa_nos, adsno, resolvedAdtur] : [kasa_nos, adsno]);
-        return rows[0] || null;
+      const rows = await this.db.executeQuery(
+        pool,
+        query,
+        typeof resolvedAdtur !== 'undefined'
+          ? [kasa_nos, adsno, resolvedAdtur]
+          : [kasa_nos, adsno],
+      );
+      return rows[0] || null;
     }
   }
 
@@ -430,10 +516,22 @@ export class ReportsService {
       ORDER BY a.kaptar DESC
       LIMIT 5
     `;
-    const openCount = await this.db.executeQuery(pool, openCountQuery, [kasa_nos, adsno]);
-    const closedCount = await this.db.executeQuery(pool, closedCountQuery, [kasa_nos, adsno]);
-    const openItems = await this.db.executeQuery(pool, openItemsQuery, [kasa_nos, adsno]);
-    const closedItems = await this.db.executeQuery(pool, closedItemsQuery, [kasa_nos, adsno]);
+    const openCount = await this.db.executeQuery(pool, openCountQuery, [
+      kasa_nos,
+      adsno,
+    ]);
+    const closedCount = await this.db.executeQuery(pool, closedCountQuery, [
+      kasa_nos,
+      adsno,
+    ]);
+    const openItems = await this.db.executeQuery(pool, openItemsQuery, [
+      kasa_nos,
+      adsno,
+    ]);
+    const closedItems = await this.db.executeQuery(pool, closedItemsQuery, [
+      kasa_nos,
+      adsno,
+    ]);
     return {
       adsno,
       kasa_nos,
@@ -467,7 +565,11 @@ export class ReportsService {
     };
   }
 
-  private async hasColumn(pool: any, table: string, column: string): Promise<boolean> {
+  private async hasColumn(
+    pool: any,
+    table: string,
+    column: string,
+  ): Promise<boolean> {
     const rows = await this.db.executeQuery(
       pool,
       `
@@ -481,8 +583,20 @@ export class ReportsService {
     return rows && rows.length > 0;
   }
 
-  async getDashboard(user: any, period: string, startDate?: string, endDate?: string) {
-    const cacheKey = this.cache.generateKey('dashboard_v2', user.id, period, startDate || 'none', endDate || 'none', user.selected_branch || 0);
+  async getDashboard(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const cacheKey = this.cache.generateKey(
+      'dashboard_v2',
+      user.id,
+      period,
+      startDate || 'none',
+      endDate || 'none',
+      user.selected_branch || 0,
+    );
     const cacheTTL = ['today', 'yesterday'].includes(period) ? 120 : 600;
 
     const cached = await this.cache.get(cacheKey);
@@ -537,13 +651,22 @@ export class ReportsService {
     };
 
     try {
-      const [openOrders, closedOrders, performance, debts, cancelledItems] = await Promise.all([
-        this.getOrders(user, period, 'open', startDate, endDate).catch(() => []),
-        this.getOrders(user, period, 'closed', startDate, endDate).catch(() => []),
-        this.getPerformance(user, period, startDate, endDate).catch(() => null),
-        this.getDebts(user, period, startDate, endDate).catch(() => []),
-        this.getCancelledItems(user, period, startDate, endDate).catch(() => []),
-      ]);
+      const [openOrders, closedOrders, performance, debts, cancelledItems] =
+        await Promise.all([
+          this.getOrders(user, period, 'open', startDate, endDate).catch(
+            () => [],
+          ),
+          this.getOrders(user, period, 'closed', startDate, endDate).catch(
+            () => [],
+          ),
+          this.getPerformance(user, period, startDate, endDate).catch(
+            () => null,
+          ),
+          this.getDebts(user, period, startDate, endDate).catch(() => []),
+          this.getCancelledItems(user, period, startDate, endDate).catch(
+            () => [],
+          ),
+        ]);
 
       const mapSipyer = (sip: number) => {
         if (sip === 1) return 'hizli';
@@ -600,9 +723,15 @@ export class ReportsService {
         const g = (result.dagilim as any)[key];
         g.toplam_adet = g.acik_adet + g.kapali_adet;
         g.toplam_tutar = g.acik_toplam + g.kapali_toplam;
-        if (totalSales > 0 && result.kapali_iskonto_toplam > 0 && g.kapali_toplam > 0) {
+        if (
+          totalSales > 0 &&
+          result.kapali_iskonto_toplam > 0 &&
+          g.kapali_toplam > 0
+        ) {
           const share = g.kapali_toplam / totalSales;
-          g.kapali_iskonto = Number((result.kapali_iskonto_toplam * share).toFixed(2));
+          g.kapali_iskonto = Number(
+            (result.kapali_iskonto_toplam * share).toFixed(2),
+          );
         }
       });
 
@@ -640,16 +769,25 @@ export class ReportsService {
           result.iptal_adet += 1;
         }
       });
-    } catch (e) {}
+    } catch {}
 
     await this.cache.set(cacheKey, result, cacheTTL);
     return result;
   }
 
-
-  async getSalesChart(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getSalesChart(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -667,7 +805,11 @@ export class ReportsService {
       ORDER BY DATE(kaptar)
     `;
 
-    let rows = await this.db.executeQuery(pool, primaryQuery, [dStart, dEnd, kasa_nos]);
+    let rows = await this.db.executeQuery(pool, primaryQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     if (!rows || rows.length === 0) {
       const fallbackQuery = `
@@ -678,15 +820,25 @@ export class ReportsService {
       rows = await this.db.executeQuery(pool, fallbackQuery, [dStart, dEnd]);
     }
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       tarih: format(row.tarih, 'yyyy-MM-dd'),
-      toplam: parseFloat(row.toplam)
+      toplam: parseFloat(row.toplam),
     }));
   }
 
-  async getPaymentTypes(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getPaymentTypes(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -702,22 +854,36 @@ export class ReportsService {
       GROUP BY od.odmno, od.odmname
       ORDER BY total DESC
     `;
-    
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
-    return rows.map(row => ({
+
+    const rows = await this.db.executeQuery(pool, query, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
+    return rows.map((row) => ({
       payment_name: row.payment_name,
       total: parseFloat(row.total),
       count: parseInt(row.count),
-      otip: row.otip
+      otip: row.otip,
     }));
   }
 
-  async getCourierTracking(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getCourierTracking(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
-    
+
     const openQuery = `
       SELECT DISTINCT
           a.adsno,
@@ -732,8 +898,12 @@ export class ReportsService {
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
         AND DATE(a.actar) BETWEEN $2 AND $3
     `;
-    const openRows = await this.db.executeQuery(pool, openQuery, [kasa_nos, dStart, dEnd]);
-    
+    const openRows = await this.db.executeQuery(pool, openQuery, [
+      kasa_nos,
+      dStart,
+      dEnd,
+    ]);
+
     const closedQuery = `
       SELECT DISTINCT
           a.adsno,
@@ -750,8 +920,12 @@ export class ReportsService {
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
         AND (DATE(a.siptar) BETWEEN $2 AND $3 OR DATE(a.stoptar) BETWEEN $2 AND $3)
     `;
-    const closedRows = await this.db.executeQuery(pool, closedQuery, [kasa_nos, dStart, dEnd]);
-    
+    const closedRows = await this.db.executeQuery(pool, closedQuery, [
+      kasa_nos,
+      dStart,
+      dEnd,
+    ]);
+
     const results = [...openRows, ...closedRows];
     results.sort((a, b) => {
       const da = new Date(a.tarih);
@@ -793,15 +967,29 @@ export class ReportsService {
       LIMIT 100
     `;
     const fbOpen = await this.db.executeQuery(pool, fbOpenQuery, [kasa_nos]);
-    const fbClosed = await this.db.executeQuery(pool, fbClosedQuery, [kasa_nos]);
+    const fbClosed = await this.db.executeQuery(pool, fbClosedQuery, [
+      kasa_nos,
+    ]);
     const fbRes = [...fbOpen, ...fbClosed];
-    fbRes.sort((a, b) => new Date(b.tarih).getTime() - new Date(a.tarih).getTime());
+    fbRes.sort(
+      (a, b) => new Date(b.tarih).getTime() - new Date(a.tarih).getTime(),
+    );
     return fbRes;
   }
 
-  async getCancelledItems(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getCancelledItems(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -822,7 +1010,11 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.actar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
-    const openRows = await this.db.executeQuery(pool, openQuery, [dStart, dEnd, kasa_nos]);
+    const openRows = await this.db.executeQuery(pool, openQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     // Closed
     const closedQuery = `
@@ -841,16 +1033,32 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
-    const closedRows = await this.db.executeQuery(pool, closedQuery, [dStart, dEnd, kasa_nos]);
+    const closedRows = await this.db.executeQuery(pool, closedQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     const results = [...openRows, ...closedRows];
-    results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    results.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
     return results.slice(0, 200);
   }
 
-  async getUnsoldCancels(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getUnsoldCancels(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
     const query = `
@@ -874,13 +1082,24 @@ export class ReportsService {
       pers_id: r.pers_id,
       personel_adi: r.personel_adi,
       miktar: parseFloat(r.miktar),
-      tutar: parseFloat(r.tutar)
+      tutar: parseFloat(r.tutar),
     }));
   }
 
-  async getPerformance(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getPerformance(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_no, kasa_nos, closingHour } =
+      await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -893,9 +1112,19 @@ export class ReportsService {
       FROM ads_odeme o
       WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = ANY($3)
     `;
-    const totalsRows = await this.db.executeQuery(pool, totalsQuery, [dStart, dEnd, kasa_nos]);
-    const totals = totalsRows[0] || { total_sales: 0, orders_count: 0, total_discount: 0 };
-    const avg_ticket = parseFloat(totals.total_sales) / Math.max(1, parseInt(totals.orders_count));
+    const totalsRows = await this.db.executeQuery(pool, totalsQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
+    const totals = totalsRows[0] || {
+      total_sales: 0,
+      orders_count: 0,
+      total_discount: 0,
+    };
+    const avg_ticket =
+      parseFloat(totals.total_sales) /
+      Math.max(1, parseInt(totals.orders_count));
 
     // Duration
     const durationQuery = `
@@ -908,28 +1137,33 @@ export class ReportsService {
       WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
-    const durations = await this.db.executeQuery(pool, durationQuery, [dStart, dEnd, kasa_nos]);
-    
+    const durations = await this.db.executeQuery(pool, durationQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
+
     let totalMinutes = 0;
     let over60 = 0;
-    
-    durations.forEach(row => {
-        try {
-            if (row.acilis_saati && row.kapanis_saati) {
-                const s = row.acilis_saati.split(':');
-                const e = row.kapanis_saati.split(':');
-                const startMins = parseInt(s[0]) * 60 + parseInt(s[1]);
-                const endMins = parseInt(e[0]) * 60 + parseInt(e[1]);
-                let diff = endMins - startMins;
-                if (diff < 0) diff += 24 * 60; // Cross midnight
-                
-                totalMinutes += diff;
-                if (diff > 60) over60++;
-            }
-        } catch(e) {}
+
+    durations.forEach((row) => {
+      try {
+        if (row.acilis_saati && row.kapanis_saati) {
+          const s = row.acilis_saati.split(':');
+          const e = row.kapanis_saati.split(':');
+          const startMins = parseInt(s[0]) * 60 + parseInt(s[1]);
+          const endMins = parseInt(e[0]) * 60 + parseInt(e[1]);
+          let diff = endMins - startMins;
+          if (diff < 0) diff += 24 * 60; // Cross midnight
+
+          totalMinutes += diff;
+          if (diff > 60) over60++;
+        }
+      } catch {}
     });
-    
-    const avg_duration = durations.length > 0 ? totalMinutes / durations.length : 0;
+
+    const avg_duration =
+      durations.length > 0 ? totalMinutes / durations.length : 0;
 
     // Waiters
     const waitersQuery = `
@@ -946,7 +1180,12 @@ export class ReportsService {
       ORDER BY total DESC
       LIMIT 10
     `;
-    const waiters = await this.db.executeQuery(pool, waitersQuery, [kasa_nos, dStart, dEnd, kasa_nos]);
+    const waiters = await this.db.executeQuery(pool, waitersQuery, [
+      kasa_nos,
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     // Products
     const productsQuery = `
@@ -961,7 +1200,11 @@ export class ReportsService {
       ORDER BY total DESC
       LIMIT 10
     `;
-    const products = await this.db.executeQuery(pool, productsQuery, [dStart, dEnd, kasa_nos]);
+    const products = await this.db.executeQuery(pool, productsQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     // Groups
     const groupsQuery = `
@@ -977,31 +1220,48 @@ export class ReportsService {
       ORDER BY total DESC
       LIMIT 10
     `;
-    const groups = await this.db.executeQuery(pool, groupsQuery, [dStart, dEnd, kasa_nos]);
+    const groups = await this.db.executeQuery(pool, groupsQuery, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
 
     const branchIndex = user.selected_branch || 0;
     const branchName = user.branches[branchIndex]?.name || '';
 
     return {
-        branch: { name: branchName, kasa_no, kasa_nos },
-        period: { start: dStart, end: dEnd },
-        totals: {
-            total_sales: parseFloat(totals.total_sales),
-            orders_count: parseInt(totals.orders_count),
-            avg_ticket: avg_ticket,
-            avg_duration_minutes: avg_duration,
-            over60_count: over60,
-            total_discount: parseFloat(totals.total_discount)
-        },
-        waiters,
-        products,
-        groups
+      branch: { name: branchName, kasa_no, kasa_nos },
+      period: { start: dStart, end: dEnd },
+      totals: {
+        total_sales: parseFloat(totals.total_sales),
+        orders_count: parseInt(totals.orders_count),
+        avg_ticket: avg_ticket,
+        avg_duration_minutes: avg_duration,
+        over60_count: over60,
+        total_discount: parseFloat(totals.total_discount),
+      },
+      waiters,
+      products,
+      groups,
     };
   }
 
-  async getProductSales(user: any, period: string, startDate?: string, endDate?: string, groupId?: number, groupIds?: number[], plu?: number) {
-    const { pool, kasa_no, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getProductSales(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+    groupId?: number,
+    groupIds?: number[],
+    plu?: number,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -1011,8 +1271,8 @@ export class ReportsService {
     const usePlu = typeof plu === 'number' && !isNaN(plu);
 
     if (period === 'today') {
-        // Combine Open and Closed
-        query = `
+      // Combine Open and Closed
+      query = `
             WITH combined_sales AS (
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_adisyon a
@@ -1043,13 +1303,13 @@ export class ReportsService {
             GROUP BY p.product_name, p.plu, p.tip, pg.adi
             ORDER BY total DESC
         `;
-        params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
-        if (useArray) params.push(groupIds);
-        else if (groupId) params.push(groupId);
-        if (usePlu) params.push(plu);
+      params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
+      if (useArray) params.push(groupIds);
+      else if (groupId) params.push(groupId);
+      if (usePlu) params.push(plu);
     } else {
-        // Only Closed
-        query = `
+      // Only Closed
+      query = `
             SELECT 
                 p.product_name as product_name,
                 a.pluid as plu,
@@ -1072,10 +1332,10 @@ export class ReportsService {
             GROUP BY p.product_name, a.pluid, p.tip, pg.adi
             ORDER BY total DESC
         `;
-        params.push(dStart, dEnd, kasa_nos);
-        if (useArray) params.push(groupIds);
-        else if (groupId) params.push(groupId);
-        if (usePlu) params.push(plu);
+      params.push(dStart, dEnd, kasa_nos);
+      if (useArray) params.push(groupIds);
+      else if (groupId) params.push(groupId);
+      if (usePlu) params.push(plu);
     }
 
     const rows = await this.db.executeQuery(pool, query, params);
@@ -1085,8 +1345,11 @@ export class ReportsService {
   async getProductGroups(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branchId = user.branches[branchIndex]?.id;
-    const cacheKey = this.cache.generateKey('product_groups', branchId || 'default');
-    
+    const cacheKey = this.cache.generateKey(
+      'product_groups',
+      branchId || 'default',
+    );
+
     const cached = await this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -1099,7 +1362,7 @@ export class ReportsService {
       ORDER BY adi ASC
     `;
     const result = await this.db.executeQuery(pool, q, []);
-    
+
     // Cache for 1 hour (product groups rarely change)
     await this.cache.set(cacheKey, result, 3600);
     return result;
@@ -1109,7 +1372,7 @@ export class ReportsService {
     const branchIndex = user.selected_branch || 0;
     const branchId = user.branches[branchIndex]?.id;
     const cacheKey = this.cache.generateKey('personnel', branchId || 'default');
-    
+
     const cached = await this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -1122,15 +1385,25 @@ export class ReportsService {
       ORDER BY adi ASC
     `;
     const result = await this.db.executeQuery(pool, q, []);
-    
+
     // Cache for 30 minutes (personnel data rarely changes)
     await this.cache.set(cacheKey, result, 1800);
     return result;
   }
 
-  async getUnpayable(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getUnpayable(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
     const query = `
@@ -1163,7 +1436,11 @@ export class ReportsService {
         )
       ORDER BY a.kaptar DESC, a.adsno DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [dStart, dEnd, kasa_nos]);
+    const rows = await this.db.executeQuery(pool, query, [
+      dStart,
+      dEnd,
+      kasa_nos,
+    ]);
     return rows.map((r: any) => ({
       adtur: r.adtur,
       adsno: r.adsno,
@@ -1180,13 +1457,24 @@ export class ReportsService {
       mustid: r.mustid,
       musteri_adi: r.musteri_adi,
       musteri_soyadi: r.musteri_soyadi,
-      musteri_fullname: `${r.musteri_adi || ''}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
+      musteri_fullname:
+        `${r.musteri_adi || ''}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
     }));
   }
 
-  async getDebts(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getDebts(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
     const query = `
@@ -1217,7 +1505,11 @@ export class ReportsService {
       LEFT JOIN personel p ON agg.pers_id = p.id
       ORDER BY agg.islem_zamani DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [kasa_nos, dStart, dEnd]);
+    const rows = await this.db.executeQuery(pool, query, [
+      kasa_nos,
+      dStart,
+      dEnd,
+    ]);
     return rows.map((r: any) => ({
       adsno: r.ads_no,
       borc: parseFloat(r.borc || 0),
@@ -1225,15 +1517,26 @@ export class ReportsService {
       pers_id: r.pers_id,
       personel_adi: r.personel_adi,
       mustid: r.musteri,
-      musteri_fullname: `${r.musteri_adi}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
+      musteri_fullname:
+        `${r.musteri_adi}${r.musteri_soyadi ? ' ' + r.musteri_soyadi : ''}`.trim(),
       tarih: format(r.islem_zamani, 'yyyy-MM-dd'),
       saat: format(r.islem_zamani, 'HH:mm'),
     }));
   }
 
-  async getDiscountOrders(user: any, period: string, startDate?: string, endDate?: string) {
-    const { pool, kasa_nos } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(period, startDate, endDate);
+  async getDiscountOrders(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
     const dStart = format(start, 'yyyy-MM-dd');
     const dEnd = format(end, 'yyyy-MM-dd');
 
@@ -1263,7 +1566,11 @@ export class ReportsService {
       ORDER BY o.raptar DESC, o.adsno DESC
     `;
 
-    const rows = await this.db.executeQuery(pool, query, [kasa_nos, dStart, dEnd]);
+    const rows = await this.db.executeQuery(pool, query, [
+      kasa_nos,
+      dStart,
+      dEnd,
+    ]);
     return rows;
   }
 }

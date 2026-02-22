@@ -43,12 +43,12 @@ async function createDemoUserRender() {
     // Create Branch
     const branchRes = await client.query('SELECT * FROM branches WHERE user_id = $1', [userId]);
     
-    if (branchRes.rows.length === 0) {
-        console.log('Creating demo branch...');
-        // Note: Demo branch connects to ITSELF (Render DB)
-        await client.query(`
-            INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        if (branchRes.rows.length === 0) {
+            console.log('Creating demo branch...');
+            // Note: Demo branch connects to ITSELF (Render DB)
+            await client.query(`
+            INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
             userId,
             'Demo Şube (FastRest)',
@@ -57,7 +57,8 @@ async function createDemoUserRender() {
             'react',
             'frfood_user',
             'OPie7Pm4dGIG2N8KAnvFtOYu8QyiSPSt',
-            1
+            1,
+            6
         ]);
         console.log('Branch created.');
     } else {

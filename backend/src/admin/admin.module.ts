@@ -8,4 +8,3 @@ import { AdminUsersController } from './admin.users.controller';
   controllers: [AdminUsersController],
 })
 export class AdminModule {}
-

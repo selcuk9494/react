@@ -462,15 +462,18 @@ export default function DashboardScreen({ navigation, route }) {
                                 <View style={{flex: 1}}>
                                     <Text style={[styles.breakdownLabel, { color: '#ea580c' }]}>Adisyon</Text>
                                     <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.acik_toplam)}</Text>
-                                </View>
-                            </View>
-                            <View style={styles.breakdownRight}>
-                                <View style={[styles.countBadge, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
-                                    <Text style={[styles.countBadgePercent, { color: '#c2410c' }]}>
-                                        %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
-                                    </Text>
-                                    <Text style={[styles.countBadgeText, { color: '#c2410c' }]}>{dashboardData?.dagilim?.adisyon.acik_adet || 0}</Text>
-                                    <Text style={[styles.countBadgeLabel, { color: '#c2410c' }]}>adet</Text>
+                                    <View style={styles.inlineStatRow}>
+                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
+                                            <Text style={[styles.inlineStatText, { color: '#c2410c' }]}>
+                                                %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
+                                            <Text style={[styles.inlineStatText, { color: '#c2410c' }]}>
+                                                {dashboardData?.dagilim?.adisyon.acik_adet || 0} adet
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </View>
                                 <Feather name="chevron-right" size={16} color="#f97316" />
                             </View>
@@ -486,15 +489,18 @@ export default function DashboardScreen({ navigation, route }) {
                                     <View style={{flex: 1}}>
                                         <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
                                         <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}</Text>
-                                    </View>
-                                </View>
-                                <View style={styles.breakdownRight}>
-                                    <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                        <Text style={[styles.countBadgePercent, { color: '#b45309' }]}>
-                                            %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
-                                        </Text>
-                                        <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.acik_adet || 0}</Text>
-                                        <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
+                                        <View style={styles.inlineStatRow}>
+                                            <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                                <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
+                                                    %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                                <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
+                                                    {dashboardData?.dagilim?.paket.acik_adet || 0} adet
+                                                </Text>
+                                            </View>
+                                        </View>
                                     </View>
                                     <Feather name="chevron-right" size={16} color="#fbbf24" />
                                 </View>
@@ -551,21 +557,25 @@ export default function DashboardScreen({ navigation, route }) {
                             <View style={{flex: 1}}>
                                 <Text style={[styles.breakdownLabel, { color: '#059669' }]}>Adisyon</Text>
                                 <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.breakdownRight}>
-                            <View style={[styles.countBadge, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                                <Text style={[styles.countBadgePercent, { color: '#047857' }]}>
-                                    %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
-                                </Text>
-                                <Text style={[styles.countBadgeText, { color: '#047857' }]}>{dashboardData?.dagilim?.adisyon.kapali_adet || 0}</Text>
-                                <Text style={[styles.countBadgeLabel, { color: '#047857' }]}>adet</Text>
+                                <View style={styles.inlineStatRow}>
+                                    <View style={[styles.inlineStatPill, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                                        <Text style={[styles.inlineStatText, { color: '#047857' }]}>
+                                            %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.inlineStatPill, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                                        <Text style={[styles.inlineStatText, { color: '#047857' }]}>
+                                            {dashboardData?.dagilim?.adisyon.kapali_adet || 0} adet
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
                             <Feather name="chevron-right" size={16} color="#10b981" />
                         </View>
                     </TouchableOpacity>
 
-                    {/* Hızlı Satış - Her zaman göster */}
+                    {/* Hızlı Satış - Sadece varsa göster */}
+                    {(dashboardData?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
                     <TouchableOpacity 
                         style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fbcfe8', marginTop: 8 }]}
                         onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 3 })}
@@ -575,19 +585,23 @@ export default function DashboardScreen({ navigation, route }) {
                             <View style={{flex: 1}}>
                                 <Text style={[styles.breakdownLabel, { color: '#db2777' }]}>Hızlı Satış</Text>
                                 <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.hizli?.kapali_toplam || 0)}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.breakdownRight}>
-                            <View style={[styles.countBadge, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
-                                <Text style={[styles.countBadgePercent, { color: '#be185d' }]}>
-                                    %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round(((dashboardData?.dagilim?.hizli?.kapali_toplam || 0) / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
-                                </Text>
-                                <Text style={[styles.countBadgeText, { color: '#be185d' }]}>{dashboardData?.dagilim?.hizli?.kapali_adet || 0}</Text>
-                                <Text style={[styles.countBadgeLabel, { color: '#be185d' }]}>adet</Text>
+                                <View style={styles.inlineStatRow}>
+                                    <View style={[styles.inlineStatPill, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
+                                        <Text style={[styles.inlineStatText, { color: '#be185d' }]}>
+                                            %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round(((dashboardData?.dagilim?.hizli?.kapali_toplam || 0) / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.inlineStatPill, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
+                                        <Text style={[styles.inlineStatText, { color: '#be185d' }]}>
+                                            {dashboardData?.dagilim?.hizli?.kapali_adet || 0} adet
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
                             <Feather name="chevron-right" size={16} color="#ec4899" />
                         </View>
                     </TouchableOpacity>
+                    )}
 
                     {/* Paket - Sadece varsa göster */}
                     {(dashboardData?.dagilim?.paket.kapali_toplam || 0) > 0 && (
@@ -600,15 +614,18 @@ export default function DashboardScreen({ navigation, route }) {
                                 <View style={{flex: 1}}>
                                     <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
                                     <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}</Text>
-                                </View>
-                            </View>
-                            <View style={styles.breakdownRight}>
-                                <View style={[styles.countBadge, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                    <Text style={[styles.countBadgePercent, { color: '#b45309' }]}>
-                                        %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
-                                    </Text>
-                                    <Text style={[styles.countBadgeText, { color: '#b45309' }]}>{dashboardData?.dagilim?.paket.kapali_adet || 0}</Text>
-                                    <Text style={[styles.countBadgeLabel, { color: '#b45309' }]}>adet</Text>
+                                    <View style={styles.inlineStatRow}>
+                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                            <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
+                                                %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                                            <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
+                                                {dashboardData?.dagilim?.paket.kapali_adet || 0} adet
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </View>
                                 <Feather name="chevron-right" size={16} color="#fbbf24" />
                             </View>
@@ -1359,6 +1376,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#1f2937',
+  },
+  inlineStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  inlineStatPill: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    backgroundColor: '#fff',
+  },
+  inlineStatText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   breakdownCount: {
     fontSize: 11,
