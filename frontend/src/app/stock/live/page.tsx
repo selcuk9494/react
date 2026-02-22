@@ -188,70 +188,59 @@ export default function LiveStockPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 pb-20">
       {/* Header */}
       <div className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          {/* Top Row - Title and Status */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Link 
                 href="/dashboard" 
-                className="p-2.5 hover:bg-gray-100 rounded-xl text-gray-600 transition-all active:scale-95"
+                className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 transition-all active:scale-95"
               >
-                <ArrowLeft className="w-6 h-6" />
+                <ArrowLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <h1 className="text-lg font-black text-gray-900 flex items-center gap-2">
                   <Activity className="w-5 h-5 text-cyan-600" />
-                  Canlı Stok Takip
-                  {refreshing && (
-                    <RefreshCcw className="w-4 h-4 animate-spin text-cyan-500" />
-                  )}
+                  Canlı Stok
                 </h1>
-                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  Her 5 saniyede güncellenir
-                  {lastUpdate && (
-                    <span className="ml-2 text-gray-400">
-                      • Son: {lastUpdate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                  )}
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {/* Connection Status Badge */}
               <div className={clsx(
-                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-                loading || refreshing ? "bg-blue-50 text-blue-600 border border-blue-200" :
-                connectionError ? "bg-red-50 text-red-600 border border-red-200" : 
-                "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                "flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                loading || refreshing ? "bg-blue-50 text-blue-600" :
+                connectionError ? "bg-red-50 text-red-600" : 
+                "bg-emerald-50 text-emerald-600"
               )}>
                 <div className={clsx(
                   "w-2 h-2 rounded-full", 
                   loading || refreshing ? "bg-blue-500 animate-ping" :
                   connectionError ? "bg-red-500" : "bg-emerald-500 animate-pulse"
                 )}></div>
-                <span>
+                <span className="hidden sm:inline">
                   {loading || refreshing ? 'Yükleniyor...' : connectionError ? 'Bağlantı Yok' : 'Bağlı'}
                 </span>
               </div>
               <button 
                 onClick={handleManualRefresh}
                 disabled={refreshing}
-                className="p-2.5 bg-cyan-50 hover:bg-cyan-100 rounded-xl text-cyan-600 transition-all active:scale-95 disabled:opacity-50"
+                className="p-2 bg-cyan-50 hover:bg-cyan-100 rounded-xl text-cyan-600 transition-all active:scale-95 disabled:opacity-50"
               >
                 <RefreshCcw className={clsx("w-5 h-5", refreshing && "animate-spin")} />
               </button>
             </div>
           </div>
           
-          {/* Date Selector */}
-          <div className="flex items-center justify-center gap-2 mt-4">
+          {/* Date Selector Row - Always Visible */}
+          <div className="flex items-center justify-center gap-1 mt-3 pb-1">
             <button
               onClick={() => {
                 const date = new Date(selectedDate);
                 date.setDate(date.getDate() - 1);
                 setSelectedDate(formatDate(date));
               }}
-              className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all"
+              className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all active:scale-95"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -259,7 +248,7 @@ export default function LiveStockPage() {
             <button
               onClick={() => setShowDatePicker(!showDatePicker)}
               className={clsx(
-                "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all",
+                "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all text-sm",
                 isToday 
                   ? "bg-cyan-100 text-cyan-700 border border-cyan-200" 
                   : "bg-amber-100 text-amber-700 border border-amber-200"
@@ -275,14 +264,13 @@ export default function LiveStockPage() {
                 date.setDate(date.getDate() + 1);
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                // Yarından ileriye gidemez
                 if (date <= tomorrow) {
                   setSelectedDate(formatDate(date));
                 }
               }}
               disabled={isToday}
               className={clsx(
-                "p-2 rounded-lg transition-all",
+                "p-2 rounded-lg transition-all active:scale-95",
                 isToday ? "text-gray-300 cursor-not-allowed" : "hover:bg-gray-100 text-gray-600"
               )}
             >
@@ -292,16 +280,16 @@ export default function LiveStockPage() {
             {!isToday && (
               <button
                 onClick={() => setSelectedDate(formatDate(new Date()))}
-                className="px-3 py-1.5 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-all ml-2"
+                className="ml-1 px-2 py-1.5 bg-cyan-500 text-white rounded-lg text-xs font-medium hover:bg-cyan-600 transition-all active:scale-95"
               >
-                Bugüne Dön
+                Bugün
               </button>
             )}
           </div>
           
           {/* Date Picker Popup */}
           {showDatePicker && (
-            <div className="mt-2 flex justify-center">
+            <div className="flex justify-center py-2">
               <input
                 type="date"
                 value={selectedDate}
@@ -310,21 +298,21 @@ export default function LiveStockPage() {
                   setSelectedDate(e.target.value);
                   setShowDatePicker(false);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
               />
             </div>
           )}
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
         {/* Info Banner for Past Dates */}
         {!isToday && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-            <Calendar className="w-6 h-6 text-amber-600" />
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <h3 className="font-semibold text-amber-800">{formatDisplayDate(selectedDate)} Tarihli Stok Raporu</h3>
-              <p className="text-sm text-amber-600">Geçmiş tarih görüntüleniyor. Otomatik güncelleme devre dışı.</p>
+              <h3 className="font-semibold text-amber-800 text-sm">{formatDisplayDate(selectedDate)}</h3>
+              <p className="text-xs text-amber-600">Geçmiş tarih - Otomatik güncelleme kapalı</p>
             </div>
           </div>
         )}
