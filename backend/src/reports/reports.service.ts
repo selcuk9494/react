@@ -1,15 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
-import {
-  startOfDay,
-  endOfDay,
-  subDays,
-  startOfWeek,
-  startOfMonth,
-  parseISO,
-  format,
-} from 'date-fns';
+import { format } from 'date-fns';
 
 @Injectable()
 export class ReportsService {
