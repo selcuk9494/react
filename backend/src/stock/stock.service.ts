@@ -402,28 +402,28 @@ export class StockService {
       return { date, items: [], hasAnyStockEntry: false };
     }
 
-    // Satış verilerini al - kapalı adisyonlardan (ads_adisyon)
+    // Satış verilerini al - kapalı adisyonlardan (ads_adisyon) - raptar (rapor tarihi) kullanarak
     let salesRes;
     try {
       // Önce tabloyu ve verileri kontrol et
       const checkQuery = await pool.query(`
-        SELECT COUNT(*) as total, MIN(kaptar) as min_date, MAX(kaptar) as max_date 
+        SELECT COUNT(*) as total, MIN(raptar) as min_date, MAX(raptar) as max_date 
         FROM ads_adisyon
       `);
-      console.log('ads_adisyon table check:', checkQuery.rows[0]);
+      console.log('ads_adisyon table check (raptar):', checkQuery.rows[0]);
 
-      // Bugünkü kayıtları kontrol et
+      // Bugünkü kayıtları kontrol et - raptar alanı ile
       const todayCheck = await pool.query(
         `
         SELECT COUNT(*) as today_count 
         FROM ads_adisyon 
-        WHERE kaptar >= $1 AND kaptar < $2
+        WHERE raptar >= $1 AND raptar < $2
       `,
         [start, end],
       );
-      console.log(`Records for date ${date}:`, todayCheck.rows[0]);
+      console.log(`Records for date range ${start} - ${end} (raptar):`, todayCheck.rows[0]);
 
-      // kaptar (kapanış tarihi) ile sorgula - product_name sadece product tablosundan
+      // raptar (rapor tarihi) ile sorgula - gün dönüm saatine göre doğru filtreleme
       salesRes = await pool.query(
         `
         SELECT 
@@ -431,14 +431,14 @@ export class StockService {
           SUM(a.miktar) as total_qty
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE a.kaptar >= $1 AND a.kaptar < $2
+        WHERE a.raptar >= $1 AND a.raptar < $2
           AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
         [start, end],
       );
       console.log(
-        `Sales query returned ${salesRes.rows.length} rows:`,
+        `Sales query (raptar) returned ${salesRes.rows.length} rows:`,
         salesRes.rows.slice(0, 5),
       );
     } catch (err) {
