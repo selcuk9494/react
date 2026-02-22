@@ -1337,8 +1337,10 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    
+    // raptar ve actar için sadece tarih formatı kullan
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
 
     let query = '';
     const params = [];
@@ -1346,16 +1348,16 @@ export class ReportsService {
     const usePlu = typeof plu === 'number' && !isNaN(plu);
 
     if (period === 'today') {
-      // Combine Open and Closed
+      // Combine Open and Closed - raptar ve actar kullan
       query = `
             WITH combined_sales AS (
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_adisyon a
-                WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
+                WHERE a.raptar = $1::date AND a.kasa = ANY($2)
                 UNION ALL
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_acik a
-                WHERE a.actar >= $4 AND a.actar < $5 AND a.kasa = ANY($6)
+                WHERE a.actar = $3::date AND a.kasa = ANY($4)
             )
             SELECT 
                 p.product_name as product_name,
@@ -1369,21 +1371,21 @@ export class ReportsService {
             LEFT JOIN product_group pg ON p.tip = pg.id
             ${(() => {
               const conds: string[] = [];
-              if (useArray) conds.push('p.tip = ANY($7)');
-              else if (groupId) conds.push('p.tip = $7');
-              const nextIndex = 7 + (useArray || groupId ? 1 : 0);
+              if (useArray) conds.push('p.tip = ANY($5)');
+              else if (groupId) conds.push('p.tip = $5');
+              const nextIndex = 5 + (useArray || groupId ? 1 : 0);
               if (usePlu) conds.push(`p.plu = $${nextIndex}`);
               return conds.length ? 'WHERE ' + conds.join(' AND ') : '';
             })()}
             GROUP BY p.product_name, p.plu, p.tip, pg.adi
             ORDER BY total DESC
         `;
-      params.push(dStart, dEnd, kasa_nos, dStart, dEnd, kasa_nos);
+      params.push(startDateOnly, kasa_nos, startDateOnly, kasa_nos);
       if (useArray) params.push(groupIds);
       else if (groupId) params.push(groupId);
       if (usePlu) params.push(plu);
     } else {
-      // Only Closed
+      // Only Closed - raptar kullan
       query = `
             SELECT 
                 p.product_name as product_name,
@@ -1395,7 +1397,7 @@ export class ReportsService {
             FROM ads_adisyon a
             LEFT JOIN product p ON a.pluid = p.plu
             LEFT JOIN product_group pg ON p.tip = pg.id
-            WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
+            WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
             ${(() => {
               const conds: string[] = [];
               if (useArray) conds.push('p.tip = ANY($4)');
@@ -1407,7 +1409,7 @@ export class ReportsService {
             GROUP BY p.product_name, a.pluid, p.tip, pg.adi
             ORDER BY total DESC
         `;
-      params.push(dStart, dEnd, kasa_nos);
+      params.push(startDateOnly, endDateOnly, kasa_nos);
       if (useArray) params.push(groupIds);
       else if (groupId) params.push(groupId);
       if (usePlu) params.push(plu);
