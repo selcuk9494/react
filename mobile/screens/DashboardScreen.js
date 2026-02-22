@@ -188,7 +188,7 @@ export default function DashboardScreen({ navigation, route }) {
         if (period === 'custom') {
             const startStr = startDate.toISOString().split('T')[0];
             const endStr = endDate.toISOString().split('T')[0];
-            url = `${API_URL}/dashboard?period=custom&startDate=${startStr}&endDate=${endStr}`;
+            url = `${API_URL}/dashboard?period=custom&start_date=${startStr}&end_date=${endStr}`;
         }
 
         const response = await axios.get(url, {
@@ -400,7 +400,7 @@ export default function DashboardScreen({ navigation, route }) {
                 { id: 'week', label: 'Bu Hafta', icon: '📆' },
                 { id: 'last7days', label: 'Son 7 Gün', icon: '7️⃣' },
                 { id: 'month', label: 'Bu Ay', icon: '📊' },
-                { id: 'last_month', label: 'Geçen Ay', icon: '📉' },
+                { id: 'lastmonth', label: 'Geçen Ay', icon: '📉' },
                 { id: 'custom', label: 'Özel Tarih', icon: '🔍' },
             ].map((p) => (
                 <TouchableOpacity
