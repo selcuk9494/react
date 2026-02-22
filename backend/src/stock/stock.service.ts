@@ -76,6 +76,8 @@ export class StockService {
     start: string;
     end: string;
     date: string;
+    startDateOnly: string;
+    endDateOnly: string;
   }> {
     const closingHour = await this.getClosingHour(branchId);
 
