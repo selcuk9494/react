@@ -206,8 +206,14 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    let dStart = format(start, 'yyyy-MM-dd');
+    let dEnd = format(end, 'yyyy-MM-dd');
+
+    // Tek iş günü bazlı raporlar için (Bugün / Dün) raptar ve actar tarih
+    // aralıklarını tek güne sabitle
+    if (period === 'today' || period === 'yesterday') {
+      dEnd = dStart;
+    }
 
     let typeCondition = '';
     if (type === 'paket') {
