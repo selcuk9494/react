@@ -486,62 +486,69 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
                     </TouchableOpacity>
                     
-                    {/* Breakdown Items */}
-                     <View style={styles.breakdownContainer}>
-                        <TouchableOpacity 
-                            style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fed7aa' }]}
-                            onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
+                    <View style={styles.breakdownContainer}>
+                      <View style={styles.breakdownCircleRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.breakdownCircle,
+                            { backgroundColor: '#fff7ed', borderColor: '#fed7aa' },
+                          ]}
+                          onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
                         >
-                            <View style={styles.breakdownRow}>
-                                <View style={[styles.miniIcon, { backgroundColor: '#fff7ed' }]}><Text>🍽️</Text></View>
-                                <View style={{flex: 1}}>
-                                    <Text style={[styles.breakdownLabel, { color: '#ea580c' }]}>Adisyon</Text>
-                                    <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.acik_toplam)}</Text>
-                                    <View style={styles.inlineStatRow}>
-                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
-                                            <Text style={[styles.inlineStatText, { color: '#c2410c' }]}>
-                                                %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
-                                            <Text style={[styles.inlineStatText, { color: '#c2410c' }]}>
-                                                {dashboardData?.dagilim?.adisyon.acik_adet || 0} adet
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-                                <Feather name="chevron-right" size={16} color="#f97316" />
-                            </View>
+                          <Text style={[styles.breakdownCircleLabel, { color: '#ea580c' }]}>
+                            Adisyon
+                          </Text>
+                          <Text style={styles.breakdownCircleValue}>
+                            {formatCurrency(dashboardData?.dagilim?.adisyon.acik_toplam)}
+                          </Text>
+                          <View style={styles.breakdownCircleStats}>
+                            <Text style={[styles.breakdownCircleStatText, { color: '#c2410c' }]}>
+                              %{dashboardData?.acik_adisyon_toplam > 0
+                                ? Math.round(
+                                    (dashboardData?.dagilim?.adisyon.acik_toplam /
+                                      dashboardData?.acik_adisyon_toplam) *
+                                      100,
+                                  )
+                                : 0}
+                            </Text>
+                            <Text style={[styles.breakdownCircleStatText, { color: '#c2410c' }]}>
+                              {dashboardData?.dagilim?.adisyon.acik_adet || 0} adet
+                            </Text>
+                          </View>
                         </TouchableOpacity>
 
                         {(dashboardData?.dagilim?.paket.acik_toplam || 0) > 0 && (
-                            <TouchableOpacity 
-                                style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fde68a', marginTop: 8 }]}
-                                onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
-                            >
-                                <View style={styles.breakdownRow}>
-                                    <View style={[styles.miniIcon, { backgroundColor: '#fffbeb' }]}><Text>📦</Text></View>
-                                    <View style={{flex: 1}}>
-                                        <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
-                                        <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}</Text>
-                                        <View style={styles.inlineStatRow}>
-                                            <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                                <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
-                                                    %{dashboardData?.acik_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.acik_toplam / dashboardData?.acik_adisyon_toplam) * 100) : 0}
-                                                </Text>
-                                            </View>
-                                            <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                                <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
-                                                    {dashboardData?.dagilim?.paket.acik_adet || 0} adet
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                    <Feather name="chevron-right" size={16} color="#fbbf24" />
-                                </View>
-                            </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.breakdownCircle,
+                              { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+                            ]}
+                            onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
+                          >
+                            <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
+                              Paket
+                            </Text>
+                            <Text style={styles.breakdownCircleValue}>
+                              {formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}
+                            </Text>
+                            <View style={styles.breakdownCircleStats}>
+                              <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                                %{dashboardData?.acik_adisyon_toplam > 0
+                                  ? Math.round(
+                                      (dashboardData?.dagilim?.paket.acik_toplam /
+                                        dashboardData?.acik_adisyon_toplam) *
+                                        100,
+                                    )
+                                  : 0}
+                              </Text>
+                              <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                                {dashboardData?.dagilim?.paket.acik_adet || 0} adet
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
                         )}
-                     </View>
+                      </View>
+                    </View>
                 </View>
             )}
 
@@ -580,37 +587,70 @@ export default function DashboardScreen({ navigation, route }) {
                     </View>
                 </TouchableOpacity>
 
-                {/* Breakdown */}
                 <View style={styles.breakdownContainer}>
-                    {/* Adisyon */}
-                    <TouchableOpacity 
-                        style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#a7f3d0' }]}
-                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
+                  <View style={styles.breakdownCircleRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.breakdownCircle,
+                        { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
+                      ]}
+                      onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
                     >
-                        <View style={styles.breakdownRow}>
-                            <View style={[styles.miniIcon, { backgroundColor: '#ecfdf5' }]}><Text>🍽️</Text></View>
-                            <View style={{flex: 1}}>
-                                <Text style={[styles.breakdownLabel, { color: '#059669' }]}>Adisyon</Text>
-                                <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}</Text>
-                                <View style={styles.inlineStatRow}>
-                                    <View style={[styles.inlineStatPill, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                                        <Text style={[styles.inlineStatText, { color: '#047857' }]}>
-                                            %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.adisyon.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
-                                        </Text>
-                                    </View>
-                                    <View style={[styles.inlineStatPill, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                                        <Text style={[styles.inlineStatText, { color: '#047857' }]}>
-                                            {dashboardData?.dagilim?.adisyon.kapali_adet || 0} adet
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                            <Feather name="chevron-right" size={16} color="#10b981" />
-                        </View>
+                      <Text style={[styles.breakdownCircleLabel, { color: '#059669' }]}>
+                        Adisyon
+                      </Text>
+                      <Text style={styles.breakdownCircleValue}>
+                        {formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}
+                      </Text>
+                      <View style={styles.breakdownCircleStats}>
+                        <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
+                          %{dashboardData?.kapali_adisyon_toplam > 0
+                            ? Math.round(
+                                (dashboardData?.dagilim?.adisyon.kapali_toplam /
+                                  dashboardData?.kapali_adisyon_toplam) *
+                                  100,
+                              )
+                            : 0}
+                        </Text>
+                        <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
+                          {dashboardData?.dagilim?.adisyon.kapali_adet || 0} adet
+                        </Text>
+                      </View>
                     </TouchableOpacity>
 
-                    {/* Hızlı Satış - Sadece varsa göster */}
-                    {(dashboardData?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
+                    {(dashboardData?.dagilim?.paket.kapali_toplam || 0) > 0 && (
+                      <TouchableOpacity
+                        style={[
+                          styles.breakdownCircle,
+                          { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+                        ]}
+                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
+                      >
+                        <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
+                          Paket
+                        </Text>
+                        <Text style={styles.breakdownCircleValue}>
+                          {formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}
+                        </Text>
+                        <View style={styles.breakdownCircleStats}>
+                          <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                            %{dashboardData?.kapali_adisyon_toplam > 0
+                              ? Math.round(
+                                  (dashboardData?.dagilim?.paket.kapali_toplam /
+                                    dashboardData?.kapali_adisyon_toplam) *
+                                    100,
+                                )
+                              : 0}
+                          </Text>
+                          <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                            {dashboardData?.dagilim?.paket.kapali_adet || 0} adet
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {(dashboardData?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
                     <TouchableOpacity 
                         style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fbcfe8', marginTop: 8 }]}
                         onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 3 })}
@@ -636,35 +676,6 @@ export default function DashboardScreen({ navigation, route }) {
                             <Feather name="chevron-right" size={16} color="#ec4899" />
                         </View>
                     </TouchableOpacity>
-                    )}
-
-                    {/* Paket - Sadece varsa göster */}
-                    {(dashboardData?.dagilim?.paket.kapali_toplam || 0) > 0 && (
-                        <TouchableOpacity 
-                            style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fde68a', marginTop: 8 }]}
-                            onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
-                        >
-                            <View style={styles.breakdownRow}>
-                                <View style={[styles.miniIcon, { backgroundColor: '#fffbeb' }]}><Text>📦</Text></View>
-                                <View style={{flex: 1}}>
-                                    <Text style={[styles.breakdownLabel, { color: '#b45309' }]}>Paket</Text>
-                                    <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}</Text>
-                                    <View style={styles.inlineStatRow}>
-                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                            <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
-                                                %{dashboardData?.kapali_adisyon_toplam > 0 ? Math.round((dashboardData?.dagilim?.paket.kapali_toplam / dashboardData?.kapali_adisyon_toplam) * 100) : 0}
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.inlineStatPill, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-                                            <Text style={[styles.inlineStatText, { color: '#b45309' }]}>
-                                                {dashboardData?.dagilim?.paket.kapali_adet || 0} adet
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-                                <Feather name="chevron-right" size={16} color="#fbbf24" />
-                            </View>
-                        </TouchableOpacity>
                     )}
                 </View>
             </View>
@@ -1408,6 +1419,39 @@ const styles = StyleSheet.create({
   },
   breakdownContainer: {
     marginTop: 16,
+  },
+  breakdownCircleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  breakdownCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  breakdownCircleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  breakdownCircleValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  breakdownCircleStats: {
+    marginTop: 6,
+    alignItems: 'center',
+  },
+  breakdownCircleStatText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   breakdownItem: {
     borderRadius: 12,
