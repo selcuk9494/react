@@ -46,26 +46,23 @@ export default function LiveStockPage() {
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [showStockEntryOnly, setShowStockEntryOnly] = useState(false);
   const [criticalThreshold, setCriticalThreshold] = useState(5);
+  const [connectionError, setConnectionError] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const MOCK_ITEMS: StockItem[] = [
-    { name: 'Hamburger', group: 'Ana Yemek', initial: 50, sold: 12, open: 3, cancelled: 1, remaining: 34 },
-    { name: 'Cheeseburger', group: 'Ana Yemek', initial: 40, sold: 10, open: 2, cancelled: 0, remaining: 28 },
-    { name: 'Pizza Margherita', group: 'Ana Yemek', initial: 30, sold: 25, open: 1, cancelled: 0, remaining: 4 },
-    { name: 'Tavuk Döner', group: 'Ana Yemek', initial: 60, sold: 55, open: 3, cancelled: 1, remaining: 1 },
-    { name: 'Cola', group: 'İçecek', initial: 100, sold: 45, open: 5, cancelled: 0, remaining: 50 },
-    { name: 'Su', group: 'İçecek', initial: 200, sold: 80, open: 10, cancelled: 0, remaining: 110 },
-    { name: 'Ayran', group: 'İçecek', initial: 50, sold: 48, open: 2, cancelled: 0, remaining: 0 },
-    { name: 'Patates Kızartması', group: 'Ara Sıcak', initial: 80, sold: 35, open: 5, cancelled: 2, remaining: 38 },
-    { name: 'Tiramisu', group: 'Tatlı', initial: 20, sold: 18, open: 0, cancelled: 0, remaining: 2 },
-    { name: 'Cheesecake', group: 'Tatlı', initial: 15, sold: 12, open: 1, cancelled: 0, remaining: 2 }
-  ];
+  const prevBranchRef = useRef(user?.selected_branch);
 
   const fetchData = useCallback(async (showRefreshIndicator = false) => {
     try {
       if (!token) return;
       if (showRefreshIndicator) setRefreshing(true);
+      
+      // Detect branch change and clear data
+      if (prevBranchRef.current !== user?.selected_branch) {
+        setItems([]);
+        setLoading(true);
+        setConnectionError(false);
+        prevBranchRef.current = user?.selected_branch;
+      }
       
       const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
       
@@ -77,20 +74,22 @@ export default function LiveStockPage() {
             headers: { Authorization: `Bearer ${token}` }
           });
           dataItems = res.data.items || [];
-        } catch (err) {
-          console.warn('API Error, using fallback');
+          setConnectionError(false);
+        } catch (err: any) {
+          console.warn('API Error:', err);
+          setConnectionError(true);
+          dataItems = [];
         }
-      }
-
-      if (dataItems.length === 0) {
-        dataItems = MOCK_ITEMS;
+      } else {
+        setConnectionError(true);
       }
 
       setItems(dataItems);
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Error fetching live stock:', error);
-      setItems(MOCK_ITEMS);
+      setConnectionError(true);
+      setItems([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
