@@ -242,10 +242,93 @@ export default function LiveStockPage() {
               </button>
             </div>
           </div>
+          
+          {/* Date Selector */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => {
+                const date = new Date(selectedDate);
+                date.setDate(date.getDate() - 1);
+                setSelectedDate(formatDate(date));
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            
+            <button
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className={clsx(
+                "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all",
+                isToday 
+                  ? "bg-cyan-100 text-cyan-700 border border-cyan-200" 
+                  : "bg-amber-100 text-amber-700 border border-amber-200"
+              )}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>{isToday ? 'Bugün' : formatDisplayDate(selectedDate)}</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                const date = new Date(selectedDate);
+                date.setDate(date.getDate() + 1);
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                // Yarından ileriye gidemez
+                if (date <= tomorrow) {
+                  setSelectedDate(formatDate(date));
+                }
+              }}
+              disabled={isToday}
+              className={clsx(
+                "p-2 rounded-lg transition-all",
+                isToday ? "text-gray-300 cursor-not-allowed" : "hover:bg-gray-100 text-gray-600"
+              )}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(formatDate(new Date()))}
+                className="px-3 py-1.5 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-all ml-2"
+              >
+                Bugüne Dön
+              </button>
+            )}
+          </div>
+          
+          {/* Date Picker Popup */}
+          {showDatePicker && (
+            <div className="mt-2 flex justify-center">
+              <input
+                type="date"
+                value={selectedDate}
+                max={formatDate(new Date())}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setShowDatePicker(false);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+          )}
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Info Banner for Past Dates */}
+        {!isToday && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-amber-600" />
+            <div>
+              <h3 className="font-semibold text-amber-800">{formatDisplayDate(selectedDate)} Tarihli Stok Raporu</h3>
+              <p className="text-sm text-amber-600">Geçmiş tarih görüntüleniyor. Otomatik güncelleme devre dışı.</p>
+            </div>
+          </div>
+        )}
+        
         {/* Connection Error Banner */}
         {connectionError && !loading && (
           <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
