@@ -680,8 +680,8 @@ export default function Dashboard() {
                   <div className="w-full">
                     {/* Auto-fit amount */}
                     <AutoFitText
-                      text={loading ? '...' : formatCurrency(grand)}
-                      className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", loading && "opacity-50")}
+                      text={isDataLoading || !data ? '...' : formatCurrency(grand)}
+                      className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", (isDataLoading || !data) && "opacity-50 animate-pulse")}
                       maxPx={36}
                       minPx={22}
                     />
@@ -694,7 +694,7 @@ export default function Dashboard() {
                 </>
               );
             })()}
-            {!!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
+            {!isDataLoading && data && !!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
               <div className={clsx(
                 "mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold backdrop-blur-sm",
                 period === 'today' ? "bg-amber-500/90 text-white" : "bg-amber-400 text-amber-900"
