@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import axios from 'axios';
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { getApiUrl } from './api';
 
 const fetcher = (url: string, token: string) =>
@@ -14,6 +14,7 @@ interface UseReportDataOptions {
   customEndDate?: string;
   additionalParams?: Record<string, any>;
   enabled?: boolean;
+  branchId?: string | number;
 }
 
 export function useReportData({
@@ -24,7 +25,13 @@ export function useReportData({
   customEndDate,
   additionalParams = {},
   enabled = true,
+  branchId,
 }: UseReportDataOptions) {
+  // Track previous values to detect changes
+  const prevPeriodRef = useRef(period);
+  const prevBranchRef = useRef(branchId);
+  const [isChanging, setIsChanging] = useState(false);
+
   const apiUrl = useMemo(() => {
     if (!token || !enabled) return null;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return null;
@@ -46,15 +53,34 @@ export function useReportData({
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 3000, // 3 seconds deduplication
-      keepPreviousData: true, // Show previous data while loading new data
+      dedupingInterval: 3000,
+      keepPreviousData: false, // Don't keep previous data - show loading state instead
     }
   );
 
+  // Detect period or branch changes and trigger loading state
+  useEffect(() => {
+    const periodChanged = prevPeriodRef.current !== period;
+    const branchChanged = prevBranchRef.current !== branchId;
+    
+    if (periodChanged || branchChanged) {
+      setIsChanging(true);
+      prevPeriodRef.current = period;
+      prevBranchRef.current = branchId;
+    }
+  }, [period, branchId]);
+
+  // Reset changing state when data arrives
+  useEffect(() => {
+    if (!isLoading && data !== undefined) {
+      setIsChanging(false);
+    }
+  }, [isLoading, data]);
+
   return {
-    data,
+    data: isChanging ? undefined : data, // Return undefined while changing to show loading
     error,
-    isLoading,
+    isLoading: isLoading || isChanging,
     mutate,
   };
 }
