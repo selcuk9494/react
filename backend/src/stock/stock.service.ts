@@ -509,9 +509,9 @@ export class StockService {
         FROM ads_acik 
         WHERE actar = $1::date
       `,
-        [startDateOnly],
+        [dateToUse],
       );
-      console.log(`Open records for date ${startDateOnly} (actar):`, todayOpenCheck.rows[0]);
+      console.log(`Open records for date ${dateToUse} (actar):`, todayOpenCheck.rows[0]);
 
       openRes = await pool.query(
         `
@@ -524,12 +524,16 @@ export class StockService {
           AND a.actar = $1::date
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
-        [startDateOnly],
+        [dateToUse],
       );
       console.log(
-        `Open orders query (actar=${startDateOnly}) returned ${openRes.rows.length} rows:`,
+        `Open orders query (actar=${dateToUse}) returned ${openRes.rows.length} rows:`,
         openRes.rows.slice(0, 5),
       );
+    } catch (err) {
+      console.error('LiveStock open query error:', err);
+      openRes = { rows: [] };
+    }
     } catch (err) {
       console.error('LiveStock open query error:', err);
       openRes = { rows: [] };
