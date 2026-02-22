@@ -534,10 +534,6 @@ export class StockService {
       console.error('LiveStock open query error:', err);
       openRes = { rows: [] };
     }
-    } catch (err) {
-      console.error('LiveStock open query error:', err);
-      openRes = { rows: [] };
-    }
 
     openRes.rows.forEach((row: any) => {
       const productName = row.product_name;
