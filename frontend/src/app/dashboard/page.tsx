@@ -193,6 +193,7 @@ export default function Dashboard() {
   // Track previous values to detect changes
   const prevPeriodRef = useRef(period);
   const prevBranchRef = useRef(user?.selected_branch);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   useEffect(() => {
     if (!token && !loading) {
@@ -215,15 +216,18 @@ export default function Dashboard() {
     const periodChanged = prevPeriodRef.current !== period;
     const branchChanged = prevBranchRef.current !== user?.selected_branch;
     
+    // ALWAYS clear data and show loading when period or branch changes
     if (periodChanged || branchChanged) {
-      setData(null); // Clear old data immediately
-      setLoading(true);
-      setIsOffline(false); // Reset offline state
+      console.log('[Dashboard] Period or branch changed, clearing data');
+      setData(null);
+      setIsOffline(false);
       prevPeriodRef.current = period;
       prevBranchRef.current = user?.selected_branch;
-    } else if (!data) {
-      setLoading(true);
     }
+    
+    // Always show loading when fetching
+    setIsDataLoading(true);
+    setLoading(true);
     
     const fetchData = async () => {
       try {
@@ -232,18 +236,22 @@ export default function Dashboard() {
             url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
 
+        console.log('[Dashboard] Fetching data for period:', period);
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
-          signal: abortController.signal
+          signal: abortController.signal,
+          timeout: 15000 // 15 saniye timeout
         });
         
         // Only update if this is still the current request
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
           // Check if response indicates connection error
           if (res.data?.connection_error) {
+            console.log('[Dashboard] Connection error from backend');
             setIsOffline(true);
             setData(null);
           } else {
+            console.log('[Dashboard] Data received successfully');
             setData(res.data);
             setIsOffline(false);
           }
@@ -253,7 +261,7 @@ export default function Dashboard() {
         if (e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
           return;
         }
-        console.error(e);
+        console.error('[Dashboard] Error fetching data:', e);
         if (reqIdRef.current === myId) {
           setIsOffline(true);
           setData(null); // Clear stale data on error
