@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { format } from 'date-fns';
 
 @Injectable()
 export class StockService {
   constructor(private db: DatabaseService) {}
 
-  private async getCurrentBusinessDate(branchId: string): Promise<string> {
+  private async getClosingHour(branchId: string): Promise<number> {
     let closingHour = 6;
     try {
       const mainPool = this.db.getMainPool();
@@ -25,9 +26,14 @@ export class StockService {
     } catch (e: any) {
       const code = e?.code;
       if (code !== '42703') {
-        console.error('getCurrentBusinessDate error', e);
+        console.error('getClosingHour error', e);
       }
     }
+    return closingHour;
+  }
+
+  private async getCurrentBusinessDate(branchId: string): Promise<string> {
+    const closingHour = await this.getClosingHour(branchId);
 
     const now = new Date();
     const turkeyOffset = 3 * 60;
@@ -57,6 +63,49 @@ export class StockService {
     const day = String(businessDate.getDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
+  }
+
+  private async getBusinessDayRange(branchId: string): Promise<{
+    start: string;
+    end: string;
+    date: string;
+  }> {
+    const closingHour = await this.getClosingHour(branchId);
+
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const turkeyTime = new Date(
+      now.getTime() + (utcOffset + turkeyOffset) * 60000,
+    );
+
+    const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
+    const todayClosing = new Date(
+      turkeyTime.getFullYear(),
+      turkeyTime.getMonth(),
+      turkeyTime.getDate(),
+      safeClosing,
+      0,
+      0,
+      0,
+    );
+
+    let startDate: Date;
+    let endDate: Date;
+
+    if (turkeyTime < todayClosing) {
+      endDate = todayClosing;
+      startDate = new Date(todayClosing.getTime() - 24 * 60 * 60 * 1000);
+    } else {
+      startDate = todayClosing;
+      endDate = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    const dateLabel = format(startDate, 'yyyy-MM-dd');
+    const start = format(startDate, 'yyyy-MM-dd HH:mm:ss');
+    const end = format(endDate, 'yyyy-MM-dd HH:mm:ss');
+
+    return { start, end, date: dateLabel };
   }
 
   // Şube veritabanına bağlanmak için yardımcı fonksiyon
@@ -220,7 +269,7 @@ export class StockService {
   // Canlı Stok Raporu
   async getLiveStock(branchId: string) {
     const { pool } = await this.getBranchPool(branchId);
-    const date = await this.getCurrentBusinessDate(branchId);
+    const { start, end, date } = await this.getBusinessDayRange(branchId);
 
     // Önce TÜM ürünleri al
     let allProducts: any[] = [];
@@ -322,9 +371,9 @@ export class StockService {
         `
         SELECT COUNT(*) as today_count 
         FROM ads_adisyon 
-        WHERE kaptar::date = $1::date
+        WHERE kaptar >= $1 AND kaptar < $2
       `,
-        [date],
+        [start, end],
       );
       console.log(`Records for date ${date}:`, todayCheck.rows[0]);
 
@@ -336,11 +385,11 @@ export class StockService {
           SUM(a.miktar) as total_qty
         FROM ads_adisyon a
         LEFT JOIN product p ON a.pluid = p.plu
-        WHERE a.kaptar::date = $1::date
+        WHERE a.kaptar >= $1 AND a.kaptar < $2
           AND (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
-        [date],
+        [start, end],
       );
       console.log(
         `Sales query returned ${salesRes.rows.length} rows:`,
@@ -385,10 +434,10 @@ export class StockService {
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
         WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-          AND a.actar::date = $1::date
+          AND a.actar >= $1 AND a.actar < $2
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
-        [date],
+        [start, end],
       );
       console.log(
         `Open orders query returned ${openRes.rows.length} rows:`,
