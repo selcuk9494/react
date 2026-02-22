@@ -470,7 +470,7 @@ export class StockService {
       }
     });
 
-    // Açık siparişleri al - ads_acik tablosundan - ascaat (açılış saati) kullanarak
+    // Açık siparişleri al - ads_acik tablosundan - acsaat (açılış saati) kullanarak
     let openRes;
     try {
       openRes = await pool.query(
@@ -481,13 +481,13 @@ export class StockService {
         FROM ads_acik a
         LEFT JOIN product p ON a.pluid = p.plu
         WHERE (a.sturu IS NULL OR a.sturu NOT IN (2, 4))
-          AND a.ascaat >= $1 AND a.ascaat < $2
+          AND a.acsaat >= $1 AND a.acsaat < $2
         GROUP BY COALESCE(p.product_name, CAST(a.pluid AS VARCHAR))
       `,
         [start, end],
       );
       console.log(
-        `Open orders query (ascaat) returned ${openRes.rows.length} rows for range ${start} - ${end}:`,
+        `Open orders query (acsaat) returned ${openRes.rows.length} rows for range ${start} - ${end}:`,
         openRes.rows.slice(0, 5),
       );
     } catch (err) {
