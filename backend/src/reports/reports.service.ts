@@ -1067,10 +1067,12 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    
+    // raptar ve actar için sadece tarih formatı kullan
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
 
-    // Open
+    // Open - actar kullan
     const openQuery = `
       SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
@@ -1085,21 +1087,21 @@ export class ReportsService {
       FROM ads_acik a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.actar >= $1 AND a.actar < $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
+      WHERE a.actar >= $1::date AND a.actar <= $2::date AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
-    // Closed
+    // Closed - raptar kullan
     const closedQuery = `
       SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
           COALESCE(a.miktar, 0) as quantity,
           a.ack1 as reason,
-          a.kaptar as date,
+          a.raptar as date,
           a.adsno as order_id,
           a.adtur as adtur,
           per.adi as waiter_name,
@@ -1108,11 +1110,11 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
+      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
       kasa_nos,
     ]);
 
