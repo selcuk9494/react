@@ -148,10 +148,15 @@ export class StockService {
     const dateLabel = formatTurkeyDateOnly(startDate);
     const start = formatTurkeyDate(startDate);
     const end = formatTurkeyDate(endDate);
+    
+    // Sadece tarih formatı (raptar gibi date alanları için)
+    const startDateOnly = formatTurkeyDateOnly(startDate);
+    const endDateOnly = formatTurkeyDateOnly(endDate);
 
     console.log(`[getBusinessDayRange] Result: start=${start}, end=${end}, date=${dateLabel}`);
+    console.log(`[getBusinessDayRange] Date only: startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
 
-    return { start, end, date: dateLabel };
+    return { start, end, date: dateLabel, startDateOnly, endDateOnly };
   }
 
   // Şube veritabanına bağlanmak için yardımcı fonksiyon
