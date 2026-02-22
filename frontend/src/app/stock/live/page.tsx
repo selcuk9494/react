@@ -92,7 +92,13 @@ export default function LiveStockPage() {
 
       if (branchId) {
         try {
-          const res = await axios.get(`${getApiUrl()}/stock/live?branchId=${branchId}`, {
+          // Tarih parametresi ekle (bugün değilse)
+          let url = `${getApiUrl()}/stock/live?branchId=${branchId}`;
+          if (!isToday) {
+            url += `&date=${selectedDate}`;
+          }
+          
+          const res = await axios.get(url, {
             headers: { Authorization: `Bearer ${token}` }
           });
           dataItems = res.data.items || [];
@@ -116,16 +122,18 @@ export default function LiveStockPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, user]);
+  }, [token, user, selectedDate, isToday]);
 
   useEffect(() => {
     fetchData();
-    // 5 saniyede bir güncelleme
-    intervalRef.current = setInterval(() => fetchData(false), 5000);
+    // Sadece bugün için otomatik güncelleme (5 saniyede bir)
+    if (isToday) {
+      intervalRef.current = setInterval(() => fetchData(false), 5000);
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchData]);
+  }, [fetchData, isToday]);
 
   const handleManualRefresh = () => {
     fetchData(true);
