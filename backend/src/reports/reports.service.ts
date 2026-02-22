@@ -39,15 +39,34 @@ export class ReportsService {
     let start: Date;
     let end: Date;
 
+    // İş günü sınırını (kapanış saatine göre) hesapla
+    const todayClosing = startOfDay(now);
+    todayClosing.setHours(safeClosing, 0, 0, 0);
+
     if (period === 'today') {
-      const base = now.getHours() < safeClosing ? subDays(now, 1) : now;
-      start = startOfDay(base);
-      end = endOfDay(base);
+      if (now < todayClosing) {
+        // Kapanış saatinden önce: devam eden iş günü dündür
+        end = todayClosing;
+        start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+      } else {
+        // Kapanıştan sonra: yeni iş günü bugün kapanışta başladı
+        start = todayClosing;
+        end = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
+      }
     } else if (period === 'yesterday') {
-      const base =
-        now.getHours() < safeClosing ? subDays(now, 2) : subDays(now, 1);
-      start = startOfDay(base);
-      end = endOfDay(base);
+      let todayStart: Date;
+      let todayEnd: Date;
+
+      if (now < todayClosing) {
+        todayEnd = todayClosing;
+        todayStart = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
+      } else {
+        todayStart = todayClosing;
+        todayEnd = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
+      }
+
+      start = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+      end = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
     } else if (period === 'week') {
       start = startOfWeek(now, { weekStartsOn: 1 });
       end = endOfDay(now);
@@ -798,15 +817,15 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     const baseQuery = `
       SELECT 
           DATE(kaptar) as tarih,
           SUM(COALESCE(tutar, 0)) as toplam
       FROM ads_adisyon
-      WHERE kaptar BETWEEN $1 AND $2
+      WHERE kaptar >= $1 AND kaptar < $2
     `;
 
     const primaryQuery = `
@@ -849,8 +868,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     const query = `
       SELECT 
@@ -860,7 +879,7 @@ export class ReportsService {
           COALESCE(od.odmno, NULL) as otip
       FROM ads_odeme o
       LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = ANY($3)
+      WHERE o.raptar >= $1 AND o.raptar < $2 AND o.kasa = ANY($3)
       GROUP BY od.odmno, od.odmname
       ORDER BY total DESC
     `;
@@ -891,8 +910,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     const openQuery = `
       SELECT DISTINCT
@@ -906,7 +925,7 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
-        AND DATE(a.actar) BETWEEN $2 AND $3
+        AND a.actar >= $2 AND a.actar < $3
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [
       kasa_nos,
@@ -928,7 +947,10 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
-        AND (DATE(a.siptar) BETWEEN $2 AND $3 OR DATE(a.stoptar) BETWEEN $2 AND $3)
+        AND (
+          (a.siptar IS NOT NULL AND a.siptar >= $2 AND a.siptar < $3) OR
+          (a.stoptar IS NOT NULL AND a.stoptar >= $2 AND a.stoptar < $3)
+        )
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [
       kasa_nos,
@@ -1000,8 +1022,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     // Open
     const openQuery = `
@@ -1018,7 +1040,7 @@ export class ReportsService {
       FROM ads_acik a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.actar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
+      WHERE a.actar >= $1 AND a.actar < $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [
       dStart,
@@ -1041,7 +1063,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN personel per ON a.garsonno = per.id
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
+      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [
       dStart,
@@ -1069,8 +1091,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
     const query = `
       SELECT 
         COALESCE(a.urun_adi, 'Ürün') as urun_adi,
@@ -1081,7 +1103,7 @@ export class ReportsService {
         COALESCE(a.tutar, 0) as tutar
       FROM ads_iptal a
       LEFT JOIN personel per ON a.pers_id = per.id
-      WHERE DATE(a.tarih_saat) BETWEEN $1 AND $2
+      WHERE a.tarih_saat >= $1 AND a.tarih_saat < $2
       ORDER BY a.tarih_saat DESC
     `;
     const rows = await this.db.executeQuery(pool, query, [dStart, dEnd]);
@@ -1110,8 +1132,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     // Totals
     const totalsQuery = `
@@ -1120,7 +1142,7 @@ export class ReportsService {
           COUNT(DISTINCT o.adsno) as orders_count,
           COALESCE(SUM(o.iskonto), 0) as total_discount
       FROM ads_odeme o
-      WHERE DATE(o.raptar) BETWEEN $1 AND $2 AND o.kasa = ANY($3)
+      WHERE o.raptar >= $1 AND o.raptar < $2 AND o.kasa = ANY($3)
     `;
     const totalsRows = await this.db.executeQuery(pool, totalsQuery, [
       dStart,
@@ -1144,7 +1166,7 @@ export class ReportsService {
           MAX(a.kapsaat) as kapanis_saati,
           MAX(a.kaptar) as tarih
       FROM ads_adisyon a
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
+      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
     const durations = await this.db.executeQuery(pool, durationQuery, [
@@ -1185,7 +1207,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = ANY($1)
-      WHERE a.kaptar BETWEEN $2 AND $3 AND a.kasa = ANY($4)
+      WHERE a.kaptar >= $2 AND a.kaptar < $3 AND a.kasa = ANY($4)
       GROUP BY a.garsonno
       ORDER BY total DESC
       LIMIT 10
@@ -1205,7 +1227,7 @@ export class ReportsService {
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
-      WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
+      WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
       GROUP BY p.product_name, a.pluid
       ORDER BY total DESC
       LIMIT 10
@@ -1272,8 +1294,8 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
 
     let query = '';
     const params = [];
@@ -1286,11 +1308,11 @@ export class ReportsService {
             WITH combined_sales AS (
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_adisyon a
-                WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
+                WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
                 UNION ALL
                 SELECT a.pluid, a.miktar, a.tutar
                 FROM ads_acik a
-                WHERE a.actar BETWEEN $4 AND $5 AND a.kasa = ANY($6)
+                WHERE a.actar >= $4 AND a.actar < $5 AND a.kasa = ANY($6)
             )
             SELECT 
                 p.product_name as product_name,
@@ -1330,7 +1352,7 @@ export class ReportsService {
             FROM ads_adisyon a
             LEFT JOIN product p ON a.pluid = p.plu
             LEFT JOIN product_group pg ON p.tip = pg.id
-            WHERE a.kaptar BETWEEN $1 AND $2 AND a.kasa = ANY($3)
+            WHERE a.kaptar >= $1 AND a.kaptar < $2 AND a.kasa = ANY($3)
             ${(() => {
               const conds: string[] = [];
               if (useArray) conds.push('p.tip = ANY($4)');

@@ -5,19 +5,51 @@ import { DatabaseService } from '../database/database.service';
 export class StockService {
   constructor(private db: DatabaseService) {}
 
-  // Türkiye saatine göre bugünün tarihi (takvim günü)
-  private getCurrentBusinessDate(): string {
-    // Türkiye saat dilimi UTC+3
+  // Türkiye saatine ve şube kapanış saatine göre iş günü tarihi
+  private async getCurrentBusinessDate(branchId: string): Promise<string> {
+    const mainPool = this.db.getMainPool();
+    const branchRes = await mainPool.query(
+      'SELECT closing_hour FROM branches WHERE id = $1',
+      [branchId],
+    );
+
+    let closingHour = 6;
+    if (branchRes.rows.length > 0) {
+      const rawClosing = branchRes.rows[0].closing_hour;
+      if (typeof rawClosing === 'number' && Number.isFinite(rawClosing)) {
+        closingHour = rawClosing;
+      } else if (typeof rawClosing === 'string') {
+        const parsed = parseInt(rawClosing, 10);
+        if (Number.isFinite(parsed)) closingHour = parsed;
+      }
+    }
+
     const now = new Date();
-    const turkeyOffset = 3 * 60; // dakika cinsinden
-    const utcOffset = now.getTimezoneOffset(); // dakika cinsinden (negatif doğu için)
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
     const turkeyTime = new Date(
       now.getTime() + (utcOffset + turkeyOffset) * 60000,
     );
 
-    const year = turkeyTime.getFullYear();
-    const month = String(turkeyTime.getMonth() + 1).padStart(2, '0');
-    const day = String(turkeyTime.getDate()).padStart(2, '0');
+    const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
+    const todayClosing = new Date(
+      turkeyTime.getFullYear(),
+      turkeyTime.getMonth(),
+      turkeyTime.getDate(),
+      safeClosing,
+      0,
+      0,
+      0,
+    );
+
+    const businessDate = new Date(turkeyTime);
+    if (turkeyTime < todayClosing) {
+      businessDate.setDate(businessDate.getDate() - 1);
+    }
+
+    const year = businessDate.getFullYear();
+    const month = String(businessDate.getMonth() + 1).padStart(2, '0');
+    const day = String(businessDate.getDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
   }
@@ -44,12 +76,12 @@ export class StockService {
     items: { productName: string; quantity: number }[],
   ) {
     if (this.db.isMockMode()) {
-      const date = this.getCurrentBusinessDate();
+      const date = await this.getCurrentBusinessDate(branchId);
       return { success: true, date, mock: true };
     }
 
     const { pool } = await this.getBranchPool(branchId);
-    const date = this.getCurrentBusinessDate();
+    const date = await this.getCurrentBusinessDate(branchId);
 
     // Önce tablo var mı kontrol et, yoksa oluştur
     try {
@@ -128,7 +160,7 @@ export class StockService {
 
       // 2. Eğer product tablosu boşsa veya hata varsa, ads_adisyon'dan türet
       if (!rows || rows.length === 0) {
-        const date = this.getCurrentBusinessDate();
+        const date = await this.getCurrentBusinessDate(branchId);
         try {
           const derived = await pool.query(
             `
@@ -183,7 +215,7 @@ export class StockService {
   // Canlı Stok Raporu
   async getLiveStock(branchId: string) {
     const { pool } = await this.getBranchPool(branchId);
-    const date = this.getCurrentBusinessDate();
+    const date = await this.getCurrentBusinessDate(branchId);
 
     // Önce TÜM ürünleri al
     let allProducts: any[] = [];
