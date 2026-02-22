@@ -953,9 +953,12 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    
+    // raptar ve actar için sadece tarih formatı kullan
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
 
+    // Açık siparişler - actar kullan
     const openQuery = `
       SELECT DISTINCT
           a.adsno,
@@ -968,21 +971,22 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
-        AND a.actar >= $2 AND a.actar < $3
+        AND a.actar >= $2::date AND a.actar <= $3::date
     `;
     const openRows = await this.db.executeQuery(pool, openQuery, [
       kasa_nos,
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
     ]);
 
+    // Kapalı siparişler - raptar kullan
     const closedQuery = `
       SELECT DISTINCT
           a.adsno,
           per.adi as kurye,
           a.motcikis as cikis,
           a.stopsaat as donus,
-          COALESCE(a.stoptar, a.siptar) as tarih,
+          a.raptar as tarih,
           a.sipsaat as sipsaat,
           a.stoptar as stoptar,
           'closed' as status
@@ -990,15 +994,12 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
-        AND (
-          (a.siptar IS NOT NULL AND a.siptar >= $2 AND a.siptar < $3) OR
-          (a.stoptar IS NOT NULL AND a.stoptar >= $2 AND a.stoptar < $3)
-        )
+        AND a.raptar >= $2::date AND a.raptar <= $3::date
     `;
     const closedRows = await this.db.executeQuery(pool, closedQuery, [
       kasa_nos,
-      dStart,
-      dEnd,
+      startDateOnly,
+      endDateOnly,
     ]);
 
     const results = [...openRows, ...closedRows];
@@ -1009,6 +1010,7 @@ export class ReportsService {
     });
     if (results.length > 0) return results;
 
+    // Fallback sorgular
     const fbOpenQuery = `
       SELECT DISTINCT
           a.adsno,
@@ -1030,7 +1032,7 @@ export class ReportsService {
           per.adi as kurye,
           a.motcikis as cikis,
           a.stopsaat as donus,
-          COALESCE(a.stoptar, a.siptar) as tarih,
+          a.raptar as tarih,
           a.sipsaat as sipsaat,
           a.stoptar as stoptar,
           'closed' as status
@@ -1038,7 +1040,7 @@ export class ReportsService {
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.kasa = ANY($1::int[])
         AND (COALESCE(a.adtur, 0) = 1 OR a.masano = 99999)
-      ORDER BY COALESCE(a.stoptar, a.siptar) DESC
+      ORDER BY a.raptar DESC
       LIMIT 100
     `;
     const fbOpen = await this.db.executeQuery(pool, fbOpenQuery, [kasa_nos]);
