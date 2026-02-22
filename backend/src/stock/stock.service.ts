@@ -319,12 +319,24 @@ export class StockService {
     }
   }
 
-  // Canlı Stok Raporu
-  async getLiveStock(branchId: string) {
+  // Canlı Stok Raporu - opsiyonel tarih parametresi ile
+  async getLiveStock(branchId: string, selectedDate?: string) {
     const { pool } = await this.getBranchPool(branchId);
-    const { start, end, date, startDateOnly, endDateOnly } = await this.getBusinessDayRange(branchId);
+    
+    let dateToUse: string;
+    
+    if (selectedDate) {
+      // Kullanıcı tarih seçtiyse onu kullan
+      dateToUse = selectedDate;
+      console.log(`[getLiveStock] Using selected date: ${dateToUse}`);
+    } else {
+      // Varsayılan olarak bugünkü iş gününü kullan
+      const { startDateOnly } = await this.getBusinessDayRange(branchId);
+      dateToUse = startDateOnly;
+      console.log(`[getLiveStock] Using business day: ${dateToUse}`);
+    }
 
-    console.log(`[getLiveStock] branchId=${branchId}, date=${date}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
+    console.log(`[getLiveStock] branchId=${branchId}, dateToUse=${dateToUse}`);
 
     // Önce TÜM ürünleri al
     let allProducts: any[] = [];
@@ -343,11 +355,17 @@ export class StockService {
       console.error('LiveStock products query error:', err);
     }
 
-    // Stok girişi yapılan ürünleri al
+    // Stok girişi yapılan ürünleri al - seçilen tarih için
     let stockRes;
     try {
       stockRes = await pool.query(
         `
+        SELECT d.product_name, d.quantity as initial_stock
+        FROM daily_stock d
+        WHERE d.entry_date = $1
+      `,
+        [dateToUse],
+      );
         SELECT d.product_name, d.quantity as initial_stock
         FROM daily_stock d
         WHERE d.entry_date = $1
