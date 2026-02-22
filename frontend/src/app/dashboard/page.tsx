@@ -269,14 +269,15 @@ export default function Dashboard() {
       } finally {
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
           setLoading(false);
+          setIsDataLoading(false);
         }
       }
     };
     fetchData();
 
     const interval = setInterval(() => {
-      // Only auto-refresh if no request in progress
-      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+      // Only auto-refresh if no request in progress and we have data
+      if (data && (!abortControllerRef.current || abortControllerRef.current.signal.aborted)) {
         const refreshController = new AbortController();
         abortControllerRef.current = refreshController;
         
@@ -288,7 +289,8 @@ export default function Dashboard() {
             }
             const res = await axios.get(url, {
               headers: { Authorization: `Bearer ${token}` },
-              signal: refreshController.signal
+              signal: refreshController.signal,
+              timeout: 15000
             });
             if (!refreshController.signal.aborted) {
               if (res.data?.connection_error) {
