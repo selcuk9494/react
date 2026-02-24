@@ -772,6 +772,15 @@ export default function DashboardScreen({ navigation, route }) {
                     onPress={() => navigation.navigate('PaymentTypes')} 
                 />
                 )}
+                {isReportAllowed('cash_report') && (
+                <ReportCard 
+                    title="Kasa Raporu" 
+                    desc="Kasaya göre toplamlar" 
+                    icon="dollar-sign" 
+                    colors={['#10b981', '#0ea5e9']} 
+                    onPress={() => navigation.navigate('CashReport')} 
+                />
+                )}
                 {isReportAllowed('hourly_sales') && (
                 <ReportCard 
                     title="Saatlik Satış" 

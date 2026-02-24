@@ -14,6 +14,7 @@ import PersonnelScreen from './screens/PersonnelScreen';
 import HourlySalesScreen from './screens/HourlySalesScreen';
 import CancelsScreen from './screens/CancelsScreen';
 import DiscountScreen from './screens/DiscountScreen';
+import CashReportScreen from './screens/CashReportScreen';
 
 import OrdersScreen from './screens/OrdersScreen';
 import OrderDetailScreen from './screens/OrderDetailScreen';
@@ -109,6 +110,11 @@ export default function App() {
           <Stack.Screen 
             name="Discount" 
             component={DiscountScreen} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="CashReport" 
+            component={CashReportScreen} 
             options={{ headerShown: false }} 
           />
           <Stack.Screen 
