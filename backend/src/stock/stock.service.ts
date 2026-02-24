@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { format } from 'date-fns';
 
 @Injectable()
 export class StockService {
@@ -44,7 +43,7 @@ export class StockService {
     );
 
     const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
-    
+
     // Türkiye zamanındaki saat ve dakika
     const turkeyHour = turkeyTime.getUTCHours();
     const turkeyMinute = turkeyTime.getUTCMinutes();
@@ -59,7 +58,9 @@ export class StockService {
     // Kapanış saatinden önceyse, iş günü dün
     if (currentTurkeyHourMinutes < closingHourMinutes) {
       // Bir gün geri git
-      const yesterday = new Date(Date.UTC(turkeyYear, turkeyMonth, turkeyDay - 1));
+      const yesterday = new Date(
+        Date.UTC(turkeyYear, turkeyMonth, turkeyDay - 1),
+      );
       turkeyYear = yesterday.getUTCFullYear();
       turkeyMonth = yesterday.getUTCMonth();
       turkeyDay = yesterday.getUTCDate();
@@ -90,7 +91,7 @@ export class StockService {
     );
 
     const safeClosing = Math.min(23, Math.max(0, Math.floor(closingHour)));
-    
+
     // Türkiye zamanındaki bugünün yılı, ayı ve günü
     const turkeyYear = turkeyTime.getUTCFullYear();
     const turkeyMonth = turkeyTime.getUTCMonth();
@@ -101,7 +102,15 @@ export class StockService {
     // Bugünkü kapanış saatini Türkiye saatinde hesapla
     // Türkiye saati = UTC + 3 saat, yani UTC = Türkiye - 3 saat
     // Kapanış saati Türkiye'de safeClosing:00 olduğunda, UTC'de (safeClosing-3):00 olur
-    const todayClosingUTC = Date.UTC(turkeyYear, turkeyMonth, turkeyDay, safeClosing - 3, 0, 0, 0);
+    const todayClosingUTC = Date.UTC(
+      turkeyYear,
+      turkeyMonth,
+      turkeyDay,
+      safeClosing - 3,
+      0,
+      0,
+      0,
+    );
     const todayClosing = new Date(todayClosingUTC);
 
     let startDate: Date;
@@ -111,20 +120,30 @@ export class StockService {
     const currentTurkeyHourMinutes = turkeyHour * 60 + turkeyMinute;
     const closingHourMinutes = safeClosing * 60;
 
-    console.log(`[getBusinessDayRange] branchId=${branchId}, closingHour=${safeClosing}`);
-    console.log(`[getBusinessDayRange] Turkey time: ${turkeyYear}-${turkeyMonth + 1}-${turkeyDay} ${turkeyHour}:${turkeyMinute}`);
-    console.log(`[getBusinessDayRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`);
+    console.log(
+      `[getBusinessDayRange] branchId=${branchId}, closingHour=${safeClosing}`,
+    );
+    console.log(
+      `[getBusinessDayRange] Turkey time: ${turkeyYear}-${turkeyMonth + 1}-${turkeyDay} ${turkeyHour}:${turkeyMinute}`,
+    );
+    console.log(
+      `[getBusinessDayRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`,
+    );
 
     if (currentTurkeyHourMinutes < closingHourMinutes) {
       // Kapanış saatinden önce: devam eden iş günü dünden başladı
       endDate = todayClosing;
       startDate = new Date(todayClosing.getTime() - 24 * 60 * 60 * 1000);
-      console.log(`[getBusinessDayRange] Before closing hour - using yesterday's business day`);
+      console.log(
+        `[getBusinessDayRange] Before closing hour - using yesterday's business day`,
+      );
     } else {
       // Kapanış saatinden sonra: yeni iş günü bugün başladı
       startDate = todayClosing;
       endDate = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
-      console.log(`[getBusinessDayRange] After closing hour - using today's business day`);
+      console.log(
+        `[getBusinessDayRange] After closing hour - using today's business day`,
+      );
     }
 
     // Tarihleri Türkiye saatinde formatla
@@ -150,13 +169,17 @@ export class StockService {
     const dateLabel = formatTurkeyDateOnly(startDate);
     const start = formatTurkeyDate(startDate);
     const end = formatTurkeyDate(endDate);
-    
+
     // Sadece tarih formatı (raptar gibi date alanları için)
     const startDateOnly = formatTurkeyDateOnly(startDate);
     const endDateOnly = formatTurkeyDateOnly(endDate);
 
-    console.log(`[getBusinessDayRange] Result: start=${start}, end=${end}, date=${dateLabel}`);
-    console.log(`[getBusinessDayRange] Date only: startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
+    console.log(
+      `[getBusinessDayRange] Result: start=${start}, end=${end}, date=${dateLabel}`,
+    );
+    console.log(
+      `[getBusinessDayRange] Date only: startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`,
+    );
 
     return { start, end, date: dateLabel, startDateOnly, endDateOnly };
   }
@@ -322,9 +345,9 @@ export class StockService {
   // Canlı Stok Raporu - opsiyonel tarih parametresi ile
   async getLiveStock(branchId: string, selectedDate?: string) {
     const { pool } = await this.getBranchPool(branchId);
-    
+
     let dateToUse: string;
-    
+
     if (selectedDate) {
       // Kullanıcı tarih seçtiyse onu kullan
       dateToUse = selectedDate;
@@ -443,7 +466,10 @@ export class StockService {
       `,
         [dateToUse],
       );
-      console.log(`Records for date ${dateToUse} (raptar):`, todayCheck.rows[0]);
+      console.log(
+        `Records for date ${dateToUse} (raptar):`,
+        todayCheck.rows[0],
+      );
 
       // raptar (rapor tarihi) ile sorgula - sadece o günün tarihi
       salesRes = await pool.query(
@@ -511,7 +537,10 @@ export class StockService {
       `,
         [dateToUse],
       );
-      console.log(`Open records for date ${dateToUse} (actar):`, todayOpenCheck.rows[0]);
+      console.log(
+        `Open records for date ${dateToUse} (actar):`,
+        todayOpenCheck.rows[0],
+      );
 
       openRes = await pool.query(
         `

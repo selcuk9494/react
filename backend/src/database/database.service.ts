@@ -555,6 +555,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
+    // 17. Cash Report from kasa_raporu
+    if (lowerText.includes('from kasa_raporu')) {
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        rows: [
+          { raptar: today, kasa: 1, aciklama: 'Nakit', toplam: '8500.00' },
+          {
+            raptar: today,
+            kasa: 1,
+            aciklama: 'Kredi Kartı',
+            toplam: '12000.00',
+          },
+          {
+            raptar: today,
+            kasa: 1,
+            aciklama: 'Yemek Kartı',
+            toplam: '3000.00',
+          },
+        ],
+      };
+    }
+
     console.log('Unmocked query:', text);
     return { rows: [] };
   }

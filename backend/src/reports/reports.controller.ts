@@ -216,6 +216,22 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/cash-report')
+  async getCashReport(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getCashReport(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/order-debug')
   async debugOrder(@Request() req, @Query('adsno') adsno: string) {
     return this.reportsService.debugOrderCheck(req.user, adsno);

@@ -21,15 +21,17 @@ export class ReportsService {
     const now = new Date();
     const turkeyOffset = 3 * 60;
     const utcOffset = now.getTimezoneOffset();
-    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
-    
+    const turkeyTime = new Date(
+      now.getTime() + (utcOffset + turkeyOffset) * 60000,
+    );
+
     return {
       year: turkeyTime.getUTCFullYear(),
       month: turkeyTime.getUTCMonth(),
       day: turkeyTime.getUTCDate(),
       hour: turkeyTime.getUTCHours(),
       minute: turkeyTime.getUTCMinutes(),
-      turkeyTime
+      turkeyTime,
     };
   }
 
@@ -39,7 +41,8 @@ export class ReportsService {
     startDate?: string,
     endDate?: string,
   ) {
-    const { year, month, day, hour, minute, turkeyTime } = this.getTurkeyTimeComponents();
+    const { year, month, day, hour, minute, turkeyTime } =
+      this.getTurkeyTimeComponents();
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -52,24 +55,40 @@ export class ReportsService {
     const closingHourMinutes = safeClosing * 60;
 
     // Bugünkü kapanış saatini UTC olarak hesapla (Türkiye = UTC+3)
-    const todayClosingUTC = Date.UTC(year, month, day, safeClosing - 3, 0, 0, 0);
+    const todayClosingUTC = Date.UTC(
+      year,
+      month,
+      day,
+      safeClosing - 3,
+      0,
+      0,
+      0,
+    );
     const todayClosing = new Date(todayClosingUTC);
 
     console.log(`[getDateRange] period=${period}, closingHour=${safeClosing}`);
-    console.log(`[getDateRange] Turkey time: ${year}-${month + 1}-${day} ${hour}:${minute}`);
-    console.log(`[getDateRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`);
+    console.log(
+      `[getDateRange] Turkey time: ${year}-${month + 1}-${day} ${hour}:${minute}`,
+    );
+    console.log(
+      `[getDateRange] currentTurkeyHourMinutes=${currentTurkeyHourMinutes}, closingHourMinutes=${closingHourMinutes}`,
+    );
 
     if (period === 'today') {
       if (currentTurkeyHourMinutes < closingHourMinutes) {
         // Kapanış saatinden önce: devam eden iş günü dündür
         end = todayClosing;
         start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-        console.log(`[getDateRange] Before closing hour - using yesterday's business day`);
+        console.log(
+          `[getDateRange] Before closing hour - using yesterday's business day`,
+        );
       } else {
         // Kapanıştan sonra: yeni iş günü bugün kapanışta başladı
         start = todayClosing;
         end = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
-        console.log(`[getDateRange] After closing hour - using today's business day`);
+        console.log(
+          `[getDateRange] After closing hour - using today's business day`,
+        );
       }
     } else if (period === 'yesterday') {
       let todayStart: Date;
@@ -89,7 +108,15 @@ export class ReportsService {
       // Türkiye saatinde haftanın başını bul (Pazartesi)
       const dayOfWeek = turkeyTime.getUTCDay(); // 0 = Pazar
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const weekStartUTC = Date.UTC(year, month, day - daysToMonday, 0 - 3, 0, 0, 0);
+      const weekStartUTC = Date.UTC(
+        year,
+        month,
+        day - daysToMonday,
+        0 - 3,
+        0,
+        0,
+        0,
+      );
       start = new Date(weekStartUTC);
       // Bugünün sonuna kadar
       const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
@@ -107,10 +134,28 @@ export class ReportsService {
     } else if (period === 'lastmonth') {
       const lastMonthYear = month === 0 ? year - 1 : year;
       const lastMonth = month === 0 ? 11 : month - 1;
-      const lastDayOfLastMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-      const lastMonthStartUTC = Date.UTC(lastMonthYear, lastMonth, 1, 0 - 3, 0, 0, 0);
+      const lastDayOfLastMonth = new Date(
+        Date.UTC(year, month, 0),
+      ).getUTCDate();
+      const lastMonthStartUTC = Date.UTC(
+        lastMonthYear,
+        lastMonth,
+        1,
+        0 - 3,
+        0,
+        0,
+        0,
+      );
       start = new Date(lastMonthStartUTC);
-      const lastMonthEndUTC = Date.UTC(lastMonthYear, lastMonth, lastDayOfLastMonth, 23 - 3, 59, 59, 999);
+      const lastMonthEndUTC = Date.UTC(
+        lastMonthYear,
+        lastMonth,
+        lastDayOfLastMonth,
+        23 - 3,
+        59,
+        59,
+        999,
+      );
       end = new Date(lastMonthEndUTC);
     } else if (period === 'custom' && startDate && endDate) {
       const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
@@ -125,7 +170,9 @@ export class ReportsService {
       end = new Date(todayEndUTC);
     }
 
-    console.log(`[getDateRange] Result: start=${start.toISOString()}, end=${end.toISOString()}`);
+    console.log(
+      `[getDateRange] Result: start=${start.toISOString()}, end=${end.toISOString()}`,
+    );
 
     return { start, end };
   }
@@ -206,7 +253,7 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    let dStart = format(start, 'yyyy-MM-dd');
+    const dStart = format(start, 'yyyy-MM-dd');
     let dEnd = format(end, 'yyyy-MM-dd');
 
     // Tek iş günü bazlı raporlar için (Bugün / Dün) raptar ve actar tarih
@@ -862,9 +909,7 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
-    
+
     // raptar (rapor tarihi) kullanarak sorgula - gün dönüm saatine göre doğru filtreleme
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
@@ -895,7 +940,10 @@ export class ReportsService {
         GROUP BY raptar
         ORDER BY raptar
       `;
-      rows = await this.db.executeQuery(pool, fallbackQuery, [startDateOnly, endDateOnly]);
+      rows = await this.db.executeQuery(pool, fallbackQuery, [
+        startDateOnly,
+        endDateOnly,
+      ]);
     }
 
     return rows.map((row) => ({
@@ -959,7 +1007,7 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    
+
     // raptar ve actar için sadece tarih formatı kullan
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
@@ -1073,7 +1121,7 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    
+
     // raptar ve actar için sadece tarih formatı kullan
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
@@ -1185,9 +1233,9 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    
+
     // raptar için sadece tarih formatı kullan
-    let startDateOnly = format(start, 'yyyy-MM-dd');
+    const startDateOnly = format(start, 'yyyy-MM-dd');
     let endDateOnly = format(end, 'yyyy-MM-dd');
 
     // Bugün döneminde, raptar bazlı sorgularda iki farklı tarihi kapsayıp
@@ -1195,8 +1243,10 @@ export class ReportsService {
     if (period === 'today') {
       endDateOnly = startDateOnly;
     }
-    
-    console.log(`[getPerformance] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
+
+    console.log(
+      `[getPerformance] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`,
+    );
 
     // Totals - raptar kullan
     const totalsQuery = `
@@ -1357,7 +1407,7 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    
+
     // raptar ve actar için sadece tarih formatı kullan
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
@@ -1704,12 +1754,14 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    
+
     // raptar için sadece tarih formatı kullan
     const startDateOnly = format(start, 'yyyy-MM-dd');
     const endDateOnly = format(end, 'yyyy-MM-dd');
 
-    console.log(`[getPersonnelReport] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`);
+    console.log(
+      `[getPersonnelReport] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`,
+    );
 
     // Personel bazlı satış ve sipariş özeti - raptar kullan
     const personnelQuery = `
@@ -1739,7 +1791,7 @@ export class ReportsService {
     ]);
 
     // Açık siparişleri de dahil et (bugün için) - actar kullan
-    let openOrdersMap = new Map();
+    const openOrdersMap = new Map();
     if (period === 'today') {
       const openQuery = `
         SELECT 
@@ -1769,11 +1821,15 @@ export class ReportsService {
     let grandOrderCount = 0;
 
     const personnel = personnelRows.map((row: any) => {
-      const openData = openOrdersMap.get(row.personnel_id) || { open_order_count: 0, open_total: 0 };
+      const openData = openOrdersMap.get(row.personnel_id) || {
+        open_order_count: 0,
+        open_total: 0,
+      };
       const closedTotal = parseFloat(row.total_sales) || 0;
       const total = closedTotal + openData.open_total;
-      const orderCount = (parseInt(row.order_count) || 0) + openData.open_order_count;
-      
+      const orderCount =
+        (parseInt(row.order_count) || 0) + openData.open_order_count;
+
       grandTotal += total;
       grandOrderCount += orderCount;
 
@@ -1802,9 +1858,73 @@ export class ReportsService {
         total_sales: grandTotal,
         total_orders: grandOrderCount,
         personnel_count: personnel.length,
-        avg_per_personnel: personnel.length > 0 ? grandTotal / personnel.length : 0,
+        avg_per_personnel:
+          personnel.length > 0 ? grandTotal / personnel.length : 0,
       },
       personnel,
+    };
+  }
+
+  async getCashReport(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today' || period === 'yesterday') {
+      endDateOnly = startDateOnly;
+    }
+
+    let hasRaptar = false;
+    let hasKasa = false;
+    try {
+      hasRaptar = await this.hasColumn(pool, 'kasa_raporu', 'raptar');
+      hasKasa = await this.hasColumn(pool, 'kasa_raporu', 'kasa');
+    } catch {}
+
+    let query = '';
+    let params: any[] = [];
+
+    if (hasRaptar && hasKasa) {
+      query = `
+        SELECT *
+        FROM kasa_raporu
+        WHERE raptar >= $1::date AND raptar <= $2::date
+          AND kasa = ANY($3)
+        ORDER BY raptar DESC
+      `;
+      params = [startDateOnly, endDateOnly, kasa_nos];
+    } else if (hasRaptar) {
+      query = `
+        SELECT *
+        FROM kasa_raporu
+        WHERE raptar >= $1::date AND raptar <= $2::date
+        ORDER BY raptar DESC
+      `;
+      params = [startDateOnly, endDateOnly];
+    } else {
+      query = `
+        SELECT *
+        FROM kasa_raporu
+        ORDER BY 1 DESC
+        LIMIT 500
+      `;
+    }
+
+    const rows = await this.db.executeQuery(pool, query, params);
+    return {
+      period: { start: startDateOnly, end: endDateOnly },
+      count: rows.length || 0,
+      rows,
     };
   }
 }
