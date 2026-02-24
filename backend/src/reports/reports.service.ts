@@ -732,6 +732,13 @@ export class ReportsService {
       acik_adisyon_adet: 0,
       kapali_adisyon_adet: 0,
       iptal_adet: 0,
+      kasa_raporu: {
+        nakit: 0,
+        kredi_karti: 0,
+        yemek_karti: 0,
+        diger: 0,
+        toplam: 0,
+      },
       dagilim: {
         paket: {
           acik_adet: 0,
@@ -769,7 +776,7 @@ export class ReportsService {
     };
 
     try {
-      const [openOrders, closedOrders, performance, debts, cancelledItems] =
+      const [openOrders, closedOrders, performance, debts, cancelledItems, cashReport] =
         await Promise.all([
           this.getOrders(user, period, 'open', startDate, endDate).catch(
             () => [],
@@ -783,6 +790,9 @@ export class ReportsService {
           this.getDebts(user, period, startDate, endDate).catch(() => []),
           this.getCancelledItems(user, period, startDate, endDate).catch(
             () => [],
+          ),
+          this.getCashReport(user, period, startDate, endDate).catch(
+            () => ({ totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 }, rows: [] }),
           ),
         ]);
 
@@ -890,6 +900,17 @@ export class ReportsService {
           result.iptal_adet += 1;
         }
       });
+
+      // Kasa Raporu verilerini ekle
+      if (cashReport && cashReport.totals) {
+        result.kasa_raporu = {
+          nakit: cashReport.totals.nakit || 0,
+          kredi_karti: cashReport.totals.kredi_karti || 0,
+          yemek_karti: cashReport.totals.yemek_karti || 0,
+          diger: cashReport.totals.diger || 0,
+          toplam: cashReport.totals.toplam || 0,
+        };
+      }
     } catch {}
 
     await this.cache.set(cacheKey, result, cacheTTL);
@@ -1880,15 +1901,26 @@ export class ReportsService {
     );
     const startDateOnly = format(start, 'yyyy-MM-dd');
     let endDateOnly = format(end, 'yyyy-MM-dd');
-    if (period === 'today' || period === 'yesterday') {
+    
+    // Özel tarih aralığı varsa kullan, yoksa period'a göre ayarla
+    if (startDate && endDate) {
+      // Kullanıcı özel tarih seçtiyse tam aralığı kullan
+      endDateOnly = format(end, 'yyyy-MM-dd');
+    } else if (period === 'today' || period === 'yesterday') {
+      // Bugün/dün gibi tek günlük periodlarda başlangıç ve bitiş aynı gün
       endDateOnly = startDateOnly;
     }
 
     let hasRaptar = false;
     let hasKasa = false;
+    let hasAciklama = false;
+    let hasTutar = false;
+    
     try {
       hasRaptar = await this.hasColumn(pool, 'kasa_raporu', 'raptar');
       hasKasa = await this.hasColumn(pool, 'kasa_raporu', 'kasa');
+      hasAciklama = await this.hasColumn(pool, 'kasa_raporu', 'aciklama');
+      hasTutar = await this.hasColumn(pool, 'kasa_raporu', 'tutar');
     } catch {}
 
     let query = '';
@@ -1896,16 +1928,24 @@ export class ReportsService {
 
     if (hasRaptar && hasKasa) {
       query = `
-        SELECT *
+        SELECT 
+          *,
+          raptar as tarih,
+          ${hasAciklama ? 'aciklama' : "'İşlem'"} as aciklama,
+          ${hasTutar ? 'tutar' : '0.00'} as tutar
         FROM kasa_raporu
         WHERE raptar >= $1::date AND raptar <= $2::date
           AND kasa = ANY($3)
-        ORDER BY raptar DESC
+        ORDER BY raptar DESC, kasa ASC
       `;
       params = [startDateOnly, endDateOnly, kasa_nos];
     } else if (hasRaptar) {
       query = `
-        SELECT *
+        SELECT 
+          *,
+          raptar as tarih,
+          ${hasAciklama ? 'aciklama' : "'İşlem'"} as aciklama,
+          ${hasTutar ? 'tutar' : '0.00'} as tutar
         FROM kasa_raporu
         WHERE raptar >= $1::date AND raptar <= $2::date
         ORDER BY raptar DESC
@@ -1913,7 +1953,11 @@ export class ReportsService {
       params = [startDateOnly, endDateOnly];
     } else {
       query = `
-        SELECT *
+        SELECT 
+          *,
+          'Tarih Yok' as tarih,
+          'İşlem' as aciklama,
+          '0.00' as tutar
         FROM kasa_raporu
         ORDER BY 1 DESC
         LIMIT 500
@@ -1921,10 +1965,35 @@ export class ReportsService {
     }
 
     const rows = await this.db.executeQuery(pool, query, params);
+    
+    // Toplam tutarları hesapla
+    const totals = rows.reduce((acc, row) => {
+      const tutar = parseFloat(row.tutar || row.toplam || 0);
+      const aciklama = (row.aciklama || row.tur || 'İşlem').toLowerCase();
+      
+      if (aciklama.includes('nakit')) {
+        acc.nakit += tutar;
+      } else if (aciklama.includes('kredi') || aciklama.includes('kart')) {
+        acc.kredi_karti += tutar;
+      } else if (aciklama.includes('yemek') || aciklama.includes('ticket')) {
+        acc.yemek_karti += tutar;
+      } else {
+        acc.diger += tutar;
+      }
+      
+      acc.toplam += tutar;
+      return acc;
+    }, { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 });
+
     return {
       period: { start: startDateOnly, end: endDateOnly },
       count: rows.length || 0,
-      rows,
+      totals,
+      rows: rows.map(row => ({
+        ...row,
+        tarih: row.raptar || row.tarih || startDateOnly,
+        tutar: parseFloat(row.tutar || row.toplam || 0).toFixed(2),
+      })),
     };
   }
 }
