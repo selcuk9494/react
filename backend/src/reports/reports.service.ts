@@ -1865,17 +1865,47 @@ export class ReportsService {
     endDate?: string,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(
-      period,
-      closingHour,
-      startDate,
-      endDate,
-    );
-    let startDateOnly = format(start, 'yyyy-MM-dd');
-    let endDateOnly = format(end, 'yyyy-MM-dd');
-    // Dün/Bugün için tek gün filtre
-    if (period === 'today' || period === 'yesterday') {
+    const safeClosing = Number.isFinite(closingHour)
+      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
+      : 6;
+
+    // İş günü tarihini hesapla (Türkiye saati)
+    const { year, month, day, hour } = this.getTurkeyTimeComponents();
+    const baseUtc = Date.UTC(year, month, day, 0, 0, 0, 0);
+    const baseDate = new Date(baseUtc);
+    const prevDate = new Date(baseUtc);
+    prevDate.setUTCDate(prevDate.getUTCDate() - 1);
+    const nextDate = new Date(baseUtc);
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+
+    const fmt = (d: Date) =>
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+
+    let startDateOnly: string;
+    let endDateOnly: string;
+
+    if (period === 'today') {
+      // Şu an kapanış saatinden önceyse iş günü dündür, değilse bugündür
+      const bizDate = hour < safeClosing ? prevDate : baseDate;
+      startDateOnly = fmt(bizDate);
       endDateOnly = startDateOnly;
+    } else if (period === 'yesterday') {
+      // Dün = bugünkü iş gününden bir önceki iş günü
+      const todayBiz = hour < safeClosing ? prevDate : baseDate;
+      const yestBiz = new Date(Date.UTC(todayBiz.getUTCFullYear(), todayBiz.getUTCMonth(), todayBiz.getUTCDate()));
+      yestBiz.setUTCDate(yestBiz.getUTCDate() - 1);
+      startDateOnly = fmt(yestBiz);
+      endDateOnly = startDateOnly;
+    } else {
+      // Diğer periyotlar getDateRange ile (takvim esaslı)
+      const { start, end } = this.getDateRange(
+        period,
+        closingHour,
+        startDate,
+        endDate,
+      );
+      startDateOnly = format(start, 'yyyy-MM-dd');
+      endDateOnly = format(end, 'yyyy-MM-dd');
     }
 
     // Doğrudan sizin belirttiğiniz ve görselde teyit ettiğimiz yapı:
