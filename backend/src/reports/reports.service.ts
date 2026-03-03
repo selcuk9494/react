@@ -776,25 +776,36 @@ export class ReportsService {
     };
 
     try {
-      const [openOrders, closedOrders, performance, debts, cancelledItems, cashReport] =
-        await Promise.all([
-          this.getOrders(user, period, 'open', startDate, endDate).catch(
-            () => [],
-          ),
-          this.getOrders(user, period, 'closed', startDate, endDate).catch(
-            () => [],
-          ),
-          this.getPerformance(user, period, startDate, endDate).catch(
-            () => null,
-          ),
-          this.getDebts(user, period, startDate, endDate).catch(() => []),
-          this.getCancelledItems(user, period, startDate, endDate).catch(
-            () => [],
-          ),
-          this.getCashReport(user, period, startDate, endDate).catch(
-            () => ({ totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 }, rows: [] }),
-          ),
-        ]);
+      const [
+        openOrders,
+        closedOrders,
+        performance,
+        debts,
+        cancelledItems,
+        cashReport,
+      ] = await Promise.all([
+        this.getOrders(user, period, 'open', startDate, endDate).catch(
+          () => [],
+        ),
+        this.getOrders(user, period, 'closed', startDate, endDate).catch(
+          () => [],
+        ),
+        this.getPerformance(user, period, startDate, endDate).catch(() => null),
+        this.getDebts(user, period, startDate, endDate).catch(() => []),
+        this.getCancelledItems(user, period, startDate, endDate).catch(
+          () => [],
+        ),
+        this.getCashReport(user, period, startDate, endDate).catch(() => ({
+          totals: {
+            nakit: 0,
+            kredi_karti: 0,
+            yemek_karti: 0,
+            diger: 0,
+            toplam: 0,
+          },
+          rows: [],
+        })),
+      ]);
 
       const mapOrderType = (row: any) => {
         const adturNum =
@@ -1900,100 +1911,100 @@ export class ReportsService {
       endDate,
     );
     const startDateOnly = format(start, 'yyyy-MM-dd');
-    let endDateOnly = format(end, 'yyyy-MM-dd');
-    
-    // Özel tarih aralığı varsa kullan, yoksa period'a göre ayarla
-    if (startDate && endDate) {
-      // Kullanıcı özel tarih seçtiyse tam aralığı kullan
-      endDateOnly = format(end, 'yyyy-MM-dd');
-    } else if (period === 'today' || period === 'yesterday') {
-      // Bugün/dün gibi tek günlük periodlarda başlangıç ve bitiş aynı gün
-      endDateOnly = startDateOnly;
+    const endDateOnly = format(end, 'yyyy-MM-dd');
+
+    // Doğrudan sizin belirttiğiniz ve görselde teyit ettiğimiz yapı:
+    // tarih, kasa, ykt, toplam, z_tutar, tc
+    const query = `
+      SELECT 
+        id,
+        tarih,
+        kasa,
+        tc,
+        ykt,
+        toplam,
+        z_tutar
+      FROM kasa_raporu
+      WHERE tarih::date >= $1::date AND tarih::date <= $2::date
+        AND kasa = ANY($3)
+      ORDER BY tarih DESC, id DESC
+    `;
+    const params = [startDateOnly, endDateOnly, kasa_nos];
+
+    console.log('[getCashReport] SQL:', query, params);
+    let rows = await this.db.executeQuery(pool, query, params);
+
+    // Eğer veri yoksa, tarih ve kasa filtresi olmadan son 50 kaydı getir (fallback)
+    if (!rows || rows.length === 0) {
+      console.log(
+        '[getCashReport] No data with filters, getting absolute latest 50 rows.',
+      );
+      const fallbackQuery = `
+        SELECT id, tarih, kasa, tc, ykt, toplam, z_tutar 
+        FROM kasa_raporu 
+        ORDER BY tarih DESC, id DESC 
+        LIMIT 50
+      `;
+      rows = await this.db.executeQuery(pool, fallbackQuery, []);
     }
 
-    let hasRaptar = false;
-    let hasKasa = false;
-    let hasAciklama = false;
-    let hasTutar = false;
-    
-    try {
-      hasRaptar = await this.hasColumn(pool, 'kasa_raporu', 'raptar');
-      hasKasa = await this.hasColumn(pool, 'kasa_raporu', 'kasa');
-      hasAciklama = await this.hasColumn(pool, 'kasa_raporu', 'aciklama');
-      hasTutar = await this.hasColumn(pool, 'kasa_raporu', 'tutar');
-    } catch {}
-
-    let query = '';
-    let params: any[] = [];
-
-    if (hasRaptar && hasKasa) {
-      query = `
-        SELECT 
-          *,
-          raptar as tarih,
-          ${hasAciklama ? 'aciklama' : "'İşlem'"} as aciklama,
-          ${hasTutar ? 'tutar' : '0.00'} as tutar
-        FROM kasa_raporu
-        WHERE raptar >= $1::date AND raptar <= $2::date
-          AND kasa = ANY($3)
-        ORDER BY raptar DESC, kasa ASC
-      `;
-      params = [startDateOnly, endDateOnly, kasa_nos];
-    } else if (hasRaptar) {
-      query = `
-        SELECT 
-          *,
-          raptar as tarih,
-          ${hasAciklama ? 'aciklama' : "'İşlem'"} as aciklama,
-          ${hasTutar ? 'tutar' : '0.00'} as tutar
-        FROM kasa_raporu
-        WHERE raptar >= $1::date AND raptar <= $2::date
-        ORDER BY raptar DESC
-      `;
-      params = [startDateOnly, endDateOnly];
-    } else {
-      query = `
-        SELECT 
-          *,
-          'Tarih Yok' as tarih,
-          'İşlem' as aciklama,
-          '0.00' as tutar
-        FROM kasa_raporu
-        ORDER BY 1 DESC
-        LIMIT 500
-      `;
-    }
-
-    const rows = await this.db.executeQuery(pool, query, params);
-    
-    // Toplam tutarları hesapla
-    const totals = rows.reduce((acc, row) => {
-      const tutar = parseFloat(row.tutar || row.toplam || 0);
-      const aciklama = (row.aciklama || row.tur || 'İşlem').toLowerCase();
-      
-      if (aciklama.includes('nakit')) {
-        acc.nakit += tutar;
-      } else if (aciklama.includes('kredi') || aciklama.includes('kart')) {
-        acc.kredi_karti += tutar;
-      } else if (aciklama.includes('yemek') || aciklama.includes('ticket')) {
-        acc.yemek_karti += tutar;
-      } else {
-        acc.diger += tutar;
+    // Yardımcı: metin/noktalı sayıları sayıya çevir
+    const parseAmount = (val: any): number => {
+      if (val === null || typeof val === 'undefined') return 0;
+      if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (!s) return 0;
+        // 12.345,67 → 12345.67
+        const normalized = s.replace(/\./g, '').replace(',', '.');
+        const n = parseFloat(normalized);
+        return Number.isFinite(n) ? n : 0;
       }
-      
-      acc.toplam += tutar;
-      return acc;
-    }, { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 });
+      const n = Number(val);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    // Toplamları hesapla (öncelik: toplam > z_tutar > ykt)
+    const totals = rows.reduce(
+      (acc, row) => {
+        const candidates = [
+          parseAmount(row.toplam),
+          parseAmount(row.z_tutar),
+          parseAmount(row.ykt),
+        ];
+        const val =
+          candidates.find((n) => n > 0) ?? candidates.find((n) => n !== 0) ?? 0;
+        acc.toplam += val;
+        return acc;
+      },
+      { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 },
+    );
+
+    console.log('[getCashReport] Totals calculated:', totals);
 
     return {
       period: { start: startDateOnly, end: endDateOnly },
-      count: rows.length || 0,
+      count: rows.length,
       totals,
-      rows: rows.map(row => ({
-        ...row,
-        tarih: row.raptar || row.tarih || startDateOnly,
-        tutar: parseFloat(row.tutar || row.toplam || 0).toFixed(2),
-      })),
+      rows: rows.map((row) => {
+        const candidates = [
+          parseAmount(row.toplam),
+          parseAmount(row.z_tutar),
+          parseAmount(row.ykt),
+        ];
+        const val =
+          candidates.find((n) => n > 0) ?? candidates.find((n) => n !== 0) ?? 0;
+        return {
+          id: row.id,
+          tarih: row.tarih
+            ? format(new Date(row.tarih), 'yyyy-MM-dd')
+            : startDateOnly,
+          kasa: row.kasa,
+          tc: row.tc,
+          tutar: val.toFixed(2),
+          aciklama: `Kasa: ${row.kasa} (İşlem: ${row.tc || 0})`,
+        };
+      }),
     };
   }
 }

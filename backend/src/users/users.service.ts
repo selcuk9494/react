@@ -7,6 +7,36 @@ export class UsersService {
   constructor(private db: DatabaseService) {}
 
   async findOne(email: string): Promise<any> {
+    // Check if we're in mock mode
+    if (this.db.isMockMode()) {
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail === 'admin@example.com') {
+        const hash = await bcrypt.hash('123456', 10);
+        return {
+          id: 'mock-admin-id',
+          email: cleanEmail,
+          password: hash,
+          selected_branch: 0,
+          is_admin: true,
+          allowed_reports: null,
+          created_at: new Date().toISOString(),
+        };
+      }
+      if (cleanEmail === 'selcuk.yilmaz@microvise.net') {
+        const hash = await bcrypt.hash('123456', 10);
+        return {
+          id: 'mock-selcuk-id',
+          email: cleanEmail,
+          password: hash,
+          selected_branch: 0,
+          is_admin: true,
+          allowed_reports: ['cash_report', 'open_orders'],
+          created_at: new Date().toISOString(),
+        };
+      }
+      return null;
+    }
+
     const pool = this.db.getMainPool();
     const cleanEmail = email.trim().toLowerCase();
 
@@ -111,6 +141,30 @@ export class UsersService {
   }
 
   async findAll(): Promise<any[]> {
+    // Check if we're in mock mode
+    if (this.db.isMockMode()) {
+      return [
+        {
+          id: 'mock-id-1',
+          email: 'admin@example.com',
+          selected_branch: 0,
+          is_admin: true,
+          allowed_reports: null,
+          created_at: new Date().toISOString(),
+          days_left: 30,
+        },
+        {
+          id: 'mock-id-2',
+          email: 'selcuk.yilmaz@microvise.net',
+          selected_branch: 0,
+          is_admin: true,
+          allowed_reports: ['cash_report', 'open_orders'],
+          created_at: new Date().toISOString(),
+          days_left: 30,
+        },
+      ];
+    }
+
     const pool = this.db.getMainPool();
     const res = await pool.query(`
       SELECT *,
