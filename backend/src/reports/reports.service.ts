@@ -67,35 +67,20 @@ export class ReportsService {
     );
 
     if (period === 'today') {
-      if (currentTurkeyHourMinutes < closingHourMinutes) {
-        // Kapanış saatinden önce: devam eden iş günü dündür
-        end = todayClosing;
-        start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-        console.log(
-          `[getDateRange] Before closing hour - using yesterday's business day`,
-        );
-      } else {
-        // Kapanıştan sonra: yeni iş günü bugün kapanışta başladı
-        start = todayClosing;
-        end = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
-        console.log(
-          `[getDateRange] After closing hour - using today's business day`,
-        );
-      }
+      // Takvim esaslı: bugünün başlangıcı ve bugünün sonu
+      const todayStartUTC = Date.UTC(year, month, day, 0, 0, 0, 0);
+      const todayEndUTC = Date.UTC(year, month, day, 23, 59, 59, 999);
+      start = new Date(todayStartUTC);
+      end = new Date(todayEndUTC);
     } else if (period === 'yesterday') {
-      let todayStart: Date;
-      let todayEnd: Date;
-
-      if (currentTurkeyHourMinutes < closingHourMinutes) {
-        todayEnd = todayClosing;
-        todayStart = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
-      } else {
-        todayStart = todayClosing;
-        todayEnd = new Date(todayClosing.getTime() + 24 * 60 * 60 * 1000);
-      }
-
-      start = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
-      end = new Date(todayEnd.getTime() - 24 * 60 * 60 * 1000);
+      // Takvim esaslı: dünün başlangıcı ve dünün sonu
+      const yDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+      yDate.setUTCDate(yDate.getUTCDate() - 1);
+      const yYear = yDate.getUTCFullYear();
+      const yMonth = yDate.getUTCMonth();
+      const yDay = yDate.getUTCDate();
+      start = new Date(Date.UTC(yYear, yMonth, yDay, 0, 0, 0, 0));
+      end = new Date(Date.UTC(yYear, yMonth, yDay, 23, 59, 59, 999));
     } else if (period === 'week') {
       // Türkiye saatinde haftanın başını bul (Pazartesi)
       const dayOfWeek = turkeyTime.getUTCDay(); // 0 = Pazar
@@ -1886,8 +1871,12 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    // Dün/Bugün için tek gün filtre
+    if (period === 'today' || period === 'yesterday') {
+      endDateOnly = startDateOnly;
+    }
 
     // Doğrudan sizin belirttiğiniz ve görselde teyit ettiğimiz yapı:
     // tarih, kasa, ykt, toplam, z_tutar, tc
