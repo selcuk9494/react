@@ -54,16 +54,8 @@ export class ReportsService {
     const currentTurkeyHourMinutes = hour * 60 + minute;
     const closingHourMinutes = safeClosing * 60;
 
-    // Bugünkü kapanış saatini UTC olarak hesapla (Türkiye = UTC+3)
-    const todayClosingUTC = Date.UTC(
-      year,
-      month,
-      day,
-      safeClosing - 3,
-      0,
-      0,
-      0,
-    );
+    // Bugünkü kapanış saatini gün sınırı olarak hesapla (takvim esaslı)
+    const todayClosingUTC = Date.UTC(year, month, day, safeClosing, 0, 0, 0);
     const todayClosing = new Date(todayClosingUTC);
 
     console.log(`[getDateRange] period=${period}, closingHour=${safeClosing}`);
@@ -108,28 +100,20 @@ export class ReportsService {
       // Türkiye saatinde haftanın başını bul (Pazartesi)
       const dayOfWeek = turkeyTime.getUTCDay(); // 0 = Pazar
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const weekStartUTC = Date.UTC(
-        year,
-        month,
-        day - daysToMonday,
-        0 - 3,
-        0,
-        0,
-        0,
-      );
+      const weekStartUTC = Date.UTC(year, month, day - daysToMonday, 0, 0, 0, 0);
       start = new Date(weekStartUTC);
-      // Bugünün sonuna kadar
-      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      // Bugünün sonuna kadar (takvim esaslı)
+      const todayEndUTC = Date.UTC(year, month, day, 23, 59, 59, 999);
       end = new Date(todayEndUTC);
     } else if (period === 'last7days') {
-      const startDayUTC = Date.UTC(year, month, day - 6, 0 - 3, 0, 0, 0);
+      const startDayUTC = Date.UTC(year, month, day - 6, 0, 0, 0, 0);
       start = new Date(startDayUTC);
-      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      const todayEndUTC = Date.UTC(year, month, day, 23, 59, 59, 999);
       end = new Date(todayEndUTC);
     } else if (period === 'month') {
-      const monthStartUTC = Date.UTC(year, month, 1, 0 - 3, 0, 0, 0);
+      const monthStartUTC = Date.UTC(year, month, 1, 0, 0, 0, 0);
       start = new Date(monthStartUTC);
-      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      const todayEndUTC = Date.UTC(year, month, day, 23, 59, 59, 999);
       end = new Date(todayEndUTC);
     } else if (period === 'lastmonth') {
       const lastMonthYear = month === 0 ? year - 1 : year;
@@ -137,21 +121,13 @@ export class ReportsService {
       const lastDayOfLastMonth = new Date(
         Date.UTC(year, month, 0),
       ).getUTCDate();
-      const lastMonthStartUTC = Date.UTC(
-        lastMonthYear,
-        lastMonth,
-        1,
-        0 - 3,
-        0,
-        0,
-        0,
-      );
+      const lastMonthStartUTC = Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0, 0);
       start = new Date(lastMonthStartUTC);
       const lastMonthEndUTC = Date.UTC(
         lastMonthYear,
         lastMonth,
         lastDayOfLastMonth,
-        23 - 3,
+        23,
         59,
         59,
         999,
@@ -160,13 +136,13 @@ export class ReportsService {
     } else if (period === 'custom' && startDate && endDate) {
       const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
       const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
-      start = new Date(Date.UTC(sYear, sMonth - 1, sDay, 0 - 3, 0, 0, 0));
-      end = new Date(Date.UTC(eYear, eMonth - 1, eDay, 23 - 3, 59, 59, 999));
+      start = new Date(Date.UTC(sYear, sMonth - 1, sDay, 0, 0, 0, 0));
+      end = new Date(Date.UTC(eYear, eMonth - 1, eDay, 23, 59, 59, 999));
     } else {
       // Default: bugün
-      const todayStartUTC = Date.UTC(year, month, day, 0 - 3, 0, 0, 0);
+      const todayStartUTC = Date.UTC(year, month, day, 0, 0, 0, 0);
       start = new Date(todayStartUTC);
-      const todayEndUTC = Date.UTC(year, month, day, 23 - 3, 59, 59, 999);
+      const todayEndUTC = Date.UTC(year, month, day, 23, 59, 59, 999);
       end = new Date(todayEndUTC);
     }
 
