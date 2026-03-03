@@ -35,6 +35,26 @@ export class ReportsService {
     };
   }
 
+  private getBusinessDayDate(
+    closingHour: number,
+    which: 'today' | 'yesterday' = 'today',
+  ) {
+    const { year, month, day, hour } = this.getTurkeyTimeComponents();
+    const safeClosing = Number.isFinite(closingHour)
+      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
+      : 6;
+    const base = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const biz =
+      hour < safeClosing
+        ? new Date(base.getTime() - 24 * 60 * 60 * 1000)
+        : base;
+    const d =
+      which === 'yesterday'
+        ? new Date(biz.getTime() - 24 * 60 * 60 * 1000)
+        : biz;
+    return format(d, 'yyyy-MM-dd');
+  }
+
   private getDateRange(
     period: string,
     closingHour: number,
@@ -214,13 +234,26 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
+    let dStart = format(start, 'yyyy-MM-dd');
     let dEnd = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      dStart = biz;
+      dEnd = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      dStart = biz;
+      dEnd = biz;
+    }
 
-    // Tek iş günü bazlı raporlar için (Bugün / Dün) raptar ve actar tarih
-    // aralıklarını tek güne sabitle
-    if (period === 'today' || period === 'yesterday') {
-      dEnd = dStart;
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      dStart = biz;
+      dEnd = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      dStart = biz;
+      dEnd = biz;
     }
 
     let typeCondition = '';
@@ -958,8 +991,19 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    let dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    let dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+
+    if (period === 'today' || period === 'yesterday') {
+      const biz =
+        period === 'today'
+          ? this.getBusinessDayDate(closingHour, 'today')
+          : this.getBusinessDayDate(closingHour, 'yesterday');
+      const b = new Date(`${biz}T00:00:00Z`);
+      const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
+      dStart = `${biz} 00:00:00`;
+      dEnd = `${format(n, 'yyyy-MM-dd')} 00:00:00`;
+    }
 
     const query = `
       SELECT 
@@ -1001,9 +1045,17 @@ export class ReportsService {
       endDate,
     );
 
-    // raptar ve actar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    }
 
     // Açık siparişler - actar kullan
     const openQuery = `
@@ -1115,9 +1167,17 @@ export class ReportsService {
       endDate,
     );
 
-    // raptar ve actar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    }
 
     // Open - actar kullan
     const openQuery = `
@@ -1185,8 +1245,18 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    const dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    let dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
+    let dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    if (period === 'today' || period === 'yesterday') {
+      const biz =
+        period === 'today'
+          ? this.getBusinessDayDate(closingHour, 'today')
+          : this.getBusinessDayDate(closingHour, 'yesterday');
+      const b = new Date(`${biz}T00:00:00Z`);
+      const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
+      dStart = `${biz} 00:00:00`;
+      dEnd = `${format(n, 'yyyy-MM-dd')} 00:00:00`;
+    }
     const query = `
       SELECT 
         COALESCE(a.urun_adi, 'Ürün') as urun_adi,
@@ -1227,14 +1297,16 @@ export class ReportsService {
       endDate,
     );
 
-    // raptar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
     let endDateOnly = format(end, 'yyyy-MM-dd');
-
-    // Bugün döneminde, raptar bazlı sorgularda iki farklı tarihi kapsayıp
-    // dünkü ve bugünkü satışları birlikte toplamamak için tek iş günü tarihi kullan
     if (period === 'today') {
-      endDateOnly = startDateOnly;
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
     }
 
     console.log(
@@ -1401,9 +1473,17 @@ export class ReportsService {
       endDate,
     );
 
-    // raptar ve actar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    }
 
     let query = '';
     const params = [];
@@ -1544,8 +1624,17 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    let dStart = format(start, 'yyyy-MM-dd');
+    let dEnd = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      dStart = biz;
+      dEnd = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      dStart = biz;
+      dEnd = biz;
+    }
     const query = `
       SELECT 
         a.adtur,
@@ -1615,8 +1704,17 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    let dStart = format(start, 'yyyy-MM-dd');
+    let dEnd = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      dStart = biz;
+      dEnd = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      dStart = biz;
+      dEnd = biz;
+    }
     const query = `
       WITH agg AS (
         SELECT 
@@ -1677,8 +1775,17 @@ export class ReportsService {
       startDate,
       endDate,
     );
-    const dStart = format(start, 'yyyy-MM-dd');
-    const dEnd = format(end, 'yyyy-MM-dd');
+    let dStart = format(start, 'yyyy-MM-dd');
+    let dEnd = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      dStart = biz;
+      dEnd = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      dStart = biz;
+      dEnd = biz;
+    }
 
     const query = `
       WITH payments AS (
@@ -1748,9 +1855,17 @@ export class ReportsService {
       endDate,
     );
 
-    // raptar için sadece tarih formatı kullan
-    const startDateOnly = format(start, 'yyyy-MM-dd');
-    const endDateOnly = format(end, 'yyyy-MM-dd');
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    }
 
     console.log(
       `[getPersonnelReport] period=${period}, startDateOnly=${startDateOnly}, endDateOnly=${endDateOnly}`,
