@@ -812,7 +812,7 @@ export class ReportsService {
       };
 
       let totalOpenAmount = 0;
-      let totalClosedAmount = 0;
+      let totalClosedGrossAmount = 0;
 
       (openOrders as any[]).forEach((o) => {
         const key = mapOrderType(o);
@@ -837,7 +837,7 @@ export class ReportsService {
           g.kapali_adet += 1;
           g.kapali_toplam += tutar;
         }
-        totalClosedAmount += tutar;
+        totalClosedGrossAmount += tutar;
       });
 
       if (performance && (performance as any).summary) {
@@ -853,26 +853,29 @@ export class ReportsService {
         }
       }
 
-      const totalSales = result.kapali_adisyon_toplam || totalClosedAmount || 0;
+      const grossClosedTotal =
+        totalClosedGrossAmount || result.kapali_adisyon_toplam || 0;
+      const totalDiscount = result.kapali_iskonto_toplam || 0;
+      if (!(performance && (performance as any).summary)) {
+        result.kapali_adisyon_toplam = Math.max(
+          0,
+          grossClosedTotal - totalDiscount,
+        );
+      }
 
       (['adisyon', 'paket', 'hizli'] as const).forEach((key) => {
         const g = (result.dagilim as any)[key];
+        if (grossClosedTotal > 0 && totalDiscount > 0 && g.kapali_toplam > 0) {
+          const share = g.kapali_toplam / grossClosedTotal;
+          g.kapali_iskonto = Number((totalDiscount * share).toFixed(2));
+          g.kapali_toplam = Math.max(0, g.kapali_toplam - g.kapali_iskonto);
+        }
         g.toplam_adet = g.acik_adet + g.kapali_adet;
         g.toplam_tutar = g.acik_toplam + g.kapali_toplam;
-        if (
-          totalSales > 0 &&
-          result.kapali_iskonto_toplam > 0 &&
-          g.kapali_toplam > 0
-        ) {
-          const share = g.kapali_toplam / totalSales;
-          g.kapali_iskonto = Number(
-            (result.kapali_iskonto_toplam * share).toFixed(2),
-          );
-        }
       });
 
       const totalOpen = result.acik_adisyon_toplam || totalOpenAmount || 0;
-      const totalClosed = totalSales || totalClosedAmount || 0;
+      const totalClosed = result.kapali_adisyon_toplam || 0;
 
       (['adisyon', 'paket'] as const).forEach((key) => {
         const g = (result.dagilim as any)[key];

@@ -192,6 +192,7 @@ export default function AdminManageScreen({ navigation }) {
                 db_user: b.db_user,
                 db_password: b.db_password,
                 kasa_no: b.kasa_no,
+                kasalar: [b.kasa_no],
                 closing_hour:
                   typeof b.closing_hour === 'number' &&
                   Number.isFinite(b.closing_hour)
@@ -251,6 +252,12 @@ export default function AdminManageScreen({ navigation }) {
                 db_user: b.db_user,
                 db_password: b.db_password,
                 kasa_no: b.kasa_no,
+                kasalar: [b.kasa_no],
+                closing_hour:
+                  typeof b.closing_hour === 'number' &&
+                  Number.isFinite(b.closing_hour)
+                    ? b.closing_hour
+                    : 6,
               },
               { headers: { Authorization: `Bearer ${token}` } },
             );
@@ -714,4 +721,3 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-

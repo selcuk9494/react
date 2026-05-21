@@ -81,9 +81,17 @@ export default function AdminUsersScreen({ navigation }) {
   const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState(null);
   const [assigningFor, setAssigningFor] = useState(null);
   const [assignBranchId, setAssignBranchId] = useState(null);
+  const [lang, setLang] = useState('tr');
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
 
   useEffect(() => {
     fetchUsers();
+  }, []);
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
   }, []);
 
   const getToken = async () => {
@@ -260,7 +268,10 @@ export default function AdminUsersScreen({ navigation }) {
       const token = await getToken();
       await axios.post(
         `${API_URL}/admin/users/${userId}/branches`,
-        branchForm,
+        {
+          ...branchForm,
+          kasalar: [branchForm.kasa_no],
+        },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -299,7 +310,10 @@ export default function AdminUsersScreen({ navigation }) {
       const token = await getToken();
       await axios.put(
         `${API_URL}/admin/users/${userId}/branches/${editingBranchId}`,
-        editingBranchForm,
+        {
+          ...editingBranchForm,
+          kasalar: [editingBranchForm.kasa_no],
+        },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -487,7 +501,7 @@ export default function AdminUsersScreen({ navigation }) {
                     <Text style={styles.userMeta}>
                       Bitiş:{' '}
                       {u.expiry_date
-                        ? new Date(u.expiry_date).toLocaleDateString('tr-TR')
+                        ? new Date(u.expiry_date).toLocaleDateString(locale)
                         : '-'}
                     </Text>
                     {(u.branches || []).length > 0 && (
@@ -549,7 +563,7 @@ export default function AdminUsersScreen({ navigation }) {
                         editForm.expiry_date
                           ? new Date(
                               editForm.expiry_date,
-                            ).toLocaleDateString('tr-TR')
+                            ).toLocaleDateString(locale)
                           : ''
                       }
                       editable={false}

@@ -103,8 +103,8 @@ export class UsersService {
               : typeof rawClosing === 'string'
                 ? parseInt(rawClosing, 10)
                 : 6;
-          await client.query(
-            'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          const branchRes = await client.query(
+            'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
             [
               user.id,
               branch.name,
@@ -117,6 +117,28 @@ export class UsersService {
               Number.isFinite(closingHour) ? closingHour : 6,
             ],
           );
+          const branchId = branchRes.rows?.[0]?.id;
+          const primaryKasa =
+            typeof branch.kasa_no === 'number'
+              ? branch.kasa_no
+              : parseInt(String(branch.kasa_no || 1), 10);
+          const kasalar = Array.from(
+            new Set(
+              [primaryKasa, ...(Array.isArray(branch.kasalar) ? branch.kasalar : [])]
+                .map((kasa: any) =>
+                  typeof kasa === 'number' ? kasa : parseInt(String(kasa), 10),
+                )
+                .filter((kasa: number) => Number.isFinite(kasa) && !isNaN(kasa)),
+            ),
+          );
+          if (branchId) {
+            for (const kasa of kasalar) {
+              await client.query(
+                'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
+                [branchId, kasa],
+              );
+            }
+          }
         }
       }
 

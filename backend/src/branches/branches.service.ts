@@ -9,6 +9,25 @@ export class BranchesService {
     private cache: CacheService,
   ) {}
 
+  private normalizeKasalar(data: any): number[] {
+    const primary =
+      typeof data?.kasa_no === 'number'
+        ? data.kasa_no
+        : typeof data?.kasa_no === 'string'
+          ? parseInt(data.kasa_no, 10)
+          : 1;
+    const rawKasalar = Array.isArray(data?.kasalar) ? data.kasalar : [];
+    return Array.from(
+      new Set(
+        [primary, ...rawKasalar]
+          .map((kasa) =>
+            typeof kasa === 'number' ? kasa : parseInt(String(kasa), 10),
+          )
+          .filter((kasa) => Number.isFinite(kasa) && !isNaN(kasa)),
+      ),
+    );
+  }
+
   async findAll(userId: string) {
     // Try cache first
     const cacheKey = this.cache.generateKey('branches', 'user', userId);
@@ -105,16 +124,12 @@ export class BranchesService {
     ];
     const res = await this.db.executeQuery(pool, query, params);
     const branch = res[0];
-    if (Array.isArray(data.kasalar)) {
-      for (const kasa of data.kasalar) {
-        if (typeof kasa === 'number' && !isNaN(kasa)) {
-          await this.db.executeQuery(
-            pool,
-            'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
-            [branch.id, kasa],
-          );
-        }
-      }
+    for (const kasa of this.normalizeKasalar(data)) {
+      await this.db.executeQuery(
+        pool,
+        'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
+        [branch.id, kasa],
+      );
     }
 
     // Invalidate user's branches cache
@@ -156,16 +171,12 @@ export class BranchesService {
       'DELETE FROM branch_kasas WHERE branch_id = $1',
       [id],
     );
-    if (Array.isArray(data.kasalar)) {
-      for (const kasa of data.kasalar) {
-        if (typeof kasa === 'number' && !isNaN(kasa)) {
-          await this.db.executeQuery(
-            pool,
-            'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
-            [id, kasa],
-          );
-        }
-      }
+    for (const kasa of this.normalizeKasalar(data)) {
+      await this.db.executeQuery(
+        pool,
+        'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
+        [id, kasa],
+      );
     }
 
     // Invalidate caches
