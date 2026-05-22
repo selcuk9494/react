@@ -812,8 +812,6 @@ export class ReportsService {
       };
 
       let totalOpenAmount = 0;
-      let totalClosedGrossAmount = 0;
-
       (openOrders as any[]).forEach((o) => {
         const key = mapOrderType(o);
         const tutar = Number(o.tutar) || 0;
@@ -829,18 +827,25 @@ export class ReportsService {
 
       (closedOrders as any[]).forEach((o) => {
         const key = mapOrderType(o);
-        const tutar = Number(o.tutar) || 0;
-        result.kapali_adisyon_toplam += tutar;
+        const grossTutar = Number(o.tutar) || 0;
+        const iskonto = Number(o.iskonto) || 0;
+        const netTutar = Math.max(0, grossTutar - iskonto);
+        result.kapali_adisyon_toplam += netTutar;
+        result.kapali_iskonto_toplam += iskonto;
         result.kapali_adisyon_adet += 1;
         const g = (result.dagilim as any)[key];
         if (g) {
           g.kapali_adet += 1;
-          g.kapali_toplam += tutar;
+          g.kapali_toplam += netTutar;
+          g.kapali_iskonto += iskonto;
         }
-        totalClosedGrossAmount += tutar;
       });
 
-      if (performance && (performance as any).summary) {
+      if (
+        result.kapali_adisyon_adet === 0 &&
+        performance &&
+        (performance as any).summary
+      ) {
         const summary = (performance as any).summary;
         if (typeof summary.total_sales === 'number') {
           result.kapali_adisyon_toplam = summary.total_sales;
@@ -853,23 +858,8 @@ export class ReportsService {
         }
       }
 
-      const grossClosedTotal =
-        totalClosedGrossAmount || result.kapali_adisyon_toplam || 0;
-      const totalDiscount = result.kapali_iskonto_toplam || 0;
-      if (!(performance && (performance as any).summary)) {
-        result.kapali_adisyon_toplam = Math.max(
-          0,
-          grossClosedTotal - totalDiscount,
-        );
-      }
-
       (['adisyon', 'paket', 'hizli'] as const).forEach((key) => {
         const g = (result.dagilim as any)[key];
-        if (grossClosedTotal > 0 && totalDiscount > 0 && g.kapali_toplam > 0) {
-          const share = g.kapali_toplam / grossClosedTotal;
-          g.kapali_iskonto = Number((totalDiscount * share).toFixed(2));
-          g.kapali_toplam = Math.max(0, g.kapali_toplam - g.kapali_iskonto);
-        }
         g.toplam_adet = g.acik_adet + g.kapali_adet;
         g.toplam_tutar = g.acik_toplam + g.kapali_toplam;
       });
