@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -31,6 +31,51 @@ const AVAILABLE_REPORTS = [
   { id: 'unsold_cancels', label: 'Satılmadan İptaller' },
 ];
 
+const parseInteger = (value, fallback) => {
+  const parsed = parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeKasalar = (value, fallback = 1) => {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\s;]+/)
+      : typeof value === 'number'
+        ? [value]
+        : [];
+  const parsed = Array.from(
+    new Set(
+      rawValues
+        .map((item) => parseInteger(item, NaN))
+        .filter((item) => Number.isFinite(item)),
+    ),
+  );
+  if (parsed.length > 0) return parsed;
+  return Number.isFinite(fallback) ? [fallback] : [1];
+};
+
+const formatKasalar = (value, fallback = 1) =>
+  normalizeKasalar(value, fallback).join(', ');
+
+const toBranchPayload = (branch) => {
+  const kasalar = normalizeKasalar(
+    branch.kasalar_input ?? branch.kasalar ?? branch.kasa_no,
+    parseInteger(branch.kasa_no, 1),
+  );
+  return {
+    name: branch.name,
+    db_host: branch.db_host,
+    db_port: parseInteger(branch.db_port, 5432),
+    db_name: branch.db_name,
+    db_user: branch.db_user,
+    db_password: branch.db_password,
+    kasa_no: kasalar[0] ?? 1,
+    kasalar,
+    closing_hour: parseInteger(branch.closing_hour, 6),
+  };
+};
+
 export default function AdminManageScreen({ navigation }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +91,14 @@ export default function AdminManageScreen({ navigation }) {
     AVAILABLE_REPORTS.map((r) => r.id),
   );
   const [saving, setSaving] = useState(false);
+
+  const renderField = (label, inputProps, hint) => (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput style={styles.input} {...inputProps} />
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
 
   useEffect(() => {
     fetchUsers();
@@ -92,6 +145,8 @@ export default function AdminManageScreen({ navigation }) {
       setFormBranches(
         (selectedUser.branches || []).map((b) => ({
           ...b,
+          kasa_no: normalizeKasalar(b.kasalar ?? b.kasa_no, b.kasa_no ?? 1)[0] ?? 1,
+          kasalar_input: formatKasalar(b.kasalar ?? b.kasa_no, b.kasa_no ?? 1),
         })),
       );
       setFormAllowedReports(
@@ -128,6 +183,7 @@ export default function AdminManageScreen({ navigation }) {
         db_user: '',
         db_password: '',
         kasa_no: 1,
+        kasalar_input: '1',
         closing_hour: 6,
       },
     ]);
@@ -164,6 +220,15 @@ export default function AdminManageScreen({ navigation }) {
           );
           return;
         }
+        if (
+          normalizeKasalar(
+            b.kasalar_input ?? b.kasalar ?? b.kasa_no,
+            parseInteger(b.kasa_no, 1),
+          ).length === 0
+        ) {
+          Alert.alert('Uyarı', 'Her şube için en az bir kasa numarası girin.');
+          return;
+        }
       }
       setSaving(true);
 
@@ -184,21 +249,7 @@ export default function AdminManageScreen({ navigation }) {
           for (const b of formBranches) {
             await axios.post(
               `${API_URL}/admin/users/${uid}/branches`,
-              {
-                name: b.name,
-                db_host: b.db_host,
-                db_port: b.db_port,
-                db_name: b.db_name,
-                db_user: b.db_user,
-                db_password: b.db_password,
-                kasa_no: b.kasa_no,
-                kasalar: [b.kasa_no],
-                closing_hour:
-                  typeof b.closing_hour === 'number' &&
-                  Number.isFinite(b.closing_hour)
-                    ? b.closing_hour
-                    : 6,
-              },
+              toBranchPayload(b),
               { headers: { Authorization: `Bearer ${token}` } },
             );
           }
@@ -225,40 +276,13 @@ export default function AdminManageScreen({ navigation }) {
           if (b.id) {
             await axios.put(
               `${API_URL}/admin/users/${selectedUser.id}/branches/${b.id}`,
-              {
-                name: b.name,
-                db_host: b.db_host,
-                db_port: b.db_port,
-                db_name: b.db_name,
-                db_user: b.db_user,
-                db_password: b.db_password,
-                kasa_no: b.kasa_no,
-                closing_hour:
-                  typeof b.closing_hour === 'number' &&
-                  Number.isFinite(b.closing_hour)
-                    ? b.closing_hour
-                    : 6,
-              },
+              toBranchPayload(b),
               { headers: { Authorization: `Bearer ${token}` } },
             );
           } else {
             await axios.post(
               `${API_URL}/admin/users/${selectedUser.id}/branches`,
-              {
-                name: b.name,
-                db_host: b.db_host,
-                db_port: b.db_port,
-                db_name: b.db_name,
-                db_user: b.db_user,
-                db_password: b.db_password,
-                kasa_no: b.kasa_no,
-                kasalar: [b.kasa_no],
-                closing_hour:
-                  typeof b.closing_hour === 'number' &&
-                  Number.isFinite(b.closing_hour)
-                    ? b.closing_hour
-                    : 6,
-              },
+              toBranchPayload(b),
               { headers: { Authorization: `Bearer ${token}` } },
             );
           }
@@ -346,31 +370,37 @@ export default function AdminManageScreen({ navigation }) {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Kullanıcı Bilgileri</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="E-posta"
-              value={formUser.email}
-              onChangeText={(v) => setFormUser({ ...formUser, email: v })}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={
-                selectedUser ? 'Yeni şifre (opsiyonel)' : 'Şifre (zorunlu)'
-              }
-              value={formUser.password}
-              onChangeText={(v) => setFormUser({ ...formUser, password: v })}
-              secureTextEntry
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Bitiş Tarihi (YYYY-MM-DD)"
-              value={formUser.expiry_date}
-              onChangeText={(v) =>
-                setFormUser({ ...formUser, expiry_date: v })
-              }
-            />
+            {renderField('E-posta', {
+              placeholder: 'ornek@firma.com',
+              value: formUser.email,
+              onChangeText: (v) => setFormUser({ ...formUser, email: v }),
+              autoCapitalize: 'none',
+              keyboardType: 'email-address',
+            })}
+            {renderField(
+              'Şifre',
+              {
+                placeholder: selectedUser
+                  ? 'Yeni şifre (opsiyonel)'
+                  : 'Şifre (zorunlu)',
+                value: formUser.password,
+                onChangeText: (v) =>
+                  setFormUser({ ...formUser, password: v }),
+                secureTextEntry: true,
+              },
+              selectedUser ? 'Boş bırakırsan mevcut şifre korunur.' : null,
+            )}
+            {renderField(
+              'Bitiş Tarihi',
+              {
+                placeholder: 'YYYY-MM-DD',
+                value: formUser.expiry_date,
+                onChangeText: (v) =>
+                  setFormUser({ ...formUser, expiry_date: v }),
+              },
+              'İstersen boş bırakabilirsin.',
+            )}
+            <Text style={styles.fieldLabel}>Yetki</Text>
             <TouchableOpacity
               style={[
                 styles.switchPill,
@@ -409,65 +439,55 @@ export default function AdminManageScreen({ navigation }) {
             )}
             {formBranches.map((b, index) => (
               <View key={index} style={styles.branchRow}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Şube Adı"
-                  value={b.name}
-                  onChangeText={(v) => updateBranchField(index, 'name', v)}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="DB Host"
-                  value={b.db_host}
-                  onChangeText={(v) => updateBranchField(index, 'db_host', v)}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="DB Adı"
-                  value={b.db_name}
-                  onChangeText={(v) => updateBranchField(index, 'db_name', v)}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="DB Kullanıcı"
-                  value={b.db_user}
-                  onChangeText={(v) => updateBranchField(index, 'db_user', v)}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="DB Şifre"
-                  value={b.db_password}
-                  onChangeText={(v) =>
-                    updateBranchField(index, 'db_password', v)
-                  }
-                  secureTextEntry
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Kasa No"
-                  value={String(b.kasa_no ?? 1)}
-                  keyboardType="number-pad"
-                  onChangeText={(v) =>
-                    updateBranchField(
-                      index,
-                      'kasa_no',
-                      parseInt(v || '1', 10),
-                    )
-                  }
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Kapanış Saati (0-23)"
-                  value={String(b.closing_hour ?? 6)}
-                  keyboardType="number-pad"
-                  onChangeText={(v) =>
+                {renderField('Şube Adı', {
+                  placeholder: 'Örn. Döner Point',
+                  value: b.name,
+                  onChangeText: (v) => updateBranchField(index, 'name', v),
+                })}
+                {renderField('Veritabanı Host', {
+                  placeholder: 'Örn. 46.106.200.237',
+                  value: b.db_host,
+                  onChangeText: (v) => updateBranchField(index, 'db_host', v),
+                })}
+                {renderField('Veritabanı Adı', {
+                  placeholder: 'DB adı',
+                  value: b.db_name,
+                  onChangeText: (v) => updateBranchField(index, 'db_name', v),
+                })}
+                {renderField('Veritabanı Kullanıcı', {
+                  placeholder: 'DB kullanıcı',
+                  value: b.db_user,
+                  onChangeText: (v) => updateBranchField(index, 'db_user', v),
+                })}
+                {renderField('Veritabanı Şifre', {
+                  placeholder: 'DB şifre',
+                  value: b.db_password,
+                  onChangeText: (v) =>
+                    updateBranchField(index, 'db_password', v),
+                  secureTextEntry: true,
+                })}
+                {renderField('Kasalar', {
+                  placeholder: 'Örn. 1,2,3',
+                  value:
+                    b.kasalar_input ?? formatKasalar(b.kasalar ?? b.kasa_no, 1),
+                  onChangeText: (v) => {
+                    const kasalar = normalizeKasalar(v, parseInteger(b.kasa_no, 1));
+                    updateBranchField(index, 'kasalar_input', v);
+                    updateBranchField(index, 'kasalar', kasalar);
+                    updateBranchField(index, 'kasa_no', kasalar[0] ?? 1);
+                  },
+                }, 'Birden fazla kasa varsa virgülle ayır: 1,2,3')}
+                {renderField('Kapanış Saati', {
+                  placeholder: '0-23',
+                  value: String(b.closing_hour ?? 6),
+                  keyboardType: 'number-pad',
+                  onChangeText: (v) =>
                     updateBranchField(
                       index,
                       'closing_hour',
-                      parseInt(v || '6', 10),
-                    )
-                  }
-                />
+                      parseInteger(v, 6),
+                    ),
+                })}
                 <TouchableOpacity
                   style={styles.removeRowButton}
                   onPress={() => removeBranchRow(index)}
@@ -626,6 +646,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     color: '#111827',
+  },
+  fieldGroup: {
+    marginBottom: 2,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: -4,
+    marginBottom: 8,
   },
   switchPill: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -34,6 +34,51 @@ const AVAILABLE_REPORTS = [
   { id: 'unsold_cancels', label: 'Satılmadan İptaller' },
 ];
 
+const parseInteger = (value, fallback) => {
+  const parsed = parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeKasalar = (value, fallback = 1) => {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\s;]+/)
+      : typeof value === 'number'
+        ? [value]
+        : [];
+  const parsed = Array.from(
+    new Set(
+      rawValues
+        .map((item) => parseInteger(item, NaN))
+        .filter((item) => Number.isFinite(item)),
+    ),
+  );
+  if (parsed.length > 0) return parsed;
+  return Number.isFinite(fallback) ? [fallback] : [1];
+};
+
+const formatKasalar = (value, fallback = 1) =>
+  normalizeKasalar(value, fallback).join(', ');
+
+const toBranchPayload = (branch) => {
+  const kasalar = normalizeKasalar(
+    branch.kasalar_input ?? branch.kasalar ?? branch.kasa_no,
+    parseInteger(branch.kasa_no, 1),
+  );
+  return {
+    name: branch.name,
+    db_host: branch.db_host,
+    db_port: parseInteger(branch.db_port, 5432),
+    db_name: branch.db_name,
+    db_user: branch.db_user,
+    db_password: branch.db_password,
+    kasa_no: kasalar[0] ?? 1,
+    kasalar,
+    closing_hour: parseInteger(branch.closing_hour, 6),
+  };
+};
+
 export default function AdminUsersScreen({ navigation }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +110,7 @@ export default function AdminUsersScreen({ navigation }) {
     db_user: '',
     db_password: '',
     kasa_no: 1,
+    kasalar_input: '1',
     closing_hour: 6,
   });
   const [editingBranchId, setEditingBranchId] = useState(null);
@@ -76,6 +122,7 @@ export default function AdminUsersScreen({ navigation }) {
     db_user: '',
     db_password: '',
     kasa_no: 1,
+    kasalar_input: '1',
     closing_hour: 6,
   });
   const [deleteConfirmBranchId, setDeleteConfirmBranchId] = useState(null);
@@ -83,6 +130,14 @@ export default function AdminUsersScreen({ navigation }) {
   const [assignBranchId, setAssignBranchId] = useState(null);
   const [lang, setLang] = useState('tr');
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+
+  const renderField = (label, inputProps, hint) => (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput style={styles.input} {...inputProps} />
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
 
   useEffect(() => {
     fetchUsers();
@@ -239,7 +294,7 @@ export default function AdminUsersScreen({ navigation }) {
     return `${year}-${month}-${day}`;
   };
 
-  const handleChangeExpiryDate = (event, selectedDate) => {
+  const handleChangeExpiryDate = (_event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowExpiryPicker(false);
     }
@@ -268,10 +323,7 @@ export default function AdminUsersScreen({ navigation }) {
       const token = await getToken();
       await axios.post(
         `${API_URL}/admin/users/${userId}/branches`,
-        {
-          ...branchForm,
-          kasalar: [branchForm.kasa_no],
-        },
+        toBranchPayload(branchForm),
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -285,6 +337,7 @@ export default function AdminUsersScreen({ navigation }) {
         db_user: '',
         db_password: '',
         kasa_no: 1,
+        kasalar_input: '1',
         closing_hour: 6,
       });
       await fetchUsers();
@@ -310,10 +363,7 @@ export default function AdminUsersScreen({ navigation }) {
       const token = await getToken();
       await axios.put(
         `${API_URL}/admin/users/${userId}/branches/${editingBranchId}`,
-        {
-          ...editingBranchForm,
-          kasalar: [editingBranchForm.kasa_no],
-        },
+        toBranchPayload(editingBranchForm),
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -633,100 +683,100 @@ export default function AdminUsersScreen({ navigation }) {
                         <View key={b.id} style={styles.branchRow}>
                           {editingBranchId === b.id ? (
                             <View style={{ flex: 1 }}>
-                              <TextInput
-                                style={styles.input}
-                                placeholder="Şube Adı"
-                                value={editingBranchForm.name}
-                                onChangeText={(v) =>
+                              {renderField('Şube Adı', {
+                                placeholder: 'Örn. Döner Point',
+                                value: editingBranchForm.name,
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
                                     name: v,
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="DB Host"
-                                value={editingBranchForm.db_host}
-                                onChangeText={(v) =>
+                                  })),
+                              })}
+                              {renderField('Veritabanı Host', {
+                                placeholder: 'Örn. 46.106.200.237',
+                                value: editingBranchForm.db_host,
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
                                     db_host: v,
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="DB Port"
-                                keyboardType="number-pad"
-                                value={String(editingBranchForm.db_port)}
-                                onChangeText={(v) =>
+                                  })),
+                              })}
+                              {renderField('Veritabanı Port', {
+                                placeholder: '5432',
+                                keyboardType: 'number-pad',
+                                value: String(editingBranchForm.db_port),
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
-                                    db_port: parseInt(v || '5432', 10),
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="DB Adı"
-                                value={editingBranchForm.db_name}
-                                onChangeText={(v) =>
+                                    db_port: parseInteger(v, 5432),
+                                  })),
+                              })}
+                              {renderField('Veritabanı Adı', {
+                                placeholder: 'DB adı',
+                                value: editingBranchForm.db_name,
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
                                     db_name: v,
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="DB Kullanıcı"
-                                value={editingBranchForm.db_user}
-                                onChangeText={(v) =>
+                                  })),
+                              })}
+                              {renderField('Veritabanı Kullanıcı', {
+                                placeholder: 'DB kullanıcı',
+                                value: editingBranchForm.db_user,
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
                                     db_user: v,
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="DB Şifre"
-                                secureTextEntry
-                                value={editingBranchForm.db_password}
-                                onChangeText={(v) =>
+                                  })),
+                              })}
+                              {renderField('Veritabanı Şifre', {
+                                placeholder: 'DB şifre',
+                                secureTextEntry: true,
+                                value: editingBranchForm.db_password,
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
                                     db_password: v,
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="Kasa No"
-                                keyboardType="number-pad"
-                                value={String(editingBranchForm.kasa_no || 1)}
-                                onChangeText={(v) =>
-                                  setEditingBranchForm((prev) => ({
-                                    ...prev,
-                                    kasa_no: parseInt(v || '1', 10),
-                                  }))
-                                }
-                              />
-                              <TextInput
-                                style={styles.input}
-                                placeholder="Kapanış Saati (0-23)"
-                                keyboardType="number-pad"
-                                value={String(
+                                  })),
+                              })}
+                              {renderField(
+                                'Kasalar',
+                                {
+                                  placeholder: 'Örn. 1,2,3',
+                                  value:
+                                    editingBranchForm.kasalar_input ??
+                                    formatKasalar(
+                                      editingBranchForm.kasalar ??
+                                        editingBranchForm.kasa_no,
+                                      1,
+                                    ),
+                                  onChangeText: (v) =>
+                                    setEditingBranchForm((prev) => {
+                                      const kasalar = normalizeKasalar(
+                                        v,
+                                        parseInteger(prev.kasa_no, 1),
+                                      );
+                                      return {
+                                        ...prev,
+                                        kasalar_input: v,
+                                        kasa_no: kasalar[0] ?? 1,
+                                      };
+                                    }),
+                                },
+                                'Birden fazla kasa varsa virgülle ayır: 1,2,3',
+                              )}
+                              {renderField('Kapanış Saati', {
+                                placeholder: '0-23',
+                                keyboardType: 'number-pad',
+                                value: String(
                                   editingBranchForm.closing_hour ?? 6,
-                                )}
-                                onChangeText={(v) =>
+                                ),
+                                onChangeText: (v) =>
                                   setEditingBranchForm((prev) => ({
                                     ...prev,
-                                    closing_hour: parseInt(v || '6', 10),
-                                  }))
-                                }
-                              />
+                                    closing_hour: parseInteger(v, 6),
+                                  })),
+                              })}
                               <View style={styles.branchActionsRow}>
                                 <TouchableOpacity
                                   style={styles.saveButton}
@@ -754,6 +804,13 @@ export default function AdminUsersScreen({ navigation }) {
                                   {b.db_host}:{b.db_port} / {b.db_name} (
                                   {b.db_user})
                                 </Text>
+                                <Text style={styles.branchMeta}>
+                                  Kasalar: {formatKasalar(b.kasalar ?? b.kasa_no, 1)} | Kapanış:{' '}
+                                  {typeof b.closing_hour === 'number' &&
+                                  Number.isFinite(b.closing_hour)
+                                    ? b.closing_hour
+                                    : 6}
+                                </Text>
                               </View>
                               <View style={styles.branchButtons}>
                                 <TouchableOpacity
@@ -767,7 +824,15 @@ export default function AdminUsersScreen({ navigation }) {
                                       db_name: b.db_name,
                                       db_user: b.db_user,
                                       db_password: b.db_password,
-                                      kasa_no: b.kasa_no || 1,
+                                      kasa_no:
+                                        normalizeKasalar(
+                                          b.kasalar ?? b.kasa_no,
+                                          b.kasa_no || 1,
+                                        )[0] ?? 1,
+                                      kasalar_input: formatKasalar(
+                                        b.kasalar ?? b.kasa_no,
+                                        b.kasa_no || 1,
+                                      ),
                                       closing_hour:
                                         typeof b.closing_hour === 'number' &&
                                         Number.isFinite(b.closing_hour)
@@ -887,98 +952,92 @@ export default function AdminUsersScreen({ navigation }) {
                       {addingBranchFor === u.id && (
                         <View style={styles.assignContainer}>
                           <Text style={styles.sectionLabel}>Yeni Şube</Text>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Şube Adı"
-                            value={branchForm.name}
-                            onChangeText={(v) =>
+                          {renderField('Şube Adı', {
+                            placeholder: 'Örn. Döner Point',
+                            value: branchForm.name,
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
                                 name: v,
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="DB Host"
-                            value={branchForm.db_host}
-                            onChangeText={(v) =>
+                              })),
+                          })}
+                          {renderField('Veritabanı Host', {
+                            placeholder: 'Örn. 46.106.200.237',
+                            value: branchForm.db_host,
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
                                 db_host: v,
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="DB Port"
-                            keyboardType="number-pad"
-                            value={String(branchForm.db_port)}
-                            onChangeText={(v) =>
+                              })),
+                          })}
+                          {renderField('Veritabanı Port', {
+                            placeholder: '5432',
+                            keyboardType: 'number-pad',
+                            value: String(branchForm.db_port),
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
-                                db_port: parseInt(v || '5432', 10),
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="DB Adı"
-                            value={branchForm.db_name}
-                            onChangeText={(v) =>
+                                db_port: parseInteger(v, 5432),
+                              })),
+                          })}
+                          {renderField('Veritabanı Adı', {
+                            placeholder: 'DB adı',
+                            value: branchForm.db_name,
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
                                 db_name: v,
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="DB Kullanıcı"
-                            value={branchForm.db_user}
-                            onChangeText={(v) =>
+                              })),
+                          })}
+                          {renderField('Veritabanı Kullanıcı', {
+                            placeholder: 'DB kullanıcı',
+                            value: branchForm.db_user,
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
                                 db_user: v,
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="DB Şifre"
-                            secureTextEntry
-                            value={branchForm.db_password}
-                            onChangeText={(v) =>
+                              })),
+                          })}
+                          {renderField('Veritabanı Şifre', {
+                            placeholder: 'DB şifre',
+                            secureTextEntry: true,
+                            value: branchForm.db_password,
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
                                 db_password: v,
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Kasa No"
-                            keyboardType="number-pad"
-                            value={String(branchForm.kasa_no)}
-                            onChangeText={(v) =>
+                              })),
+                          })}
+                          {renderField(
+                            'Kasalar',
+                            {
+                              placeholder: 'Örn. 1,2,3',
+                              value: branchForm.kasalar_input,
+                              onChangeText: (v) =>
+                                setBranchForm((prev) => {
+                                  const kasalar = normalizeKasalar(
+                                    v,
+                                    parseInteger(prev.kasa_no, 1),
+                                  );
+                                  return {
+                                    ...prev,
+                                    kasalar_input: v,
+                                    kasa_no: kasalar[0] ?? 1,
+                                  };
+                                }),
+                            },
+                            'Birden fazla kasa varsa virgülle ayır: 1,2,3',
+                          )}
+                          {renderField('Kapanış Saati', {
+                            placeholder: '0-23',
+                            keyboardType: 'number-pad',
+                            value: String(branchForm.closing_hour),
+                            onChangeText: (v) =>
                               setBranchForm((prev) => ({
                                 ...prev,
-                                kasa_no: parseInt(v || '1', 10),
-                              }))
-                            }
-                          />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Kapanış Saati (0-23)"
-                            keyboardType="number-pad"
-                            value={String(branchForm.closing_hour)}
-                            onChangeText={(v) =>
-                              setBranchForm((prev) => ({
-                                ...prev,
-                                closing_hour: parseInt(v || '6', 10),
-                              }))
-                            }
-                          />
+                                closing_hour: parseInteger(v, 6),
+                              })),
+                          })}
                           <View style={styles.branchActionsRow}>
                             <TouchableOpacity
                               style={styles.saveButton}
@@ -1120,6 +1179,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     color: '#111827',
+  },
+  fieldGroup: {
+    marginBottom: 2,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: -4,
+    marginBottom: 8,
   },
   switchRow: {
     flexDirection: 'row',
