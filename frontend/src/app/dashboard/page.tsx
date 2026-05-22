@@ -893,6 +893,12 @@ export default function Dashboard() {
                             <div>
                               <span className="text-xs font-bold text-emerald-800 block">{t('order_type_adisyon')}</span>
                               <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
+                              {(data?.dagilim?.adisyon.kapali_iskonto || 0) > 0 && (
+                                <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
+                                  <Tag className="w-3 h-3" />
+                                  {t('discount')}: -{formatCurrency(data?.dagilim?.adisyon.kapali_iskonto || 0)}
+                                </span>
+                              )}
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -920,6 +926,12 @@ export default function Dashboard() {
                                 <div>
                                   <span className="text-xs font-bold text-amber-800 block">{t('order_type_paket')}</span>
                                   <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.paket.kapali_toplam || 0)}</span>
+                                  {(data?.dagilim?.paket.kapali_iskonto || 0) > 0 && (
+                                    <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
+                                      <Tag className="w-3 h-3" />
+                                      {t('discount')}: -{formatCurrency(data?.dagilim?.paket.kapali_iskonto || 0)}
+                                    </span>
+                                  )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -948,6 +960,12 @@ export default function Dashboard() {
                                 <div>
                                   <span className="text-xs font-bold text-pink-800 block">{t('order_type_hizli')}</span>
                                   <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
+                                  {((data?.dagilim?.hizli?.kapali_iskonto) || 0) > 0 && (
+                                    <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
+                                      <Tag className="w-3 h-3" />
+                                      {t('discount')}: -{formatCurrency(data?.dagilim?.hizli?.kapali_iskonto || 0)}
+                                    </span>
+                                  )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
