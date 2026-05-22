@@ -181,7 +181,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   getBranchPool(config: any): any {
     if (this.isMock) return {}; // Return empty object, executeQuery handles it
 
-    const key = `${config.db_host}:${config.db_port}:${config.db_name}:${config.db_user}`;
+    // Password changes must create a fresh pool; otherwise the old pool
+    // keeps trying the previous credentials for the same branch.
+    const key = `${config.db_host}:${config.db_port}:${config.db_name}:${config.db_user}:${config.db_password}`;
 
     if (!this.branchPools.has(key)) {
       const pool = new Pool({
