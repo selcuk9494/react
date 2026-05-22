@@ -17,6 +17,18 @@ interface AdminUser {
   allowed_reports?: string[];
 }
 
+interface BranchFormState {
+  name: string;
+  db_host: string;
+  db_port: number;
+  db_name: string;
+  db_user: string;
+  db_password: string;
+  kasa_no: number;
+  kasalar_input: string;
+  closing_hour: number;
+}
+
 const AVAILABLE_REPORTS = [
   { id: 'open_orders', label: 'Açık Adisyon (Dashboard)' },
   { id: 'closed_orders', label: 'Kapalı Adisyon (Dashboard)' },
@@ -34,6 +46,58 @@ const AVAILABLE_REPORTS = [
   { id: 'unpayable', label: 'Ödenmezler' },
   { id: 'unsold_cancels', label: 'Satılmadan İptaller' },
 ];
+
+const parseInteger = (value: string | number | undefined, fallback: number) => {
+  const parsed = parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeKasalar = (
+  value: string | number | number[] | undefined,
+  fallback = 1,
+) => {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\s;]+/)
+      : typeof value === 'number'
+        ? [value]
+        : [];
+
+  const parsed = Array.from(
+    new Set(
+      rawValues
+        .map((item) => parseInteger(item, NaN))
+        .filter((item) => Number.isFinite(item)),
+    ),
+  );
+
+  return parsed.length > 0 ? parsed : [fallback];
+};
+
+const formatKasalar = (
+  value: string | number | number[] | undefined,
+  fallback = 1,
+) => normalizeKasalar(value, fallback).join(', ');
+
+const toBranchPayload = (branch: BranchFormState) => {
+  const kasalar = normalizeKasalar(
+    branch.kasalar_input ?? branch.kasa_no,
+    parseInteger(branch.kasa_no, 1),
+  );
+
+  return {
+    name: branch.name,
+    db_host: branch.db_host,
+    db_port: parseInteger(branch.db_port, 5432),
+    db_name: branch.db_name,
+    db_user: branch.db_user,
+    db_password: branch.db_password,
+    kasa_no: kasalar[0] ?? 1,
+    kasalar,
+    closing_hour: parseInteger(branch.closing_hour, 6),
+  };
+};
 
 export default function AdminUsersPage() {
   const { token, user } = useAuth();
@@ -69,6 +133,7 @@ export default function AdminUsersPage() {
     db_user: '',
     db_password: '',
     kasa_no: 1,
+    kasalar_input: '1',
     closing_hour: 6,
   });
   const [editingBranchId, setEditingBranchId] = useState<number | null>(null);
@@ -80,6 +145,7 @@ export default function AdminUsersPage() {
     db_user: '',
     db_password: '',
     kasa_no: 1,
+    kasalar_input: '1',
     closing_hour: 6,
   });
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -129,7 +195,7 @@ export default function AdminUsersPage() {
       setCreating(true);
       // If allowed_reports has same length as AVAILABLE_REPORTS, we can send NULL to mean "ALL"
       // But explicit list is safer.
-      const res = await axios.post(`${getApiUrl()}/admin/users`, newUser, {
+      await axios.post(`${getApiUrl()}/admin/users`, newUser, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Reset form, but keep reports all checked by default
@@ -186,7 +252,7 @@ export default function AdminUsersPage() {
 
   const handleAddBranch = async (userId: string) => {
     if (!branchForm.name || !branchForm.db_host || !branchForm.db_name || !branchForm.db_user || !branchForm.db_password) return;
-    await axios.post(`${getApiUrl()}/admin/users/${userId}/branches`, branchForm, {
+    await axios.post(`${getApiUrl()}/admin/users/${userId}/branches`, toBranchPayload(branchForm), {
       headers: { Authorization: `Bearer ${token}` }
     });
     setAddingBranchFor(null);
@@ -198,6 +264,7 @@ export default function AdminUsersPage() {
       db_user: '',
       db_password: '',
       kasa_no: 1,
+      kasalar_input: '1',
       closing_hour: 6,
     });
     await refresh();
@@ -206,7 +273,7 @@ export default function AdminUsersPage() {
   const handleUpdateBranch = async (userId: string) => {
     if (editingBranchId === null) return;
     if (!editingBranchForm.name || !editingBranchForm.db_host || !editingBranchForm.db_name || !editingBranchForm.db_user || !editingBranchForm.db_password) return;
-    await axios.put(`${getApiUrl()}/admin/users/${userId}/branches/${editingBranchId}`, editingBranchForm, {
+    await axios.put(`${getApiUrl()}/admin/users/${userId}/branches/${editingBranchId}`, toBranchPayload(editingBranchForm), {
       headers: { Authorization: `Bearer ${token}` }
     });
     setEditingBranchId(null);
@@ -385,31 +452,64 @@ export default function AdminUsersPage() {
                         {editingBranchId === b.id ? (
                           <div className="w-full">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şube Adı" value={editingBranchForm.name} onChange={e => setEditingBranchForm({ ...editingBranchForm, name: e.target.value })} />
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Host" value={editingBranchForm.db_host} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_host: e.target.value })} />
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Port" type="number" value={editingBranchForm.db_port} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_port: parseInt(e.target.value || '5432', 10) })} />
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Şube Adı</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. Döner Point" value={editingBranchForm.name} onChange={e => setEditingBranchForm({ ...editingBranchForm, name: e.target.value })} />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Veritabanı Host</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. 93.182.71.243" value={editingBranchForm.db_host} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_host: e.target.value })} />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Veritabanı Port</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="5432" type="number" value={editingBranchForm.db_port} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_port: parseInteger(e.target.value, 5432) })} />
+                              </label>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Name" value={editingBranchForm.db_name} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_name: e.target.value })} />
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB User" value={editingBranchForm.db_user} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_user: e.target.value })} />
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Password" type="password" value={editingBranchForm.db_password} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_password: e.target.value })} />
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Veritabanı Adı</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. fastest" value={editingBranchForm.db_name} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_name: e.target.value })} />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Veritabanı Kullanıcı</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. begum" value={editingBranchForm.db_user} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_user: e.target.value })} />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Veritabanı Şifre</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şifre" type="password" value={editingBranchForm.db_password} onChange={e => setEditingBranchForm({ ...editingBranchForm, db_password: e.target.value })} />
+                              </label>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                              <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={editingBranchForm.kasa_no} onChange={e => setEditingBranchForm({ ...editingBranchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
-                              <input
-                                className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
-                                placeholder="Kapanış Saati (Saat)"
-                                type="number"
-                                min={0}
-                                max={23}
-                                value={editingBranchForm.closing_hour}
-                                onChange={e =>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Kasalar</span>
+                                <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. 1,2,3" value={editingBranchForm.kasalar_input} onChange={e => {
+                                  const value = e.target.value;
+                                  const kasalar = normalizeKasalar(value, parseInteger(editingBranchForm.kasa_no, 1));
                                   setEditingBranchForm({
                                     ...editingBranchForm,
-                                    closing_hour: parseInt(e.target.value || '6', 10),
-                                  })
-                                }
-                              />
+                                    kasalar_input: value,
+                                    kasa_no: kasalar[0] ?? 1,
+                                  });
+                                }} />
+                                <span className="mt-1 block text-xs text-gray-500">Birden fazla kasa için virgülle ayır: 1,2,3</span>
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <span className="mb-1 block font-medium">Kapanış Saati</span>
+                                <input
+                                  className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                                  placeholder="0-23"
+                                  type="number"
+                                  min={0}
+                                  max={23}
+                                  value={editingBranchForm.closing_hour}
+                                  onChange={e =>
+                                    setEditingBranchForm({
+                                      ...editingBranchForm,
+                                      closing_hour: parseInteger(e.target.value, 6),
+                                    })
+                                  }
+                                />
+                              </label>
                             </div>
                             <div className="flex gap-2">
                               <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleUpdateBranch(u.id)}>Kaydet</button>
@@ -421,6 +521,7 @@ export default function AdminUsersPage() {
                             <div>
                               <div className="font-medium text-gray-900">{b.name}</div>
                               <div className="text-xs text-gray-700">{b.db_host}:{b.db_port} / {b.db_name} ({b.db_user})</div>
+                              <div className="text-xs text-gray-700">Kasalar: {formatKasalar(b.kasalar ?? b.kasa_no, 1)} | Kapanış: {typeof b.closing_hour === 'number' && Number.isFinite(b.closing_hour) ? b.closing_hour : 6}</div>
                             </div>
                             <div className="flex gap-2 items-center">
                               <button
@@ -434,7 +535,8 @@ export default function AdminUsersPage() {
                                     db_name: b.db_name,
                                     db_user: b.db_user,
                                     db_password: b.db_password,
-                                    kasa_no: b.kasa_no || 1,
+                                    kasa_no: normalizeKasalar(b.kasalar ?? b.kasa_no, b.kasa_no || 1)[0] ?? 1,
+                                    kasalar_input: formatKasalar(b.kasalar ?? b.kasa_no, b.kasa_no || 1),
                                     closing_hour:
                                       typeof b.closing_hour === 'number' &&
                                       Number.isFinite(b.closing_hour)
@@ -495,31 +597,64 @@ export default function AdminUsersPage() {
                   {addingBranchFor === u.id && (
                     <div className="mt-3 border rounded p-3">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şube Adı" value={branchForm.name} onChange={e => setBranchForm({ ...branchForm, name: e.target.value })} />
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Host" value={branchForm.db_host} onChange={e => setBranchForm({ ...branchForm, db_host: e.target.value })} />
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Port" type="number" value={branchForm.db_port} onChange={e => setBranchForm({ ...branchForm, db_port: parseInt(e.target.value || '5432', 10) })} />
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Şube Adı</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. Döner Point" value={branchForm.name} onChange={e => setBranchForm({ ...branchForm, name: e.target.value })} />
+                        </label>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Veritabanı Host</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. 93.182.71.243" value={branchForm.db_host} onChange={e => setBranchForm({ ...branchForm, db_host: e.target.value })} />
+                        </label>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Veritabanı Port</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="5432" type="number" value={branchForm.db_port} onChange={e => setBranchForm({ ...branchForm, db_port: parseInteger(e.target.value, 5432) })} />
+                        </label>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Name" value={branchForm.db_name} onChange={e => setBranchForm({ ...branchForm, db_name: e.target.value })} />
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB User" value={branchForm.db_user} onChange={e => setBranchForm({ ...branchForm, db_user: e.target.value })} />
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="DB Password" type="password" value={branchForm.db_password} onChange={e => setBranchForm({ ...branchForm, db_password: e.target.value })} />
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Veritabanı Adı</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. fastest" value={branchForm.db_name} onChange={e => setBranchForm({ ...branchForm, db_name: e.target.value })} />
+                        </label>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Veritabanı Kullanıcı</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. begum" value={branchForm.db_user} onChange={e => setBranchForm({ ...branchForm, db_user: e.target.value })} />
+                        </label>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Veritabanı Şifre</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Şifre" type="password" value={branchForm.db_password} onChange={e => setBranchForm({ ...branchForm, db_password: e.target.value })} />
+                        </label>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                        <input className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Kasa No" type="number" value={branchForm.kasa_no} onChange={e => setBranchForm({ ...branchForm, kasa_no: parseInt(e.target.value || '1', 10) })} />
-                        <input
-                          className="border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
-                          placeholder="Kapanış Saati (Saat)"
-                          type="number"
-                          min={0}
-                          max={23}
-                          value={branchForm.closing_hour}
-                          onChange={e =>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Kasalar</span>
+                          <input className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400" placeholder="Örn. 1,2,3" value={branchForm.kasalar_input} onChange={e => {
+                            const value = e.target.value;
+                            const kasalar = normalizeKasalar(value, parseInteger(branchForm.kasa_no, 1));
                             setBranchForm({
                               ...branchForm,
-                              closing_hour: parseInt(e.target.value || '6', 10),
-                            })
-                          }
-                        />
+                              kasalar_input: value,
+                              kasa_no: kasalar[0] ?? 1,
+                            });
+                          }} />
+                          <span className="mt-1 block text-xs text-gray-500">Birden fazla kasa için virgülle ayır: 1,2,3</span>
+                        </label>
+                        <label className="text-sm text-gray-700">
+                          <span className="mb-1 block font-medium">Kapanış Saati</span>
+                          <input
+                            className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-400"
+                            placeholder="0-23"
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={branchForm.closing_hour}
+                            onChange={e =>
+                              setBranchForm({
+                                ...branchForm,
+                                closing_hour: parseInteger(e.target.value, 6),
+                              })
+                            }
+                          />
+                        </label>
                       </div>
                       <div className="flex gap-2">
                         <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={() => handleAddBranch(u.id)}>Kaydet</button>
