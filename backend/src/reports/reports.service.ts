@@ -336,7 +336,24 @@ export class ReportsService {
       }
       return rows;
     } else {
-      let query = `
+      const params: any[] = [kasa_nos];
+      const adisyonDateFilter =
+        period !== 'all'
+          ? ` AND a.kaptar >= $2::date AND a.kaptar <= $3::date`
+          : '';
+      const paymentDateFilter =
+        period !== 'all'
+          ? ` AND o.raptar >= $2::date AND o.raptar <= $3::date`
+          : '';
+      const outerDateFilter =
+        period !== 'all'
+          ? ` WHERE COALESCE(p.raptar, a.kaptar) >= $2::date AND COALESCE(p.raptar, a.kaptar) <= $3::date`
+          : '';
+      if (period !== 'all') {
+        params.push(dStart, dEnd);
+      }
+
+      const query = `
             WITH adisyon_agg AS (
                 SELECT 
                     a.adsno,
@@ -350,7 +367,7 @@ export class ReportsService {
                     MAX(a.mustid) as mustid,
                     COALESCE(SUM(a.tutar), 0) as toplam_tutar_adisyon
                 FROM ads_adisyon a
-                WHERE a.kasa = ANY($1) ${typeCondition}
+                WHERE a.kasa = ANY($1) ${typeCondition}${adisyonDateFilter}
                 GROUP BY a.adsno, COALESCE(a.adtur, 0)
             ),
             payment_agg AS (
@@ -362,7 +379,7 @@ export class ReportsService {
                     COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
                     MAX(o.mustid) as payment_mustid
                 FROM ads_odeme o
-                WHERE o.kasa = ANY($1)
+                WHERE o.kasa = ANY($1)${paymentDateFilter}
                 GROUP BY o.adsno, COALESCE(o.adtur, 0)
             )
             SELECT 
@@ -383,13 +400,7 @@ export class ReportsService {
             LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
             LEFT JOIN personel per ON a.garsonno = per.id
             LEFT JOIN ads_musteri m ON COALESCE(p.payment_mustid, a.mustid) = m.mustid
-        `;
-      const params: any[] = [kasa_nos];
-      if (period !== 'all') {
-        query += ` WHERE DATE(p.raptar) BETWEEN $2 AND $3`;
-        params.push(dStart, dEnd);
-      }
-      query += `
+            ${outerDateFilter}
             ORDER BY a.adsno DESC
         `;
       const rows = await this.db.executeQuery(pool, query, params);

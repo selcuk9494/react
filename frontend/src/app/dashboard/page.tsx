@@ -240,7 +240,7 @@ export default function Dashboard() {
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
-          timeout: 15000 // 15 saniye timeout
+          timeout: 30000 // Büyük şubelerde rapor sorguları daha uzun sürebilir
         });
         
         // Only update if this is still the current request
@@ -290,7 +290,7 @@ export default function Dashboard() {
             const res = await axios.get(url, {
               headers: { Authorization: `Bearer ${token}` },
               signal: refreshController.signal,
-              timeout: 15000
+              timeout: 30000
             });
             if (!refreshController.signal.aborted) {
               if (res.data?.connection_error) {
