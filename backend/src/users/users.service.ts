@@ -60,10 +60,16 @@ export class UsersService {
 
     // Fetch branches
     const branchesRes = await pool.query(
-      'SELECT * FROM branches WHERE user_id = $1',
+      'SELECT * FROM branches WHERE user_id = $1 ORDER BY created_at ASC, id ASC',
       [user.id],
     );
     user.branches = branchesRes.rows;
+    user.selected_branch_id =
+      typeof user.selected_branch === 'number' &&
+      user.selected_branch >= 0 &&
+      user.selected_branch < user.branches.length
+        ? user.branches[user.selected_branch]?.id
+        : null;
     return user;
   }
 

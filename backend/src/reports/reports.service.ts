@@ -165,7 +165,12 @@ export class ReportsService {
 
   private async getBranchPool(user: any) {
     const branchIndex = user.selected_branch || 0;
-    const branch = user.branches[branchIndex];
+    const branch =
+      user?.selected_branch_id && Array.isArray(user?.branches)
+        ? user.branches.find(
+            (b: any) => String(b?.id) === String(user.selected_branch_id),
+          ) || user.branches[branchIndex]
+        : user.branches[branchIndex];
     if (!branch) throw new Error('Invalid branch selection');
 
     // Collect kasa numbers: primary + any extras
