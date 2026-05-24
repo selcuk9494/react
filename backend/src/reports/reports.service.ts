@@ -339,7 +339,7 @@ export class ReportsService {
       const params: any[] = [kasa_nos];
       const adisyonDateFilter =
         period !== 'all'
-          ? ` AND DATE(a.kaptar) BETWEEN $2::date AND $3::date`
+          ? ` AND DATE(a.raptar) BETWEEN $2::date AND $3::date`
           : '';
       const paymentDateFilter =
         period !== 'all'
@@ -347,7 +347,7 @@ export class ReportsService {
           : '';
       const outerDateFilter =
         period !== 'all'
-          ? ` WHERE DATE(COALESCE(p.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`
+          ? ` WHERE DATE(COALESCE(p.raptar, a.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`
           : '';
       if (period !== 'all') {
         params.push(dStart, dEnd);
@@ -360,6 +360,7 @@ export class ReportsService {
                     COALESCE(a.adtur, 0) as adtur,
                     MAX(COALESCE(a.masano, 0)) as masano,
                     CAST(MAX(COALESCE(a.sipyer, 0)) AS INTEGER) as sipyer,
+                    MAX(a.raptar) as raptar,
                     MAX(a.kaptar) as kaptar,
                     MAX(a.kapsaat) as kapanis_saati,
                     MAX(a.acsaat) as acilis_saati,
@@ -389,7 +390,7 @@ export class ReportsService {
                 a.masano as masa_no,
                 a.adtur,
                 a.sipyer,
-                COALESCE(p.raptar, a.kaptar) as tarih,
+                COALESCE(p.raptar, a.raptar, a.kaptar) as tarih,
                 a.kapanis_saati,
                 a.acilis_saati,
                 per.adi as garson_adi,
