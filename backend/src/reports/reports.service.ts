@@ -233,6 +233,11 @@ export class ReportsService {
     type?: 'adisyon' | 'paket',
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const safeClosing = Number.isFinite(closingHour)
+      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
+      : 6;
+    const closingTimeStr = `${String(safeClosing).padStart(2, '0')}:00:00`;
+    const isBusinessPeriod = period === 'today' || period === 'yesterday';
     const { start, end } = this.getDateRange(
       period,
       closingHour,
@@ -288,8 +293,25 @@ export class ReportsService {
         `;
       const params: any[] = [kasa_nos];
       if (period !== 'all') {
-        query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
-        params.push(dStart, dEnd);
+        if (isBusinessPeriod) {
+          const biz = this.getBusinessDayDate(
+            closingHour,
+            period === 'today' ? 'today' : 'yesterday',
+          );
+          const b = new Date(`${biz}T00:00:00Z`);
+          const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
+          const nextDate = format(n, 'yyyy-MM-dd');
+          query += `
+            AND (
+              (DATE(a.actar) = $2::date AND COALESCE(a.acsaat, '00:00:00') >= $4)
+              OR (DATE(a.actar) = $3::date AND COALESCE(a.acsaat, '00:00:00') < $4)
+            )
+          `;
+          params.push(biz, nextDate, closingTimeStr);
+        } else {
+          query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
+          params.push(dStart, dEnd);
+        }
       }
       query += `
             GROUP BY a.adsno
@@ -336,21 +358,51 @@ export class ReportsService {
       }
       return rows;
     } else {
+      let bizStartDate = dStart;
+      let bizEndDate = dEnd;
+      let bizStartTs = `${bizStartDate} ${closingTimeStr}`;
+      let bizEndTs = `${bizEndDate} ${closingTimeStr}`;
+      if (isBusinessPeriod) {
+        const biz = this.getBusinessDayDate(
+          closingHour,
+          period === 'today' ? 'today' : 'yesterday',
+        );
+        const b = new Date(`${biz}T00:00:00Z`);
+        const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
+        const nextDate = format(n, 'yyyy-MM-dd');
+        bizStartDate = biz;
+        bizEndDate = nextDate;
+        bizStartTs = `${bizStartDate} ${closingTimeStr}`;
+        bizEndTs = `${bizEndDate} ${closingTimeStr}`;
+      }
+
       const params: any[] = [kasa_nos];
-      const adisyonDateFilter =
-        period !== 'all'
-          ? ` AND DATE(a.raptar) BETWEEN $2::date AND $3::date`
-          : '';
-      const paymentDateFilter =
-        period !== 'all'
-          ? ` AND DATE(o.raptar) BETWEEN $2::date AND $3::date`
-          : '';
-      const outerDateFilter =
-        period !== 'all'
-          ? ` WHERE DATE(COALESCE(p.raptar, a.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`
-          : '';
+      let adisyonDateFilter = '';
+      let paymentDateFilter = '';
+      let outerDateFilter = '';
       if (period !== 'all') {
-        params.push(dStart, dEnd);
+        if (isBusinessPeriod) {
+          adisyonDateFilter = `
+            AND (
+              (DATE(a.kaptar) = $2::date AND COALESCE(a.kapsaat, '00:00:00') >= $4)
+              OR (DATE(a.kaptar) = $3::date AND COALESCE(a.kapsaat, '00:00:00') < $4)
+            )
+          `;
+          paymentDateFilter = ` AND o.raptar >= $5 AND o.raptar < $6`;
+          outerDateFilter = '';
+          params.push(
+            bizStartDate,
+            bizEndDate,
+            closingTimeStr,
+            bizStartTs,
+            bizEndTs,
+          );
+        } else {
+          adisyonDateFilter = ` AND DATE(a.raptar) BETWEEN $2::date AND $3::date`;
+          paymentDateFilter = ` AND DATE(o.raptar) BETWEEN $2::date AND $3::date`;
+          outerDateFilter = ` WHERE DATE(COALESCE(p.raptar, a.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`;
+          params.push(dStart, dEnd);
+        }
       }
 
       const query = `
