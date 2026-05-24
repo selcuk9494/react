@@ -339,15 +339,15 @@ export class ReportsService {
       const params: any[] = [kasa_nos];
       const adisyonDateFilter =
         period !== 'all'
-          ? ` AND a.kaptar >= $2::date AND a.kaptar <= $3::date`
+          ? ` AND DATE(a.kaptar) BETWEEN $2::date AND $3::date`
           : '';
       const paymentDateFilter =
         period !== 'all'
-          ? ` AND o.raptar >= $2::date AND o.raptar <= $3::date`
+          ? ` AND DATE(o.raptar) BETWEEN $2::date AND $3::date`
           : '';
       const outerDateFilter =
         period !== 'all'
-          ? ` WHERE COALESCE(p.raptar, a.kaptar) >= $2::date AND COALESCE(p.raptar, a.kaptar) <= $3::date`
+          ? ` WHERE DATE(COALESCE(p.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`
           : '';
       if (period !== 'all') {
         params.push(dStart, dEnd);
@@ -1329,7 +1329,7 @@ export class ReportsService {
           COUNT(DISTINCT o.adsno) as orders_count,
           COALESCE(SUM(o.iskonto), 0) as total_discount
       FROM ads_odeme o
-      WHERE o.raptar >= $1::date AND o.raptar <= $2::date AND o.kasa = ANY($3)
+      WHERE DATE(o.raptar) BETWEEN $1::date AND $2::date AND o.kasa = ANY($3)
     `;
     const totalsRows = await this.db.executeQuery(pool, totalsQuery, [
       startDateOnly,
@@ -1353,7 +1353,7 @@ export class ReportsService {
           MAX(a.kapsaat) as kapanis_saati,
           MAX(a.raptar) as tarih
       FROM ads_adisyon a
-      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
+      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
     const durations = await this.db.executeQuery(pool, durationQuery, [
@@ -1394,7 +1394,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = ANY($1)
-      WHERE a.raptar >= $2::date AND a.raptar <= $3::date AND a.kasa = ANY($4)
+      WHERE DATE(a.raptar) BETWEEN $2::date AND $3::date AND a.kasa = ANY($4)
       GROUP BY a.garsonno
       ORDER BY total DESC
       LIMIT 10
@@ -1414,7 +1414,7 @@ export class ReportsService {
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
-      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
+      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
       GROUP BY p.product_name, a.pluid
       ORDER BY total DESC
       LIMIT 10
@@ -1434,7 +1434,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN product_group pg ON p.tip = pg.id
-      WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
+      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
       GROUP BY pg.adi
       ORDER BY total DESC
       LIMIT 10
