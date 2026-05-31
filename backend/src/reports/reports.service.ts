@@ -303,13 +303,13 @@ export class ReportsService {
           const nextDate = format(n, 'yyyy-MM-dd');
           query += `
             AND (
-              (DATE(a.actar) = $2::date AND COALESCE(a.acsaat, '00:00:00') >= $4)
-              OR (DATE(a.actar) = $3::date AND COALESCE(a.acsaat, '00:00:00') < $4)
+              (a.actar = $2::date AND COALESCE(a.acsaat, '00:00:00') >= $4)
+              OR (a.actar = $3::date AND COALESCE(a.acsaat, '00:00:00') < $4)
             )
           `;
           params.push(biz, nextDate, closingTimeStr);
         } else {
-          query += ` AND DATE(a.actar) BETWEEN $2 AND $3`;
+          query += ` AND a.actar BETWEEN $2::date AND $3::date`;
           params.push(dStart, dEnd);
         }
       }
@@ -384,8 +384,8 @@ export class ReportsService {
         if (isBusinessPeriod) {
           adisyonDateFilter = `
             AND (
-              (DATE(a.kaptar) = $2::date AND COALESCE(a.kapsaat, '00:00:00') >= $4)
-              OR (DATE(a.kaptar) = $3::date AND COALESCE(a.kapsaat, '00:00:00') < $4)
+              (a.kaptar = $2::date AND COALESCE(a.kapsaat, '00:00:00') >= $4)
+              OR (a.kaptar = $3::date AND COALESCE(a.kapsaat, '00:00:00') < $4)
             )
           `;
           paymentDateFilter = ` AND o.raptar >= $5 AND o.raptar < $6`;
@@ -398,9 +398,12 @@ export class ReportsService {
             bizEndTs,
           );
         } else {
-          adisyonDateFilter = ` AND DATE(a.raptar) BETWEEN $2::date AND $3::date`;
-          paymentDateFilter = ` AND DATE(o.raptar) BETWEEN $2::date AND $3::date`;
-          outerDateFilter = ` WHERE DATE(COALESCE(p.raptar, a.raptar, a.kaptar)) BETWEEN $2::date AND $3::date`;
+          adisyonDateFilter =
+            ` AND a.raptar >= $2::date AND a.raptar < ($3::date + interval '1 day')`;
+          paymentDateFilter =
+            ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
+          outerDateFilter =
+            ` WHERE COALESCE(p.raptar, a.raptar, a.kaptar) >= $2::date AND COALESCE(p.raptar, a.raptar, a.kaptar) < ($3::date + interval '1 day')`;
           params.push(dStart, dEnd);
         }
       }
@@ -1382,7 +1385,7 @@ export class ReportsService {
           COUNT(DISTINCT o.adsno) as orders_count,
           COALESCE(SUM(o.iskonto), 0) as total_discount
       FROM ads_odeme o
-      WHERE DATE(o.raptar) BETWEEN $1::date AND $2::date AND o.kasa = ANY($3)
+      WHERE o.raptar >= $1::date AND o.raptar < ($2::date + interval '1 day') AND o.kasa = ANY($3)
     `;
     const totalsRows = await this.db.executeQuery(pool, totalsQuery, [
       startDateOnly,
@@ -1406,7 +1409,7 @@ export class ReportsService {
           MAX(a.kapsaat) as kapanis_saati,
           MAX(a.raptar) as tarih
       FROM ads_adisyon a
-      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day') AND a.kasa = ANY($3)
       GROUP BY a.adsno
     `;
     const durations = await this.db.executeQuery(pool, durationQuery, [
@@ -1447,7 +1450,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN personel per ON a.garsonno = per.id
       LEFT JOIN ads_odeme o ON a.adsno = o.adsno AND a.adtur = o.adtur AND o.kasa = ANY($1)
-      WHERE DATE(a.raptar) BETWEEN $2::date AND $3::date AND a.kasa = ANY($4)
+      WHERE a.raptar >= $2::date AND a.raptar < ($3::date + interval '1 day') AND a.kasa = ANY($4)
       GROUP BY a.garsonno
       ORDER BY total DESC
       LIMIT 10
@@ -1467,7 +1470,7 @@ export class ReportsService {
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
-      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day') AND a.kasa = ANY($3)
       GROUP BY p.product_name, a.pluid
       ORDER BY total DESC
       LIMIT 10
@@ -1487,7 +1490,7 @@ export class ReportsService {
       FROM ads_adisyon a
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN product_group pg ON p.tip = pg.id
-      WHERE DATE(a.raptar) BETWEEN $1::date AND $2::date AND a.kasa = ANY($3)
+      WHERE a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day') AND a.kasa = ANY($3)
       GROUP BY pg.adi
       ORDER BY total DESC
       LIMIT 10
