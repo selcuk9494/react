@@ -509,6 +509,9 @@ export default function DashboardScreen({ navigation, route }) {
 
   const applyCustomDate = () => {
     setShowDateModal(false);
+    setDashboardData(null);
+    setIsOffline(false);
+    setIsLoadingData(true);
     setPeriod('custom');
   };
 
@@ -516,6 +519,9 @@ export default function DashboardScreen({ navigation, route }) {
     if (newPeriod === 'custom') {
         setShowDateModal(true);
     } else {
+        setDashboardData(null);
+        setIsOffline(false);
+        setIsLoadingData(true);
         setPeriod(newPeriod);
     }
   };
@@ -600,7 +606,7 @@ export default function DashboardScreen({ navigation, route }) {
   // Calculate Grand Total
   const baseTotal = (dashboardData?.kapali_adisyon_toplam || 0) + (period === 'today' ? (dashboardData?.acik_adisyon_toplam || 0) : 0);
   const grandTotal = baseTotal + (dashboardData?.borca_atilan_toplam || 0);
-  const showPlaceholders = isLoadingData && !dashboardData;
+  const showPlaceholders = isLoadingData;
 
   // Chart Data Preparation
   const openOrdersChartData = [
@@ -852,7 +858,7 @@ export default function DashboardScreen({ navigation, route }) {
                 <Text style={styles.badgeText}>{T.totalRevenue}</Text>
             </View>
             <Text style={styles.mainCardValue}>
-              {isLoadingData && !dashboardData ? '...' : formatCurrency(grandTotal)}
+              {showPlaceholders ? '...' : formatCurrency(grandTotal)}
             </Text>
             <View style={styles.mainCardFooter}>
                 <View style={styles.footerDot} />
@@ -1412,9 +1418,7 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
 
                         <TouchableOpacity style={styles.applyButton} onPress={() => {
-                            setPeriod('custom');
-                            setShowDateModal(false);
-                            fetchDashboardData();
+                            applyCustomDate();
                         }}>
                             <Text style={styles.applyButtonText}>{T.apply}</Text>
                         </TouchableOpacity>
