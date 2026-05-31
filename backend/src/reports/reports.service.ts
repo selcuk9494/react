@@ -767,6 +767,54 @@ export class ReportsService {
     return rows && rows.length > 0;
   }
 
+  private getPeriodWindow(
+    period: string,
+    closingHour: number,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const safeClosing = Number.isFinite(closingHour)
+      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
+      : 6;
+    const closingTimeStr = `${String(safeClosing).padStart(2, '0')}:00:00`;
+
+    const isBusinessPeriod = period === 'today' || period === 'yesterday';
+    if (isBusinessPeriod) {
+      const biz = this.getBusinessDayDate(
+        closingHour,
+        period === 'today' ? 'today' : 'yesterday',
+      );
+      const b = new Date(`${biz}T00:00:00Z`);
+      const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
+      const nextDate = format(n, 'yyyy-MM-dd');
+      return {
+        isBusinessPeriod: true,
+        closingTimeStr,
+        startDateOnly: biz,
+        endDateOnly: biz,
+        nextDateOnly: nextDate,
+        startTs: `${biz} ${closingTimeStr}`,
+        endTs: `${nextDate} ${closingTimeStr}`,
+      };
+    }
+
+    const { start, end } = this.getDateRange(period, closingHour, startDate, endDate);
+    const startDateOnly = format(start, 'yyyy-MM-dd');
+    const endDateOnly = format(end, 'yyyy-MM-dd');
+    const e = new Date(`${endDateOnly}T00:00:00Z`);
+    const n = new Date(e.getTime() + 24 * 60 * 60 * 1000);
+    const nextDateOnly = format(n, 'yyyy-MM-dd');
+    return {
+      isBusinessPeriod: false,
+      closingTimeStr,
+      startDateOnly,
+      endDateOnly,
+      nextDateOnly,
+      startTs: `${startDateOnly} 00:00:00`,
+      endTs: `${nextDateOnly} 00:00:00`,
+    };
+  }
+
   async getDashboard(
     user: any,
     period: string,
@@ -842,93 +890,174 @@ export class ReportsService {
     };
 
     try {
-      const [
-        openOrders,
-        closedOrders,
-        performance,
-        debts,
-        cancelledItems,
-        cashReport,
-      ] = await Promise.all([
-        this.getOrders(user, period, 'open', startDate, endDate).catch(
-          () => [],
-        ),
-        this.getOrders(user, period, 'closed', startDate, endDate).catch(
-          () => [],
-        ),
-        this.getPerformance(user, period, startDate, endDate).catch(() => null),
-        this.getDebts(user, period, startDate, endDate).catch(() => []),
-        this.getCancelledItems(user, period, startDate, endDate).catch(
-          () => [],
-        ),
-        this.getCashReport(user, period, startDate, endDate).catch(() => ({
-          totals: {
-            nakit: 0,
-            kredi_karti: 0,
-            yemek_karti: 0,
-            diger: 0,
-            toplam: 0,
-          },
-          rows: [],
-        })),
-      ]);
+      const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+      const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
 
-      const mapOrderType = (row: any) => {
-        const adturNum =
-          typeof row.adtur === 'number'
-            ? row.adtur
-            : parseInt(row.adtur ?? '0', 10) || 0;
-        if (adturNum === 1) return 'paket';
-        if (adturNum === 3) return 'hizli';
-        return 'adisyon';
-      };
-
-      let totalOpenAmount = 0;
-      (openOrders as any[]).forEach((o) => {
-        const key = mapOrderType(o);
-        const tutar = Number(o.tutar) || 0;
-        result.acik_adisyon_toplam += tutar;
-        result.acik_adisyon_adet += 1;
-        const g = (result.dagilim as any)[key];
-        if (g) {
-          g.acik_adet += 1;
-          g.acik_toplam += tutar;
-        }
-        totalOpenAmount += tutar;
-      });
-
-      (closedOrders as any[]).forEach((o) => {
-        const key = mapOrderType(o);
-        const grossTutar = Number(o.tutar) || 0;
-        const iskonto = Number(o.iskonto) || 0;
-        const netTutar = Math.max(0, grossTutar - iskonto);
-        result.kapali_adisyon_toplam += netTutar;
-        result.kapali_iskonto_toplam += iskonto;
-        result.kapali_adisyon_adet += 1;
-        const g = (result.dagilim as any)[key];
-        if (g) {
-          g.kapali_adet += 1;
-          g.kapali_toplam += netTutar;
-          g.kapali_iskonto += iskonto;
-        }
-      });
-
-      if (
-        result.kapali_adisyon_adet === 0 &&
-        performance &&
-        (performance as any).summary
-      ) {
-        const summary = (performance as any).summary;
-        if (typeof summary.total_sales === 'number') {
-          result.kapali_adisyon_toplam = summary.total_sales;
-        }
-        if (typeof summary.total_orders === 'number') {
-          result.kapali_adisyon_adet = summary.total_orders;
-        }
-        if (typeof summary.total_discount === 'number') {
-          result.kapali_iskonto_toplam = summary.total_discount;
+      const openParams: any[] = [kasa_nos];
+      let openFilter = '';
+      if (period !== 'all') {
+        if (w.isBusinessPeriod) {
+          openFilter = `
+            AND (
+              (a.actar = $2::date AND COALESCE(a.acsaat, '00:00:00') >= $4)
+              OR (a.actar = $3::date AND COALESCE(a.acsaat, '00:00:00') < $4)
+            )
+          `;
+          openParams.push(w.startDateOnly, w.nextDateOnly, w.closingTimeStr);
+        } else {
+          openFilter = ` AND a.actar BETWEEN $2::date AND $3::date`;
+          openParams.push(w.startDateOnly, w.endDateOnly);
         }
       }
+
+      const closedParams: any[] = [kasa_nos];
+      let closedFilter = '';
+      if (period !== 'all') {
+        if (w.isBusinessPeriod) {
+          closedFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
+          closedParams.push(w.startTs, w.endTs);
+        } else {
+          closedFilter =
+            ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
+          closedParams.push(w.startDateOnly, w.endDateOnly);
+        }
+      }
+
+      const debtParams: any[] = [kasa_nos];
+      let debtFilter = '';
+      if (period !== 'all') {
+        debtFilter = ` AND h.islem_zamani >= $2 AND h.islem_zamani < $3`;
+        debtParams.push(w.startTs, w.endTs);
+      }
+
+      const cancelParams: any[] = [];
+      let cancelFilter = '';
+      if (period !== 'all') {
+        cancelFilter = ` WHERE a.tarih_saat >= $1 AND a.tarih_saat < $2`;
+        cancelParams.push(w.startTs, w.endTs);
+      }
+
+      const openQuery = `
+        WITH per_ads AS (
+          SELECT
+            a.adsno,
+            CASE
+              WHEN COALESCE(a.adtur, 0) = 1 OR COALESCE(a.masano, 0) = 99999 OR COALESCE(a.sipyer, 0) = 2 THEN 'paket'
+              WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
+              ELSE 'adisyon'
+            END as type,
+            COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as tutar
+          FROM ads_acik a
+          WHERE a.kasa = ANY($1) ${openFilter}
+          GROUP BY a.adsno, type
+        )
+        SELECT
+          type,
+          COUNT(*)::int as adet,
+          COALESCE(SUM(tutar), 0) as toplam
+        FROM per_ads
+        GROUP BY type
+      `;
+
+      const closedQuery = `
+        WITH per_ads AS (
+          SELECT
+            o.adsno,
+            COALESCE(o.adtur, 0) as adtur,
+            COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as net_tutar,
+            COALESCE(SUM(COALESCE(o.iskonto, 0)), 0) as iskonto
+          FROM ads_odeme o
+          WHERE o.kasa = ANY($1) ${closedFilter}
+          GROUP BY o.adsno, COALESCE(o.adtur, 0)
+        )
+        SELECT
+          CASE
+            WHEN adtur = 1 THEN 'paket'
+            WHEN adtur = 3 THEN 'hizli'
+            ELSE 'adisyon'
+          END as type,
+          COUNT(*)::int as adet,
+          COALESCE(SUM(net_tutar), 0) as net_toplam,
+          COALESCE(SUM(iskonto), 0) as iskonto_toplam
+        FROM per_ads
+        GROUP BY type
+      `;
+
+      const debtQuery = `
+        WITH agg AS (
+          SELECT
+            h.ads_no,
+            MAX(h.borcu) as borc
+          FROM ads_hareket h
+          WHERE h.kasano = ANY($1) ${debtFilter}
+          GROUP BY h.ads_no
+        )
+        SELECT
+          COALESCE(SUM(CASE WHEN COALESCE(borc, 0) > 0 THEN COALESCE(borc, 0) ELSE 0 END), 0) as toplam,
+          COALESCE(COUNT(CASE WHEN COALESCE(borc, 0) > 0 THEN 1 END), 0)::int as adet
+        FROM agg
+      `;
+
+      const cancelQuery = `
+        SELECT
+          COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as toplam,
+          COALESCE(COUNT(*), 0)::int as adet
+        FROM ads_iptal a
+        ${cancelFilter}
+      `;
+
+      const [openAgg, closedAgg, debtAggRows, cancelAggRows, cashReport] =
+        await Promise.all([
+          this.db.executeQuery(pool, openQuery, openParams).catch(() => []),
+          this.db.executeQuery(pool, closedQuery, closedParams).catch(() => []),
+          this.db.executeQuery(pool, debtQuery, debtParams).catch(() => []),
+          this.db.executeQuery(pool, cancelQuery, cancelParams).catch(() => []),
+          this.getCashReport(user, period, startDate, endDate).catch(() => ({
+            totals: {
+              nakit: 0,
+              kredi_karti: 0,
+              yemek_karti: 0,
+              diger: 0,
+              toplam: 0,
+            },
+            rows: [],
+          })),
+        ]);
+
+      (openAgg as any[]).forEach((r) => {
+        const key = r.type;
+        const g = (result.dagilim as any)[key];
+        if (!g) return;
+        const adet = Number(r.adet) || 0;
+        const toplam = Number(r.toplam) || 0;
+        result.acik_adisyon_adet += adet;
+        result.acik_adisyon_toplam += toplam;
+        g.acik_adet += adet;
+        g.acik_toplam += toplam;
+      });
+
+      (closedAgg as any[]).forEach((r) => {
+        const key = r.type;
+        const g = (result.dagilim as any)[key];
+        if (!g) return;
+        const adet = Number(r.adet) || 0;
+        const netToplam = Number(r.net_toplam) || 0;
+        const iskontoToplam = Number(r.iskonto_toplam) || 0;
+        result.kapali_adisyon_adet += adet;
+        result.kapali_adisyon_toplam += netToplam;
+        result.kapali_iskonto_toplam += iskontoToplam;
+        g.kapali_adet += adet;
+        g.kapali_toplam += netToplam;
+        g.kapali_iskonto += iskontoToplam;
+      });
+
+      const debtAgg = (debtAggRows as any[])[0] || { toplam: 0, adet: 0 };
+      result.borca_atilan_toplam = Number(debtAgg.toplam) || 0;
+      result.borca_atilan_adet = Number(debtAgg.adet) || 0;
+
+      const cancelAgg = (cancelAggRows as any[])[0] || { toplam: 0, adet: 0 };
+      result.iptal_toplam = Number(cancelAgg.toplam) || 0;
+      result.iptal_adet = Number(cancelAgg.adet) || 0;
 
       (['adisyon', 'paket', 'hizli'] as const).forEach((key) => {
         const g = (result.dagilim as any)[key];
@@ -936,7 +1065,7 @@ export class ReportsService {
         g.toplam_tutar = g.acik_toplam + g.kapali_toplam;
       });
 
-      const totalOpen = result.acik_adisyon_toplam || totalOpenAmount || 0;
+      const totalOpen = result.acik_adisyon_toplam || 0;
       const totalClosed = result.kapali_adisyon_toplam || 0;
 
       (['adisyon', 'paket'] as const).forEach((key) => {
@@ -955,23 +1084,6 @@ export class ReportsService {
             : 0;
       });
 
-      (debts as any[]).forEach((d) => {
-        const borc = Number(d.borc) || 0;
-        if (borc > 0) {
-          result.borca_atilan_toplam += borc;
-          result.borca_atilan_adet += 1;
-        }
-      });
-
-      (cancelledItems as any[]).forEach((c) => {
-        if (c.type === 'iptal') {
-          const tutar = Number(c.tutar) || 0;
-          result.iptal_toplam += tutar;
-          result.iptal_adet += 1;
-        }
-      });
-
-      // Kasa Raporu verilerini ekle
       if (cashReport && cashReport.totals) {
         result.kasa_raporu = {
           nakit: cashReport.totals.nakit || 0,

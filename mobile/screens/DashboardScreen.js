@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, ScrollView, RefreshControl, Dimensions, Platform, Modal, TouchableWithoutFeedback, Linking } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, ScrollView, RefreshControl, Dimensions, Platform, Modal, TouchableWithoutFeedback, Linking, TextInput, KeyboardAvoidingView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
@@ -89,6 +89,9 @@ export default function DashboardScreen({ navigation, route }) {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const prevBranchRef = useRef(selectedBranch);
 
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -96,11 +99,214 @@ export default function DashboardScreen({ navigation, route }) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
+  const [lang, setLang] = useState('tr');
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileForm, setProfileForm] = useState({ full_name: '', email: '', password: '', phone: '' });
+  const [avatarTheme, setAvatarTheme] = useState(0);
+  const [tempAvatarTheme, setTempAvatarTheme] = useState(0);
+
+  useEffect(() => {
+    const loadLang = async () => {
+      const stored = await AsyncStorage.getItem('language');
+      if (stored) setLang(stored);
+    };
+    loadLang();
+  }, []);
+
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  const T = {
+    tr: {
+      welcome: 'Hoşgeldin',
+      online: 'Online',
+      offline: 'Offline',
+      totalRevenue: 'TOPLAM CİRO',
+      totalFooter: 'Açık + Kapalı Toplam',
+      debtBadge: '💰 Borca Atılan:',
+      today: 'Bugün',
+      yesterday: 'Dün',
+      week: 'Bu Hafta',
+      last7days: 'Son 7 Gün',
+      month: 'Bu Ay',
+      lastmonth: 'Geçen Ay',
+      custom: 'Özel Tarih',
+      apply: 'Uygula',
+      stockManagement: 'Stok Yönetimi',
+      stockEntryTitle: 'Stok Girişi',
+      stockEntryDesc: 'Günlük giriş yap',
+      liveStockTitle: 'Canlı Stok',
+      liveStockDesc: 'Anlık durum',
+      otherReports: 'Diğer Raporlar',
+      openOrders: 'Açık Adisyon',
+      closedOrders: 'Kapalı Adisyon',
+      branchSelectTitle: 'Şube Seçiniz',
+      dateRangeTitle: 'Tarih Aralığı Seç',
+      startDateLabel: 'Başlangıç Tarihi:',
+      endDateLabel: 'Bitiş Tarihi:',
+      reportProductSalesTitle: 'Ürün Satışları',
+      reportProductSalesDesc: 'Ürün bazlı rapor',
+      reportPersonnelTitle: 'Personel',
+      reportPersonnelDesc: 'Performans raporu',
+      reportPaymentTypesTitle: 'Ödeme Tipleri',
+      reportPaymentTypesDesc: 'Nakit, Kredi Kartı vb.',
+      reportCashTitle: 'Kasa Raporu',
+      reportCashDesc: 'Kasa toplamları',
+      reportHourlySalesTitle: 'Saatlik Satış',
+      reportHourlySalesDesc: 'Saatlik yoğunluk',
+      reportCancelsTitle: 'İptaller',
+      reportCancelsDesc: 'İptal edilen ürünler',
+      reportDiscountsTitle: 'İndirimler',
+      reportDiscountsDesc: 'Yapılan indirimler',
+      reportDebtsTitle: 'Borca Atılanlar',
+      reportDebtsDesc: 'Veresiye listesi',
+      reportCourierTitle: 'Kurye Takip',
+      reportCourierDesc: 'Teslimat süreleri',
+      reportUnpayableTitle: 'Ödenmezler',
+      reportUnpayableDesc: 'Ödenmez listesi',
+      adminSectionTitle: 'Yönetim',
+      adminUsersTitle: 'Kullanıcılar',
+      adminUsersDesc: 'Ekle / düzenle',
+      adminBranchesTitle: 'Şubeler',
+      adminBranchesDesc: 'Bağlantı ayarları',
+      adminManageTitle: 'Genel',
+      adminManageDesc: 'Kullanıcı + şube',
+      orderCount: 'adet adisyon',
+      order: 'Adisyon',
+      package: 'Paket',
+      fastSale: 'Hızlı Satış',
+      connectionError: 'Bağlantı kurulamadı. Şubeye erişilemiyor.',
+      selectBranch: 'Şube Seçiniz',
+      error: 'Hata',
+      adminError: 'Admin sayfası açılamadı.',
+      profileError: 'Kullanıcı bilgileri alınamadı.',
+      sessionError: 'Oturum bulunamadı',
+      info: 'Bilgi',
+      branchError: 'Şube değiştirilemedi.',
+    },
+    en: {
+      welcome: 'Welcome',
+      online: 'Online',
+      offline: 'Offline',
+      totalRevenue: 'TOTAL REVENUE',
+      totalFooter: 'Open + Closed Total',
+      debtBadge: '💰 On Credit:',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      week: 'This Week',
+      last7days: 'Last 7 Days',
+      month: 'This Month',
+      lastmonth: 'Last Month',
+      custom: 'Custom Date',
+      apply: 'Apply',
+      stockManagement: 'Stock Management',
+      stockEntryTitle: 'Stock Entry',
+      stockEntryDesc: 'Daily entry',
+      liveStockTitle: 'Live Stock',
+      liveStockDesc: 'Real-time status',
+      otherReports: 'Other Reports',
+      openOrders: 'Open Orders',
+      closedOrders: 'Closed Orders',
+      branchSelectTitle: 'Select Branch',
+      dateRangeTitle: 'Select Date Range',
+      startDateLabel: 'Start Date:',
+      endDateLabel: 'End Date:',
+      accountTitle: 'My Account',
+      fullNameLabel: 'Full Name',
+      emailLabel: 'Email',
+      passwordLabel: 'Password',
+      phoneLabel: 'Phone',
+      save: 'Save',
+      cancel: 'Cancel',
+      profileUpdated: 'Profile updated',
+      profileUpdateFailed: 'Profile update failed',
+      reportProductSalesTitle: 'Product Sales',
+      reportProductSalesDesc: 'Product based report',
+      reportPersonnelTitle: 'Personnel',
+      reportPersonnelDesc: 'Staff performance',
+      reportPaymentTypesTitle: 'Payment Types',
+      reportPaymentTypesDesc: 'Cash, Card etc.',
+      reportCashTitle: 'Cash Report',
+      reportCashDesc: 'Cash drawer totals',
+      reportHourlySalesTitle: 'Hourly Sales',
+      reportHourlySalesDesc: 'Sales by hour',
+      reportCancelsTitle: 'Cancels',
+      reportCancelsDesc: 'Cancelled items',
+      reportDiscountsTitle: 'Discounts',
+      reportDiscountsDesc: 'Applied discounts',
+      reportDebtsTitle: 'Debts',
+      reportDebtsDesc: 'Customer credit list',
+      reportCourierTitle: 'Courier Tracking',
+      reportCourierDesc: 'Delivery times',
+      reportUnpayableTitle: 'Unpayables',
+      reportUnpayableDesc: 'Unpaid orders',
+      adminSectionTitle: 'Admin',
+      adminUsersTitle: 'Users',
+      adminUsersDesc: 'Add / edit users',
+      adminBranchesTitle: 'Branches',
+      adminBranchesDesc: 'Branch connections',
+      adminManageTitle: 'General',
+      adminManageDesc: 'User + branch',
+      orderCount: 'orders',
+      order: 'Order',
+      package: 'Package',
+      fastSale: 'Fast Sale',
+      connectionError: 'Connection failed. Branch is not reachable.',
+      selectBranch: 'Select Branch',
+      error: 'Error',
+      adminError: 'Admin page could not be opened.',
+      profileError: 'User profile could not be loaded.',
+      sessionError: 'Session not found',
+      info: 'Info',
+      branchError: 'Branch could not be changed.',
+    }
+  }[lang];
+
+  if (lang === 'tr') {
+    T.accountTitle = 'Hesabım';
+    T.fullNameLabel = 'Ad Soyad';
+    T.emailLabel = 'E-posta';
+    T.passwordLabel = 'Şifre';
+    T.phoneLabel = 'Telefon';
+    T.save = 'Kaydet';
+    T.cancel = 'Vazgeç';
+    T.profileUpdated = 'Profil güncellendi';
+    T.profileUpdateFailed = 'Profil güncellenemedi';
+    T.avatarColor = 'Avatar Rengi';
+  } else {
+    T.avatarColor = 'Avatar Color';
+  }
+
+  useEffect(() => {
+    (async () => {
+      const storedTheme = await AsyncStorage.getItem('avatarTheme');
+      if (storedTheme !== null) {
+        const idx = Number(storedTheme);
+        if (!isNaN(idx)) {
+          setAvatarTheme(idx);
+        }
+      }
+    })();
+  }, []);
+
+  const getAvatarColors = (themeIndex) => {
+    if (themeIndex === 1) return ['#3b82f6', '#2563eb'];
+    if (themeIndex === 2) return ['#8b5cf6', '#7c3aed'];
+    return ['#10b981', '#0d9488'];
+  };
+
+  const getInitials = (name, email) => {
+    const source = (name && name.trim()) || (email && email.split('@')[0]) || 'FR';
+    const parts = source.split(' ').filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return source.slice(0, 2).toUpperCase();
+  };
 
   useEffect(() => {
     if (!user) {
       fetchUserProfile();
     } else {
+        console.log('User data in DashboardScreen:', user);
+        console.log('User allowed_reports:', user.allowed_reports);
+        console.log('User is_admin:', user.is_admin);
         initializeUserBranches(user);
         fetchDashboardData();
     }
@@ -147,7 +353,7 @@ export default function DashboardScreen({ navigation, route }) {
     const url = `${baseUrl}${path}`;
     Linking.openURL(url).catch((err) => {
       console.error('Failed to open admin page', err);
-      Alert.alert('Hata', 'Admin sayfası açılamadı.');
+      Alert.alert(T.error, T.adminError);
     });
   };
 
@@ -163,13 +369,14 @@ export default function DashboardScreen({ navigation, route }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const userData = response.data;
+      console.log('User data loaded:', userData);
       setUser(userData);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       initializeUserBranches(userData);
       fetchDashboardData();
     } catch (error) {
       console.error(error);
-      Alert.alert('Hata', 'Kullanıcı bilgileri alınamadı.');
+      Alert.alert(T.error, T.profileError);
       handleLogout();
     } finally {
       setLoading(false);
@@ -182,8 +389,18 @@ export default function DashboardScreen({ navigation, route }) {
       fetchControllerRef.current.abort();
     }
     
+    const myId = ++reqIdRef.current;
     const controller = new AbortController();
     fetchControllerRef.current = controller;
+
+    const periodChanged = prevPeriodRef.current !== period;
+    const branchChanged = prevBranchRef.current !== selectedBranch;
+    if (periodChanged || branchChanged) {
+      setDashboardData(null);
+      setIsOffline(false);
+      prevPeriodRef.current = period;
+      prevBranchRef.current = selectedBranch;
+    }
     
     try {
         if (showLoading) setIsLoadingData(true);
@@ -206,7 +423,7 @@ export default function DashboardScreen({ navigation, route }) {
         });
         
         // Only update if this request wasn't cancelled
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && reqIdRef.current === myId) {
           setDashboardData(response.data);
           setIsOffline(false);
         }
@@ -216,14 +433,67 @@ export default function DashboardScreen({ navigation, route }) {
           return;
         }
         console.error("Dashboard Data Error:", error);
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && reqIdRef.current === myId) {
           setIsOffline(true);
           setDashboardData(null);
         }
     } finally {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && reqIdRef.current === myId) {
           setIsLoadingData(false);
         }
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert(T.info, T.sessionError);
+        return;
+      }
+      if (user?.is_admin && user?.id) {
+        await axios.put(
+          `${API_URL}/admin/users/${user.id}`,
+          {
+            email: profileForm.email,
+            full_name: profileForm.full_name,
+            phone: profileForm.phone,
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (profileForm.password && profileForm.password.trim().length > 0) {
+          await axios.post(
+            `${API_URL}/admin/users/${user.id}/password`,
+            { password: profileForm.password },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        }
+      } else {
+        await axios.put(
+          `${API_URL}/auth/profile`,
+          {
+            email: profileForm.email,
+            full_name: profileForm.full_name,
+            phone: profileForm.phone,
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (profileForm.password && profileForm.password.trim().length > 0) {
+          await axios.post(
+            `${API_URL}/auth/password`,
+            { password: profileForm.password },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        }
+      }
+      Alert.alert(T.info, T.profileUpdated);
+      setAvatarTheme(tempAvatarTheme);
+      await AsyncStorage.setItem('avatarTheme', String(tempAvatarTheme));
+      setProfileModalVisible(false);
+      await fetchUserProfile();
+    } catch (e) {
+      console.error(e);
+      Alert.alert(T.error, T.profileUpdateFailed);
     }
   };
 
@@ -285,7 +555,7 @@ export default function DashboardScreen({ navigation, route }) {
       
     } catch (error) {
       console.error(error);
-      Alert.alert('Hata', 'Şube değiştirilemedi.');
+      Alert.alert(T.error, T.branchError);
     } finally {
       setChangingBranch(false);
     }
@@ -301,7 +571,7 @@ export default function DashboardScreen({ navigation, route }) {
   };
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(value || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(value || 0);
   };
 
   const isReportAllowed = (reportId) => {
@@ -312,7 +582,9 @@ export default function DashboardScreen({ navigation, route }) {
     // IMPORTANT: null means ALL ALLOWED. Empty array [] means NONE ALLOWED.
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
     // If allowed_reports is array, check inclusion
-    return user.allowed_reports.includes(reportId);
+    const hasPermission = user.allowed_reports.includes(reportId);
+    console.log(`Report permission check - User: ${user.email}, Report: ${reportId}, Allowed reports:`, user.allowed_reports, `Has permission: ${hasPermission}`);
+    return hasPermission;
   };
 
   if (loading) {
@@ -323,11 +595,12 @@ export default function DashboardScreen({ navigation, route }) {
     );
   }
 
-  const currentBranchName = branches[selectedBranch]?.name || 'Şube Seçiniz';
+  const currentBranchName = branches[selectedBranch]?.name || T.selectBranch;
   
   // Calculate Grand Total
   const baseTotal = (dashboardData?.kapali_adisyon_toplam || 0) + (period === 'today' ? (dashboardData?.acik_adisyon_toplam || 0) : 0);
   const grandTotal = baseTotal + (dashboardData?.borca_atilan_toplam || 0);
+  const showPlaceholders = isLoadingData && !dashboardData;
 
   // Chart Data Preparation
   const openOrdersChartData = [
@@ -348,20 +621,46 @@ export default function DashboardScreen({ navigation, route }) {
         <View style={styles.headerTop}>
             <View style={styles.userInfo}>
                 <LinearGradient
-                    colors={['#10b981', '#0d9488']}
+                    colors={getAvatarColors(avatarTheme)}
                     style={styles.logoContainer}
                 >
-                    <Text style={styles.logoText}>FR</Text>
+                    <Text style={styles.logoText}>{getInitials(user?.full_name, user?.email)}</Text>
                 </LinearGradient>
                 <View>
-                    <Text style={styles.welcomeLabel}>Hoşgeldin</Text>
+                    <Text style={styles.welcomeLabel}>{T.welcome}</Text>
                     <Text style={styles.userEmail}>{user?.email?.split('@')[0]}</Text>
                 </View>
             </View>
             <View style={styles.headerActions}>
-                <TouchableOpacity style={styles.langButton}>
-                    <Text style={styles.langText}>TR</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={[styles.langButton, lang === 'tr' && styles.langButtonActive]}
+                    onPress={async () => { setLang('tr'); await AsyncStorage.setItem('language', 'tr'); }}
+                  >
+                    <Text style={[styles.langText, lang === 'tr' && styles.langTextActive]}>TR</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.langButton, lang === 'en' && styles.langButtonActive]}
+                    onPress={async () => { setLang('en'); await AsyncStorage.setItem('language', 'en'); }}
+                  >
+                    <Text style={[styles.langText, lang === 'en' && styles.langTextActive]}>EN</Text>
+                  </TouchableOpacity>
+                </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setProfileForm({
+                    full_name: user?.full_name || '',
+                    email: user?.email || '',
+                    password: '',
+                    phone: user?.phone || ''
+                  });
+                  setTempAvatarTheme(avatarTheme);
+                  setProfileModalVisible(true);
+                }}
+                style={styles.settingsButton}
+              >
+                <Feather name="user" size={20} color="#9ca3af" />
+              </TouchableOpacity>
                 <TouchableOpacity onPress={handleLogout} style={styles.settingsButton}>
                     <Feather name="log-out" size={20} color="#9ca3af" />
                 </TouchableOpacity>
@@ -396,7 +695,7 @@ export default function DashboardScreen({ navigation, route }) {
                   styles.statusText,
                   isOffline && styles.statusTextOffline
                 ]}>
-                  {isOffline ? 'Offline' : 'Online'}
+                  {isOffline ? T.offline : T.online}
                 </Text>
             </View>
         </View>
@@ -404,13 +703,13 @@ export default function DashboardScreen({ navigation, route }) {
         {/* Date Filter Scroll */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateFilterScroll} contentContainerStyle={styles.dateFilterContent}>
             {[
-                { id: 'today', label: 'Bugün', icon: '📅' },
-                { id: 'yesterday', label: 'Dün', icon: '⏪' },
-                { id: 'week', label: 'Bu Hafta', icon: '📆' },
-                { id: 'last7days', label: 'Son 7 Gün', icon: '7️⃣' },
-                { id: 'month', label: 'Bu Ay', icon: '📊' },
-                { id: 'lastmonth', label: 'Geçen Ay', icon: '📉' },
-                { id: 'custom', label: 'Özel Tarih', icon: '🔍' },
+                { id: 'today', label: T.today, icon: '📅' },
+                { id: 'yesterday', label: T.yesterday, icon: '⏪' },
+                { id: 'week', label: T.week, icon: '📆' },
+                { id: 'last7days', label: T.last7days, icon: '7️⃣' },
+                { id: 'month', label: T.month, icon: '📊' },
+                { id: 'lastmonth', label: T.lastmonth, icon: '📉' },
+                { id: 'custom', label: T.custom, icon: '🔍' },
             ].map((p) => (
                 <TouchableOpacity
                     key={p.id}
@@ -430,6 +729,106 @@ export default function DashboardScreen({ navigation, route }) {
         </ScrollView>
       </View>
 
+      <Modal
+        visible={profileModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setProfileModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20} style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{T.accountTitle}</Text>
+                  <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
+                    <Feather name="x" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView keyboardShouldPersistTaps="handled">
+                <View style={{ gap: 12 }}>
+                  <View>
+                    <Text style={styles.profileLabel}>{T.fullNameLabel}</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder={T.fullNameLabel}
+                      value={profileForm.full_name}
+                      onChangeText={(v) => setProfileForm((p) => ({ ...p, full_name: v }))}
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.profileLabel}>{T.emailLabel}</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder={T.emailLabel}
+                      value={profileForm.email}
+                      onChangeText={(v) => setProfileForm((p) => ({ ...p, email: v }))}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.profileLabel}>{T.phoneLabel}</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder={T.phoneLabel}
+                      value={profileForm.phone}
+                      onChangeText={(v) => setProfileForm((p) => ({ ...p, phone: v }))}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.profileLabel}>{T.avatarColor}</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        style={[
+                          styles.avatarSwatch,
+                          { backgroundColor: '#10b981', borderColor: tempAvatarTheme === 0 ? '#0f766e' : '#e5e7eb' },
+                        ]}
+                        onPress={() => setTempAvatarTheme(0)}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.avatarSwatch,
+                          { backgroundColor: '#2563eb', borderColor: tempAvatarTheme === 1 ? '#1d4ed8' : '#e5e7eb' },
+                        ]}
+                        onPress={() => setTempAvatarTheme(1)}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.avatarSwatch,
+                          { backgroundColor: '#7c3aed', borderColor: tempAvatarTheme === 2 ? '#6d28d9' : '#e5e7eb' },
+                        ]}
+                        onPress={() => setTempAvatarTheme(2)}
+                      />
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.profileLabel}>{T.passwordLabel}</Text>
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder={T.passwordLabel}
+                      value={profileForm.password}
+                      onChangeText={(v) => setProfileForm((p) => ({ ...p, password: v }))}
+                      secureTextEntry
+                    />
+                  </View>
+                </View>
+                </ScrollView>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+                  <TouchableOpacity style={styles.profileCancelButton} onPress={() => setProfileModalVisible(false)}>
+                    <Text style={styles.profileCancelText}>{T.cancel}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.profileSaveButton} onPress={saveProfile}>
+                    <Text style={styles.profileSaveText}>{T.save}</Text>
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <ScrollView 
         style={styles.contentScroll} 
         contentContainerStyle={styles.contentContainer}
@@ -438,7 +837,7 @@ export default function DashboardScreen({ navigation, route }) {
         {isOffline && !isLoadingData && (
           <View style={styles.offlineAlert}>
             <Feather name="alert-triangle" size={16} color="#b91c1c" />
-            <Text style={styles.offlineAlertText}>Bağlantı kurulamadı. Şubeye erişilemiyor.</Text>
+            <Text style={styles.offlineAlertText}>{T.connectionError}</Text>
           </View>
         )}
         {/* Main Summary Card */}
@@ -450,19 +849,19 @@ export default function DashboardScreen({ navigation, route }) {
         >
             <View style={styles.mainCardBadge}>
                 <View style={styles.badgeDot} />
-                <Text style={styles.badgeText}>TOPLAM CİRO</Text>
+                <Text style={styles.badgeText}>{T.totalRevenue}</Text>
             </View>
             <Text style={styles.mainCardValue}>
               {isLoadingData && !dashboardData ? '...' : formatCurrency(grandTotal)}
             </Text>
             <View style={styles.mainCardFooter}>
                 <View style={styles.footerDot} />
-                <Text style={styles.footerText}>Açık + Kapalı Toplam</Text>
+                <Text style={styles.footerText}>{T.totalFooter}</Text>
                 <View style={styles.footerDot} />
             </View>
             {!!dashboardData?.borca_atilan_toplam && dashboardData.borca_atilan_toplam > 0 && (
                 <View style={styles.debtBadge}>
-                    <Text style={styles.debtText}>💰 Borca Atılan: {formatCurrency(dashboardData.borca_atilan_toplam)}</Text>
+                    <Text style={styles.debtText}>{T.debtBadge} {formatCurrency(dashboardData.borca_atilan_toplam)}</Text>
                 </View>
             )}
         </LinearGradient>
@@ -477,12 +876,16 @@ export default function DashboardScreen({ navigation, route }) {
                             <View style={[styles.iconBox, { backgroundColor: '#f97316' }]}>
                                 <Text style={{fontSize: 16}}>🟠</Text>
                             </View>
-                            <Text style={[styles.statTitle, { color: '#c2410c' }]}>Açık Adisyon</Text>
+                            <Text style={[styles.statTitle, { color: '#c2410c' }]}>{T.openOrders}</Text>
                         </View>
                         <View style={styles.cardMainRow}>
                             <View style={styles.cardValueSection}>
-                                <Text style={[styles.statValue, { color: '#ea580c' }]}>{formatCurrency(dashboardData?.acik_adisyon_toplam)}</Text>
-                                <Text style={styles.statCount}>{dashboardData?.acik_adisyon_adet || 0} adet adisyon</Text>
+                                <Text style={[styles.statValue, { color: '#ea580c' }]}>
+                                  {showPlaceholders ? '...' : formatCurrency(dashboardData?.acik_adisyon_toplam)}
+                                </Text>
+                                <Text style={styles.statCount}>
+                                  {showPlaceholders ? '...' : (dashboardData?.acik_adisyon_adet || 0)} {T.orderCount}
+                                </Text>
                             </View>
                             <DonutChart 
                                 size={70} 
@@ -495,6 +898,7 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
                     </TouchableOpacity>
                     
+                    {!showPlaceholders && !!dashboardData && (
                     <View style={styles.breakdownContainer}>
                       <View style={styles.breakdownCircleRow}>
                         <TouchableOpacity
@@ -505,7 +909,7 @@ export default function DashboardScreen({ navigation, route }) {
                           onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
                         >
                           <Text style={[styles.breakdownCircleLabel, { color: '#ea580c' }]}>
-                            Adisyon
+                            {T.order}
                           </Text>
                           <Text style={styles.breakdownCircleValue}>
                             {formatCurrency(dashboardData?.dagilim?.adisyon.acik_toplam)}
@@ -521,7 +925,7 @@ export default function DashboardScreen({ navigation, route }) {
                                 : 0}
                             </Text>
                             <Text style={[styles.breakdownCircleStatText, { color: '#c2410c' }]}>
-                              {dashboardData?.dagilim?.adisyon.acik_adet || 0} adet
+                              {dashboardData?.dagilim?.adisyon.acik_adet || 0} {T.orderCount}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -535,29 +939,30 @@ export default function DashboardScreen({ navigation, route }) {
                             onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
                           >
                             <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
-                              Paket
+                            {T.package}
+                          </Text>
+                          <Text style={styles.breakdownCircleValue}>
+                            {formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}
+                          </Text>
+                          <View style={styles.breakdownCircleStats}>
+                            <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                              %{dashboardData?.acik_adisyon_toplam > 0
+                                ? Math.round(
+                                    (dashboardData?.dagilim?.paket.acik_toplam /
+                                      dashboardData?.acik_adisyon_toplam) *
+                                      100,
+                                  )
+                                : 0}
                             </Text>
-                            <Text style={styles.breakdownCircleValue}>
-                              {formatCurrency(dashboardData?.dagilim?.paket.acik_toplam)}
+                            <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                              {dashboardData?.dagilim?.paket.acik_adet || 0} {T.orderCount}
                             </Text>
-                            <View style={styles.breakdownCircleStats}>
-                              <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
-                                %{dashboardData?.acik_adisyon_toplam > 0
-                                  ? Math.round(
-                                      (dashboardData?.dagilim?.paket.acik_toplam /
-                                        dashboardData?.acik_adisyon_toplam) *
-                                        100,
-                                    )
-                                  : 0}
-                              </Text>
-                              <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
-                                {dashboardData?.dagilim?.paket.acik_adet || 0} adet
-                              </Text>
-                            </View>
+                          </View>
                           </TouchableOpacity>
                         )}
                       </View>
                     </View>
+                    )}
                 </View>
             )}
 
@@ -569,14 +974,18 @@ export default function DashboardScreen({ navigation, route }) {
                         <View style={[styles.iconBox, { backgroundColor: '#10b981' }]}>
                                 <Text style={{fontSize: 16}}>✅</Text>
                         </View>
-                        <Text style={[styles.statTitle, { color: '#047857' }]}>Kapalı Adisyon</Text>
+                        <Text style={[styles.statTitle, { color: '#047857' }]}>{T.closedOrders}</Text>
                     </View>
                     <View style={styles.cardMainRow}>
                         <View style={styles.cardValueSection}>
-                            <Text style={[styles.statValue, { color: '#059669' }]}>{formatCurrency(dashboardData?.kapali_adisyon_toplam)}</Text>
+                            <Text style={[styles.statValue, { color: '#059669' }]}>
+                              {showPlaceholders ? '...' : formatCurrency(dashboardData?.kapali_adisyon_toplam)}
+                            </Text>
                             <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
-                                <Text style={styles.statCount}>{dashboardData?.kapali_adisyon_adet || 0} adet adisyon</Text>
-                                {(dashboardData?.kapali_iskonto_toplam || 0) > 0 && (
+                                <Text style={styles.statCount}>
+                                  {showPlaceholders ? '...' : (dashboardData?.kapali_adisyon_adet || 0)} {T.orderCount}
+                                </Text>
+                                {!showPlaceholders && (dashboardData?.kapali_iskonto_toplam || 0) > 0 && (
                                     <View style={styles.discountBadge}>
                                         <Feather name="tag" size={10} color="#fff" />
                                         <Text style={styles.discountText}>-{formatCurrency(dashboardData?.kapali_iskonto_toplam)}</Text>
@@ -596,36 +1005,37 @@ export default function DashboardScreen({ navigation, route }) {
                     </View>
                 </TouchableOpacity>
 
+                {!showPlaceholders && !!dashboardData && (
                 <View style={styles.breakdownContainer}>
                   <View style={styles.breakdownCircleRow}>
                     <TouchableOpacity
-                      style={[
-                        styles.breakdownCircle,
-                        { backgroundColor: '#dcfce7', borderColor: '#4ade80' },
-                      ]}
-                      onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
-                    >
-                      <Text style={[styles.breakdownCircleLabel, { color: '#059669' }]}>
-                        Adisyon
-                      </Text>
-                      <Text style={styles.breakdownCircleValue}>
-                        {formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}
-                      </Text>
-                      <View style={styles.breakdownCircleStats}>
-                        <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
-                          %{dashboardData?.kapali_adisyon_toplam > 0
-                            ? Math.round(
-                                (dashboardData?.dagilim?.adisyon.kapali_toplam /
-                                  dashboardData?.kapali_adisyon_toplam) *
-                                  100,
-                              )
-                            : 0}
+                        style={[
+                          styles.breakdownCircle,
+                          { backgroundColor: '#dcfce7', borderColor: '#4ade80' },
+                        ]}
+                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
+                      >
+                        <Text style={[styles.breakdownCircleLabel, { color: '#059669' }]}>
+                          {T.order}
                         </Text>
-                        <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
-                          {dashboardData?.dagilim?.adisyon.kapali_adet || 0} adet
+                        <Text style={styles.breakdownCircleValue}>
+                          {formatCurrency(dashboardData?.dagilim?.adisyon.kapali_toplam)}
                         </Text>
-                      </View>
-                    </TouchableOpacity>
+                        <View style={styles.breakdownCircleStats}>
+                          <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
+                            %{dashboardData?.kapali_adisyon_toplam > 0
+                              ? Math.round(
+                                  (dashboardData?.dagilim?.adisyon.kapali_toplam /
+                                    dashboardData?.kapali_adisyon_toplam) *
+                                    100,
+                                )
+                              : 0}
+                          </Text>
+                          <Text style={[styles.breakdownCircleStatText, { color: '#047857' }]}>
+                            {dashboardData?.dagilim?.adisyon.kapali_adet || 0} {T.orderCount}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
 
                     {(dashboardData?.dagilim?.paket.kapali_toplam || 0) > 0 && (
                       <TouchableOpacity
@@ -635,26 +1045,26 @@ export default function DashboardScreen({ navigation, route }) {
                         ]}
                         onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
                       >
-                        <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
-                          Paket
-                        </Text>
-                        <Text style={styles.breakdownCircleValue}>
-                          {formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}
-                        </Text>
-                        <View style={styles.breakdownCircleStats}>
-                          <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
-                            %{dashboardData?.kapali_adisyon_toplam > 0
-                              ? Math.round(
-                                  (dashboardData?.dagilim?.paket.kapali_toplam /
-                                    dashboardData?.kapali_adisyon_toplam) *
-                                    100,
-                                )
-                              : 0}
+                          <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
+                            {T.package}
                           </Text>
-                          <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
-                            {dashboardData?.dagilim?.paket.kapali_adet || 0} adet
+                          <Text style={styles.breakdownCircleValue}>
+                            {formatCurrency(dashboardData?.dagilim?.paket.kapali_toplam)}
                           </Text>
-                        </View>
+                          <View style={styles.breakdownCircleStats}>
+                            <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                              %{dashboardData?.kapali_adisyon_toplam > 0
+                                ? Math.round(
+                                    (dashboardData?.dagilim?.paket.kapali_toplam /
+                                      dashboardData?.kapali_adisyon_toplam) *
+                                      100,
+                                  )
+                                : 0}
+                            </Text>
+                            <Text style={[styles.breakdownCircleStatText, { color: '#b45309' }]}>
+                              {dashboardData?.dagilim?.paket.kapali_adet || 0} {T.orderCount}
+                            </Text>
+                          </View>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -667,7 +1077,7 @@ export default function DashboardScreen({ navigation, route }) {
                         <View style={styles.breakdownRow}>
                             <View style={[styles.miniIcon, { backgroundColor: '#fdf2f8' }]}><Text>⚡</Text></View>
                             <View style={{flex: 1}}>
-                                <Text style={[styles.breakdownLabel, { color: '#db2777' }]}>Hızlı Satış</Text>
+                                <Text style={[styles.breakdownLabel, { color: '#db2777' }]}>{T.fastSale}</Text>
                                 <Text style={styles.breakdownValue}>{formatCurrency(dashboardData?.dagilim?.hizli?.kapali_toplam || 0)}</Text>
                                 <View style={styles.inlineStatRow}>
                                     <View style={[styles.inlineStatPill, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
@@ -677,7 +1087,7 @@ export default function DashboardScreen({ navigation, route }) {
                                     </View>
                                     <View style={[styles.inlineStatPill, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
                                         <Text style={[styles.inlineStatText, { color: '#be185d' }]}>
-                                            {dashboardData?.dagilim?.hizli?.kapali_adet || 0} adet
+                                            {dashboardData?.dagilim?.hizli?.kapali_adet || 0} {T.orderCount}
                                         </Text>
                                     </View>
                                 </View>
@@ -687,6 +1097,7 @@ export default function DashboardScreen({ navigation, route }) {
                     </TouchableOpacity>
                     )}
                 </View>
+                )}
             </View>
             )}
         </View>
@@ -698,7 +1109,7 @@ export default function DashboardScreen({ navigation, route }) {
                 <View style={[styles.sectionIconBox, { backgroundColor: '#0ea5e9' }]}>
                     <Feather name="box" size={16} color="#fff" />
                 </View>
-                <Text style={styles.sectionTitle}>Stok Yönetimi</Text>
+                <Text style={styles.sectionTitle}>{T.stockManagement}</Text>
             </View>
 
             <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
@@ -711,8 +1122,8 @@ export default function DashboardScreen({ navigation, route }) {
                         <Feather name="edit-3" size={20} color="#fff" />
                     </LinearGradient>
                     <View>
-                        <Text style={styles.stockCardTitle}>Günlük Giriş</Text>
-                        <Text style={styles.stockCardDesc}>Stok girişi yap</Text>
+                        <Text style={styles.stockCardTitle}>{T.stockEntryTitle}</Text>
+                        <Text style={styles.stockCardDesc}>{T.stockEntryDesc}</Text>
                     </View>
                 </TouchableOpacity>
                 )}
@@ -726,8 +1137,8 @@ export default function DashboardScreen({ navigation, route }) {
                         <Feather name="activity" size={20} color="#fff" />
                     </LinearGradient>
                     <View>
-                        <Text style={styles.stockCardTitle}>Canlı Takip</Text>
-                        <Text style={styles.stockCardDesc}>Anlık stok durumu</Text>
+                        <Text style={styles.stockCardTitle}>{T.liveStockTitle}</Text>
+                        <Text style={styles.stockCardDesc}>{T.liveStockDesc}</Text>
                     </View>
                 </TouchableOpacity>
                 )}
@@ -741,14 +1152,14 @@ export default function DashboardScreen({ navigation, route }) {
                 <View style={styles.sectionIconBox}>
                     <Feather name="bar-chart-2" size={16} color="#fff" />
                 </View>
-                <Text style={styles.sectionTitle}>Diğer Raporlar</Text>
+                <Text style={styles.sectionTitle}>{T.otherReports}</Text>
             </View>
 
             <View style={styles.gridContainer}>
                 {isReportAllowed('product_sales') && (
                 <ReportCard 
-                    title="Ürün Satışları" 
-                    desc="Ürün bazlı satış raporu" 
+                    title={T.reportProductSalesTitle}
+                    desc={T.reportProductSalesDesc}
                     icon="pie-chart" 
                     colors={['#f97316', '#f59e0b']} 
                     onPress={() => navigation.navigate('ProductSales')} 
@@ -756,8 +1167,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('personnel') && (
                 <ReportCard 
-                    title="Personel" 
-                    desc="Personel performansı" 
+                    title={T.reportPersonnelTitle}
+                    desc={T.reportPersonnelDesc}
                     icon="users" 
                     colors={['#8b5cf6', '#7c3aed']} 
                     onPress={() => navigation.navigate('Personnel')} 
@@ -765,8 +1176,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('payment_types') && (
                 <ReportCard 
-                    title="Ödeme Tipleri" 
-                    desc="Nakit, Kredi Kartı vb." 
+                    title={T.reportPaymentTypesTitle}
+                    desc={T.reportPaymentTypesDesc}
                     icon="credit-card" 
                     colors={['#3b82f6', '#0ea5e9']} 
                     onPress={() => navigation.navigate('PaymentTypes')} 
@@ -774,8 +1185,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('cash_report') && (
                 <ReportCard 
-                    title="Kasa Raporu" 
-                    desc="Kasaya göre toplamlar" 
+                    title={T.reportCashTitle}
+                    desc={T.reportCashDesc}
                     icon="dollar-sign" 
                     colors={['#10b981', '#0ea5e9']} 
                     onPress={() => navigation.navigate('CashReport')} 
@@ -783,8 +1194,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('hourly_sales') && (
                 <ReportCard 
-                    title="Saatlik Satış" 
-                    desc="Saat bazlı yoğunluk" 
+                    title={T.reportHourlySalesTitle}
+                    desc={T.reportHourlySalesDesc}
                     icon="trending-up" 
                     colors={['#ef4444', '#f43f5e']} 
                     onPress={() => navigation.navigate('HourlySales')} 
@@ -792,8 +1203,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('cancels') && (
                 <ReportCard 
-                    title="İptaller" 
-                    desc="İptal edilen ürünler" 
+                    title={T.reportCancelsTitle}
+                    desc={T.reportCancelsDesc}
                     icon="x-circle" 
                     colors={['#ec4899', '#f43f5e']} 
                     onPress={() => navigation.navigate('Cancels')} 
@@ -801,8 +1212,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('discounts') && (
                  <ReportCard 
-                    title="İndirimler" 
-                    desc="Yapılan iskontolar" 
+                    title={T.reportDiscountsTitle}
+                    desc={T.reportDiscountsDesc}
                     icon="tag" 
                     colors={['#10b981', '#16a34a']} 
                     onPress={() => navigation.navigate('Discount')} 
@@ -810,8 +1221,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('debts') && (
                 <ReportCard 
-                    title="Borca Atılanlar" 
-                    desc="Veresiye listesi" 
+                    title={T.reportDebtsTitle}
+                    desc={T.reportDebtsDesc}
                     icon="user-minus" 
                     colors={['#f59e0b', '#d97706']} 
                     onPress={() => navigation.navigate('Debts')} 
@@ -819,8 +1230,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('courier') && (
                 <ReportCard 
-                    title="Kurye Takip" 
-                    desc="Paket servis süreleri" 
+                    title={T.reportCourierTitle}
+                    desc={T.reportCourierDesc}
                     icon="truck" 
                     colors={['#3b82f6', '#2563eb']} 
                     onPress={() => navigation.navigate('Courier')} 
@@ -828,8 +1239,8 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
                 {isReportAllowed('unpayable') && (
                 <ReportCard 
-                    title="Ödenmezler" 
-                    desc="Ödenmeyen adisyonlar" 
+                    title={T.reportUnpayableTitle}
+                    desc={T.reportUnpayableDesc}
                     icon="slash" 
                     colors={['#ef4444', '#b91c1c']} 
                     onPress={() => navigation.navigate('Unpayable')} 
@@ -844,27 +1255,27 @@ export default function DashboardScreen({ navigation, route }) {
                 <View style={[styles.sectionIconBox, { backgroundColor: '#6366f1' }]}>
                     <Feather name="shield" size={16} color="#fff" />
                 </View>
-                <Text style={styles.sectionTitle}>Admin</Text>
+                <Text style={styles.sectionTitle}>{T.adminSectionTitle}</Text>
             </View>
 
             <View style={styles.gridContainer}>
                 <ReportCard 
-                    title="Admin — Kullanıcılar" 
-                    desc="Kullanıcı ekle / düzenle" 
+                    title={T.adminUsersTitle}
+                    desc={T.adminUsersDesc}
                     icon="users" 
                     colors={['#4f46e5', '#7c3aed']} 
                     onPress={() => openAdminPage('/admin/users')} 
                 />
                 <ReportCard 
-                    title="Admin — Şubeler" 
-                    desc="Şube bağlantıları" 
+                    title={T.adminBranchesTitle}
+                    desc={T.adminBranchesDesc}
                     icon="map-pin" 
                     colors={['#0d9488', '#14b8a6']} 
                     onPress={() => openAdminPage('/admin/branches')} 
                 />
                 <ReportCard 
-                    title="Admin — Tek Form" 
-                    desc="Kullanıcı + şube yönetimi" 
+                    title={T.adminManageTitle}
+                    desc={T.adminManageDesc}
                     icon="settings" 
                     colors={['#f59e0b', '#ea580c']} 
                     onPress={() => openAdminPage('/admin/manage')} 
@@ -890,7 +1301,7 @@ export default function DashboardScreen({ navigation, route }) {
                 <TouchableWithoutFeedback>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Şube Seçiniz</Text>
+                            <Text style={styles.modalTitle}>{T.branchSelectTitle}</Text>
                             <TouchableOpacity onPress={() => setBranchModalVisible(false)}>
                                 <Feather name="x" size={24} color="#333" />
                             </TouchableOpacity>
@@ -938,17 +1349,17 @@ export default function DashboardScreen({ navigation, route }) {
                 <TouchableWithoutFeedback>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Tarih Aralığı Seç</Text>
+                            <Text style={styles.modalTitle}>{T.dateRangeTitle}</Text>
                             <TouchableOpacity onPress={() => setShowDateModal(false)}>
                                 <Feather name="x" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
                         
                         <View style={styles.datePickerContainer}>
-                            <Text style={styles.dateLabel}>Başlangıç Tarihi:</Text>
+                            <Text style={styles.dateLabel}>{T.startDateLabel}</Text>
                             {Platform.OS === 'android' ? (
                                 <TouchableOpacity onPress={() => setShowStartPicker(true)} style={styles.dateButton}>
-                                    <Text style={styles.dateButtonText}>{startDate.toLocaleDateString('tr-TR')}</Text>
+                                    <Text style={styles.dateButtonText}>{startDate.toLocaleDateString(locale)}</Text>
                                 </TouchableOpacity>
                             ) : (
                                 <DateTimePicker
@@ -973,10 +1384,10 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
 
                         <View style={styles.datePickerContainer}>
-                            <Text style={styles.dateLabel}>Bitiş Tarihi:</Text>
+                            <Text style={styles.dateLabel}>{T.endDateLabel}</Text>
                              {Platform.OS === 'android' ? (
                                 <TouchableOpacity onPress={() => setShowEndPicker(true)} style={styles.dateButton}>
-                                    <Text style={styles.dateButtonText}>{endDate.toLocaleDateString('tr-TR')}</Text>
+                                    <Text style={styles.dateButtonText}>{endDate.toLocaleDateString(locale)}</Text>
                                 </TouchableOpacity>
                             ) : (
                                 <DateTimePicker
@@ -1005,7 +1416,7 @@ export default function DashboardScreen({ navigation, route }) {
                             setShowDateModal(false);
                             fetchDashboardData();
                         }}>
-                            <Text style={styles.applyButtonText}>Uygula</Text>
+                            <Text style={styles.applyButtonText}>{T.apply}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableWithoutFeedback>
@@ -1098,8 +1509,59 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6b7280',
   },
+  langButtonActive: {
+    backgroundColor: '#ef4444',
+  },
+  langTextActive: {
+    color: '#fff',
+  },
   settingsButton: {
     padding: 6,
+  },
+  profileLabel: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  profileInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+  },
+  profileCancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    marginRight: 8,
+  },
+  profileCancelText: {
+    color: '#374151',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  profileSaveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#10b981',
+  },
+  profileSaveText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  avatarSwatch: {
+    width: 36,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
   },
   branchRow: {
     flexDirection: 'row',
@@ -1142,7 +1604,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: '50%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
