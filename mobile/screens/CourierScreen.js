@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,6 +16,35 @@ export default function CourierScreen({ navigation }) {
   const [courierFilter, setCourierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, open, closed
   const [viewMode, setViewMode] = useState('trips'); // trips, couriers
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  
+  const T = {
+    title: lang === 'tr' ? 'Kurye Takip' : 'Courier Tracking',
+    viewModeTrips: lang === 'tr' ? 'Detay Liste' : 'Trip List',
+    viewModeCouriers: lang === 'tr' ? 'Kurye Bazlı' : 'By Courier',
+    searchPlaceholder: lang === 'tr' ? 'Kurye ara...' : 'Search courier...',
+    onTheWay: lang === 'tr' ? 'Yolda' : 'On the way',
+    returned: lang === 'tr' ? 'Döndü' : 'Returned',
+    courier: lang === 'tr' ? 'Kurye' : 'Courier',
+    order: lang === 'tr' ? 'Adisyon' : 'Order',
+    departure: lang === 'tr' ? 'Çıkış' : 'Departure',
+    return: lang === 'tr' ? 'Dönüş' : 'Return',
+    duration: lang === 'tr' ? 'Süre' : 'Duration',
+    minutes: lang === 'tr' ? 'dk' : 'min',
+    statusDistribution: lang === 'tr' ? 'Durum Dağılımı' : 'Status Distribution',
+    avgDurations: lang === 'tr' ? 'Ortalama Süreler' : 'Average Durations',
+    minutesAbbr: lang === 'tr' ? 'dk' : 'min',
+    trips: lang === 'tr' ? 'Sefer' : 'Trips',
+    averageAbbr: lang === 'tr' ? 'Ort.' : 'Avg.',
+    moreRecordsSuffix: lang === 'tr' ? 'kayıt daha...' : 'more records...',
+    noRecords: lang === 'tr' ? 'Kayıt bulunamadı' : 'No records found',
+    noCourierFound: lang === 'tr' ? 'Kurye bulunamadı' : 'No courier found',
+    unknown: lang === 'tr' ? 'Bilinmeyen' : 'Unknown',
+    trip: lang === 'tr' ? 'Sefer' : 'Trip',
+  };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -25,12 +54,40 @@ export default function CourierScreen({ navigation }) {
     fetchData();
   }, [period]);
 
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
+  }, []);
+
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/courier-tracking?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -38,13 +95,24 @@ export default function CourierScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -81,14 +149,14 @@ export default function CourierScreen({ navigation }) {
 
   // Chart Data Preparation
   const pieData = [
-    { name: 'Yolda', population: openCount, color: '#3b82f6', legendFontColor: '#7F7F7F', legendFontSize: 12 },
-    { name: 'Döndü', population: closedCount, color: '#10b981', legendFontColor: '#7F7F7F', legendFontSize: 12 },
+    { name: T.onTheWay, population: openCount, color: '#3b82f6', legendFontColor: '#7F7F7F', legendFontSize: 12 },
+    { name: T.returned, population: closedCount, color: '#10b981', legendFontColor: '#7F7F7F', legendFontSize: 12 },
   ].filter(i => i.population > 0);
 
   // Group by Courier for stats
   const courierStats = {};
   filteredData.forEach(item => {
-      const name = item.kurye || 'Bilinmeyen';
+      const name = item.kurye || T.unknown;
       if (!courierStats[name]) {
           courierStats[name] = { count: 0, totalDuration: 0, open: 0, closed: 0, items: [] };
       }
@@ -121,12 +189,12 @@ export default function CourierScreen({ navigation }) {
                 <MaterialCommunityIcons name="bike" size={20} color={isOpen ? '#2563eb' : '#059669'} />
             </View>
             <View style={styles.cardInfo}>
-                <Text style={styles.courierName}>{item.kurye || 'Kurye'}</Text>
-                <Text style={styles.adsNo}>Adisyon #{item.adsno}</Text>
+                <Text style={styles.courierName}>{item.kurye || T.courier}</Text>
+                <Text style={styles.adsNo}>{T.order} #{item.adsno}</Text>
             </View>
             <View style={[styles.statusBadge, isOpen ? styles.bgBlue : styles.bgGreen]}>
                 <Text style={[styles.statusText, isOpen ? styles.textBlue : styles.textGreen]}>
-                    {isOpen ? 'Yolda' : 'Döndü'}
+                    {isOpen ? T.onTheWay : T.returned}
                 </Text>
             </View>
         </View>
@@ -135,16 +203,16 @@ export default function CourierScreen({ navigation }) {
         
         <View style={styles.timeRow}>
             <View style={styles.timeItem}>
-                <Text style={styles.timeLabel}>Çıkış</Text>
+                <Text style={styles.timeLabel}>{T.departure}</Text>
                 <Text style={styles.timeValue}>{formatTime(item.cikis)}</Text>
             </View>
             <View style={styles.timeItem}>
-                <Text style={styles.timeLabel}>Dönüş</Text>
+                <Text style={styles.timeLabel}>{T.return}</Text>
                 <Text style={styles.timeValue}>{formatTime(item.donus)}</Text>
             </View>
             <View style={styles.timeItem}>
-                <Text style={styles.timeLabel}>Süre</Text>
-                <Text style={[styles.timeValue, isLate && styles.textRed]}>{duration} dk</Text>
+                <Text style={styles.timeLabel}>{T.duration}</Text>
+                <Text style={[styles.timeValue, isLate && styles.textRed]}>{duration} {T.minutes}</Text>
             </View>
         </View>
       </View>
@@ -162,16 +230,16 @@ export default function CourierScreen({ navigation }) {
                   <Text style={styles.groupTitle}>{name}</Text>
                   <View style={styles.groupBadges}>
                       <View style={[styles.miniBadge, { backgroundColor: '#dbeafe' }]}>
-                          <Text style={[styles.miniBadgeText, { color: '#1e40af' }]}>{stats.open} Yolda</Text>
+                          <Text style={[styles.miniBadgeText, { color: '#1e40af' }]}>{stats.open} {T.onTheWay}</Text>
                       </View>
                       <View style={[styles.miniBadge, { backgroundColor: '#d1fae5' }]}>
-                          <Text style={[styles.miniBadgeText, { color: '#065f46' }]}>{stats.closed} Döndü</Text>
+                          <Text style={[styles.miniBadgeText, { color: '#065f46' }]}>{stats.closed} {T.returned}</Text>
                       </View>
                   </View>
               </View>
               <View style={styles.groupStats}>
-                  <Text style={styles.groupStatText}>{stats.count} Sefer</Text>
-                  <Text style={styles.groupStatText}>Ort. {avg} dk</Text>
+                  <Text style={styles.groupStatText}>{stats.count} {stats.count > 1 ? T.trips : T.trip}</Text>
+                  <Text style={styles.groupStatText}>{T.averageAbbr} {avg} {T.minutes}</Text>
               </View>
               {/* Show items inside group (limited or expandable - for now just list first 3) */}
               {stats.items.slice(0, 3).map((subItem, idx) => {
@@ -181,12 +249,12 @@ export default function CourierScreen({ navigation }) {
                        <View key={idx} style={[styles.subItemRow, isLate && { backgroundColor: '#fef2f2' }]}>
                            <Text style={styles.subItemText}>#{subItem.adsno}</Text>
                            <Text style={styles.subItemText}>{formatTime(subItem.cikis)} - {formatTime(subItem.donus)}</Text>
-                           <Text style={[styles.subItemText, isLate && { color: '#dc2626', fontWeight: 'bold' }]}>{duration} dk</Text>
+                           <Text style={[styles.subItemText, isLate && { color: '#dc2626', fontWeight: 'bold' }]}>{duration} {T.minutes}</Text>
                        </View>
                    )
               })}
               {stats.items.length > 3 && (
-                  <Text style={styles.moreText}>+ {stats.items.length - 3} kayıt daha...</Text>
+                  <Text style={styles.moreText}>+ {stats.items.length - 3} {T.moreRecordsSuffix}</Text>
               )}
           </View>
       )
@@ -199,7 +267,7 @@ export default function CourierScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Kurye Takip</Text>
+            <Text style={styles.headerTitle}>{T.title}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -208,13 +276,13 @@ export default function CourierScreen({ navigation }) {
                 style={[styles.viewModeButton, viewMode === 'trips' && styles.viewModeActive]} 
                 onPress={() => setViewMode('trips')}
             >
-                <Text style={[styles.viewModeText, viewMode === 'trips' && styles.viewModeTextActive]}>Detay Liste</Text>
+                <Text style={[styles.viewModeText, viewMode === 'trips' && styles.viewModeTextActive]}>{T.viewModeTrips}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
                 style={[styles.viewModeButton, viewMode === 'couriers' && styles.viewModeActive]} 
                 onPress={() => setViewMode('couriers')}
             >
-                <Text style={[styles.viewModeText, viewMode === 'couriers' && styles.viewModeTextActive]}>Kurye Bazlı</Text>
+                <Text style={[styles.viewModeText, viewMode === 'couriers' && styles.viewModeTextActive]}>{T.viewModeCouriers}</Text>
             </TouchableOpacity>
          </View>
       </View>
@@ -224,7 +292,7 @@ export default function CourierScreen({ navigation }) {
             <Feather name="search" size={18} color="#94a3b8" />
             <TextInput
                 style={styles.searchInput}
-                placeholder="Kurye ara..."
+                placeholder={T.searchPlaceholder}
                 value={courierFilter}
                 onChangeText={setCourierFilter}
             />
@@ -250,7 +318,7 @@ export default function CourierScreen({ navigation }) {
                  <View style={styles.chartsContainer}>
                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <View style={styles.chartCard}>
-                            <Text style={styles.chartTitle}>Durum Dağılımı</Text>
+                            <Text style={styles.chartTitle}>{T.statusDistribution}</Text>
                             <PieChart
                                 data={pieData}
                                 width={screenWidth * 0.8}
@@ -263,7 +331,7 @@ export default function CourierScreen({ navigation }) {
                             />
                         </View>
                         <View style={[styles.chartCard, { marginLeft: 10 }]}>
-                            <Text style={styles.chartTitle}>Ortalama Süreler (dk)</Text>
+                            <Text style={styles.chartTitle}>{`${T.avgDurations} (${T.minutesAbbr})`}</Text>
                             <BarChart
                                 data={barData}
                                 width={Math.max(screenWidth * 0.8, courierLabels.length * 60)}
@@ -293,7 +361,7 @@ export default function CourierScreen({ navigation }) {
                     {filteredData.length === 0 && (
                         <View style={styles.emptyContainer}>
                             <MaterialCommunityIcons name="bike" size={48} color="#cbd5e1" />
-                            <Text style={styles.emptyText}>Kayıt bulunamadı</Text>
+                            <Text style={styles.emptyText}>{T.noRecords}</Text>
                         </View>
                     )}
                 </View>
@@ -305,7 +373,7 @@ export default function CourierScreen({ navigation }) {
                       {courierLabels.length === 0 && (
                         <View style={styles.emptyContainer}>
                             <MaterialCommunityIcons name="account-search" size={48} color="#cbd5e1" />
-                            <Text style={styles.emptyText}>Kurye bulunamadı</Text>
+                            <Text style={styles.emptyText}>{T.noCourierFound}</Text>
                         </View>
                     )}
                 </View>

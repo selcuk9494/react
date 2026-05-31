@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,16 @@ export default function HourlySalesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  
+  const T = {
+    title: lang === 'tr' ? 'Satış Grafiği' : 'Sales Chart',
+    salesTrend: lang === 'tr' ? 'Satış Trendi' : 'Sales Trend'
+  };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -21,13 +31,41 @@ export default function HourlySalesScreen({ navigation }) {
   useEffect(() => {
     fetchData();
   }, [period]);
+  
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
+  }, []);
 
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/sales-chart?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -35,13 +73,24 @@ export default function HourlySalesScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -51,7 +100,7 @@ export default function HourlySalesScreen({ navigation }) {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
   };
 
   // Prepare Chart Data
@@ -83,7 +132,7 @@ export default function HourlySalesScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#334155" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Satış Grafiği</Text>
+            <Text style={styles.headerTitle}>{T.title}</Text>
             <View style={{width: 24}} /> 
          </View>
       </View>
@@ -105,7 +154,7 @@ export default function HourlySalesScreen({ navigation }) {
       ) : (
         <ScrollView style={styles.content}>
             <View style={styles.chartCard}>
-                <Text style={styles.chartTitle}>Satış Trendi</Text>
+                <Text style={styles.chartTitle}>{T.salesTrend}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <BarChart
                         data={chartData}

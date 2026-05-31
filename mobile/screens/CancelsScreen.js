@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,6 +15,57 @@ export default function CancelsScreen({ navigation }) {
   const [period, setPeriod] = useState('today');
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [lang, setLang] = useState('tr');
+  const [translations, setTranslations] = useState({});
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+
+  useEffect(() => {
+    const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem('language');
+        if (storedLang) {
+            setLang(storedLang);
+        }
+    };
+    loadLanguage();
+  }, []);
+
+ useEffect(() => {
+        setTranslations(getTranslations(lang));
+    }, [lang]);
+
+    const getTranslations = (lang) => {
+        const translations = {
+            'tr': {
+                title: 'İptal & İade',
+                searchPlaceholder: 'Ürün ara...',
+                all: 'Tümü',
+                cancel: 'İptal',
+                refund: 'İade',
+                treat: 'İkram',
+                quantity: 'Adet',
+                totalCancels: 'Toplam İptaller',
+                totalRefunds: 'Toplam İadeler',
+                totalTreats: 'Toplam İkramlar',
+                noData: 'Veri bulunamadı',
+            },
+            'en': {
+                title: 'Cancels & Refunds',
+                searchPlaceholder: 'Search product...',
+                all: 'All',
+                cancel: 'Cancel',
+                refund: 'Refund',
+                treat: 'Treat',
+                quantity: 'Qty',
+                totalCancels: 'Total Cancels',
+                totalRefunds: 'Total Refunds',
+                totalTreats: 'Total Treats',
+                noData: 'No data found',
+            }
+        };
+        return translations[lang] || translations['tr'];
+    };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -25,11 +76,32 @@ export default function CancelsScreen({ navigation }) {
   }, [period]);
 
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/cancelled-items?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -37,13 +109,24 @@ export default function CancelsScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -67,10 +150,10 @@ export default function CancelsScreen({ navigation }) {
     }
   });
 
-  const pieData = [
-    { name: 'İptal', population: typeAgg.iptal, color: '#EF4444', legendFontColor: '#7F7F7F', legendFontSize: 12 },
-    { name: 'İade', population: typeAgg.iade, color: '#F59E0B', legendFontColor: '#7F7F7F', legendFontSize: 12 },
-    { name: 'İkram', population: typeAgg.ikram, color: '#10B981', legendFontColor: '#7F7F7F', legendFontSize: 12 },
+    const pieData = [
+    { name: translations.cancel, population: typeAgg.iptal, color: '#EF4444', legendFontColor: '#7F7F7F', legendFontSize: 12 },
+    { name: translations.refund, population: typeAgg.iade, color: '#F59E0B', legendFontColor: '#7F7F7F', legendFontSize: 12 },
+    { name: translations.treat, population: typeAgg.ikram, color: '#10B981', legendFontColor: '#7F7F7F', legendFontSize: 12 },
   ].filter(item => item.population > 0);
 
   const renderItem = ({ item }) => {
@@ -88,7 +171,7 @@ export default function CancelsScreen({ navigation }) {
                   fromCancels: true 
                 });
             } else {
-                alert('Adisyon numarası bulunamadı');
+                alert(translations.noData);
             }
         }}
         disabled={!item.order_id}
@@ -100,11 +183,13 @@ export default function CancelsScreen({ navigation }) {
             <View style={styles.cardInfo}>
                 <Text style={styles.productName}>{item.product_name}</Text>
                 <Text style={styles.metaText}>
-                    {item.quantity} Adet • {item.waiter_name}
+                    {item.quantity} {translations.quantity} • {item.waiter_name}
                 </Text>
             </View>
             <View style={[styles.badge, { backgroundColor: `${color}20` }]}>
-                <Text style={[styles.badgeText, { color: color }]}>{item.type.toUpperCase()}</Text>
+                <Text style={[styles.badgeText, { color: color }]}>
+                    {(item.type === 'iptal' ? translations.cancel : item.type === 'iade' ? translations.refund : translations.treat).toUpperCase()}
+                </Text>
             </View>
         </View>
         {item.reason && (
@@ -124,7 +209,7 @@ export default function CancelsScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>İptal & İade</Text>
+            <Text style={styles.headerTitle}>{translations.title}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -134,7 +219,7 @@ export default function CancelsScreen({ navigation }) {
             ) : (
               <>
                 <Text style={styles.summaryValue}>{totalCancelled}</Text>
-                <Text style={styles.summaryLabel}>TOPLAM İŞLEM</Text>
+                <Text style={styles.summaryLabel}>{(translations.totalCancels || 'Total Cancels').toUpperCase()}</Text>
               </>
             )}
          </View>
@@ -154,25 +239,25 @@ export default function CancelsScreen({ navigation }) {
 
         {/* Type Filter */}
         <View style={styles.typeFilterContainer}>
-            {['all', 'iptal', 'iade', 'ikram'].map((t) => (
-                <TouchableOpacity 
-                    key={t}
-                    onPress={() => setFilterType(t)}
-                    style={[styles.typeButton, filterType === t && styles.typeButtonActive]}
-                >
-                    <Text style={[styles.typeText, filterType === t && styles.typeTextActive]}>
-                        {t === 'all' ? 'Tümü' : t === 'iptal' ? 'İptal' : t === 'iade' ? 'İade' : 'İkram'}
-                    </Text>
-                </TouchableOpacity>
-            ))}
-        </View>
+                {['all', 'iptal', 'iade', 'ikram'].map((t) => (
+                    <TouchableOpacity 
+                        key={t}
+                        onPress={() => setFilterType(t)}
+                        style={[styles.typeButton, filterType === t && styles.typeButtonActive]}
+                    >
+                        <Text style={[styles.typeText, filterType === t && styles.typeTextActive]}>
+                            {t === 'all' ? translations.all : t === 'iptal' ? translations.cancel : t === 'iade' ? translations.refund : translations.treat}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
 
         {/* Search */}
         <View style={styles.searchBox}>
             <Feather name="search" size={20} color="#94a3b8" />
             <TextInput
                 style={styles.searchInput}
-                placeholder="Ürün ara..."
+                placeholder={translations.searchPlaceholder}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
             />
@@ -209,7 +294,7 @@ export default function CancelsScreen({ navigation }) {
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                     <Feather name="check-circle" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Kayıt bulunamadı</Text>
+                    <Text style={styles.emptyText}>{translations.noData}</Text>
                 </View>
             }
         />

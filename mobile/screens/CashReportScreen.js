@@ -1,149 +1,223 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DateFilterComponent from '../components/DateFilterComponent';
 
 export default function CashReportScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({ totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 }, rows: [], period: { start: '', end: '' } });
+  const [data, setData] = useState({ 
+    totals: { toplam: 0 }, 
+    rows: [], 
+    period: { start: '', end: '' } 
+  });
   const [period, setPeriod] = useState('today');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevKeyRef = useRef('');
+
+  const T = {
+    tr: {
+      title: 'Kasa Raporu',
+      today: 'Bugün',
+      yesterday: 'Dün',
+      week: 'Hafta',
+      month: 'Ay',
+      custom: 'Özel',
+      total: 'Toplam Satış',
+      cashNo: 'Kasa No',
+      tc: 'İşlem Sayısı',
+      amount: 'Tutar',
+      noData: 'Kayıt bulunamadı',
+      error: 'Veri yüklenemedi',
+    },
+    en: {
+      title: 'Cash Report',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      week: 'Week',
+      month: 'Month',
+      custom: 'Custom',
+      total: 'Total Sales',
+      cashNo: 'Cash No',
+      tc: 'Trans. Count',
+      amount: 'Amount',
+      noData: 'No records found',
+      error: 'Failed to load data',
+    }
+  }[lang];
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      const storedLang = await AsyncStorage.getItem('language');
+      if (storedLang) setLang(storedLang);
+      fetchData();
+    };
+    init();
   }, [period, startDate, endDate]);
 
-  const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+  const handleApplyCustomDate = () => {
+    setPeriod('custom');
+    fetchData();
   };
 
   const fetchData = async () => {
+    let myId = 0;
+    let controller = null;
     try {
+      if (fetchControllerRef.current) {
+        fetchControllerRef.current.abort();
+      }
+      myId = ++reqIdRef.current;
+      controller = new AbortController();
+      fetchControllerRef.current = controller;
+
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = endDate.toISOString().split('T')[0];
+      const key = `${period}|${period === 'custom' ? `${startStr}|${endStr}` : ''}`;
+      if (prevKeyRef.current !== key) {
+        setData({ totals: { toplam: 0 }, rows: [], period: { start: '', end: '' } });
+        prevKeyRef.current = key;
+      }
+
       setLoading(true);
       const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-      let url = `${API_URL}/reports/cash-report?period=${period}`;
-      if (period === 'custom') {
-        const s = startDate.toISOString().split('T')[0];
-        const e = endDate.toISOString().split('T')[0];
-        url = `${API_URL}/reports/cash-report?period=custom&start_date=${s}&end_date=${e}`;
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
       }
-      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
-      setData(response.data || { totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 }, rows: [], period: { start: '', end: '' } });
+      
+      let url = `${API_URL}/reports/cash-report?period=${period}`;
+      if (branchId) url += `&branchId=${branchId}`;
+      if (period === 'custom') {
+        url += `&start_date=${startStr}&end_date=${endStr}`;
+      }
+      
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (e) {
+      if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') {
+        return;
+      }
+      console.error(e);
+      Alert.alert('Hata', T.error);
     } finally {
-      setLoading(false);
+      if (controller && !controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
-  const onDateChange = (event, selectedDate, type) => {
-    if (type === 'start') {
-      setShowStartPicker(Platform.OS === 'ios');
-      if (selectedDate) setStartDate(selectedDate);
-    } else {
-      setShowEndPicker(Platform.OS === 'ios');
-      if (selectedDate) setEndDate(selectedDate);
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat(lang === 'tr' ? 'tr-TR' : 'en-US', { 
+      style: 'currency', 
+      currency: 'TRY' 
+    }).format(val || 0);
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      // Eğer veritabanından ISO formatında (2021-02-25T...) geliyorsa doğrudan Date nesnesi oluşturulabilir
+      // Ancak görseldeki gibi "2016-01-23" şeklinde sade geliyorsa yine Date nesnesi kabul eder.
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) {
+        // Geçersiz tarihse string'i temizle ve döndür
+        return String(dateStr).split('T')[0];
+      }
+      return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+    } catch (e) { 
+      return String(dateStr); 
     }
   };
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather name="arrow-left" size={24} color="#fff" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Feather name="chevron-left" size={28} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Kasa Raporu</Text>
-          <View style={{ width: 24 }} />
+          <Text style={styles.headerTitle}>{T.title}</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={styles.periodRow}>
-          {[
-            { id: 'today', label: 'Bugün' },
-            { id: 'yesterday', label: 'Dün' },
-            { id: 'week', label: 'Hafta' },
-            { id: 'last7days', label: 'Son 7' },
-            { id: 'month', label: 'Ay' },
-            { id: 'lastmonth', label: 'Geçen Ay' },
-            { id: 'custom', label: 'Özel' },
-          ].map((p) => (
-            <TouchableOpacity key={p.id} onPress={() => setPeriod(p.id)} style={[styles.periodButton, period === p.id && styles.periodButtonActive]}>
-              <Text style={[styles.periodText, period === p.id && styles.periodTextActive]}>{p.label}</Text>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodScroll}>
+          {['today', 'yesterday', 'week', 'month', 'custom'].map(p => (
+            <TouchableOpacity 
+              key={p} 
+              onPress={() => setPeriod(p)}
+              style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+            >
+              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{T[p]}</Text>
             </TouchableOpacity>
           ))}
-        </View>
-        {period === 'custom' && (
-          <View style={styles.customRow}>
-            <TouchableOpacity style={styles.dateBox} onPress={() => setShowStartPicker(true)}>
-              <Feather name="calendar" size={16} color="#fff" />
-              <Text style={styles.dateText}>{startDate.toISOString().split('T')[0]}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dateBox} onPress={() => setShowEndPicker(true)}>
-              <Feather name="calendar" size={16} color="#fff" />
-              <Text style={styles.dateText}>{endDate.toISOString().split('T')[0]}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        </ScrollView>
+
+        <DateFilterComponent
+          period={period}
+          setPeriod={setPeriod}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          onApplyCustomDate={handleApplyCustomDate}
+        />
       </View>
 
-      {showStartPicker && (
-        <DateTimePicker value={startDate} mode="date" display="default" onChange={(e, d) => onDateChange(e, d, 'start')} />
-      )}
-      {showEndPicker && (
-        <DateTimePicker value={endDate} mode="date" display="default" onChange={(e, d) => onDateChange(e, d, 'end')} />
-      )}
-
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
-        </View>
+        <ActivityIndicator size="large" color="#0f766e" style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+        <ScrollView style={styles.content}>
+          {/* Summary Card */}
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Toplamlar</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Nakit</Text>
-              <Text style={styles.value}>{formatCurrency(data.totals.nakit)}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{T.total}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(data?.totals?.toplam)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Kredi Kartı</Text>
-              <Text style={styles.value}>{formatCurrency(data.totals.kredi_karti)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Yemek Kartı</Text>
-              <Text style={styles.value}>{formatCurrency(data.totals.yemek_karti)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Diğer</Text>
-              <Text style={styles.value}>{formatCurrency(data.totals.diger)}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={[styles.label, { fontWeight: '700' }]}>Toplam</Text>
-              <Text style={[styles.value, { color: '#059669', fontWeight: '700' }]}>{formatCurrency(data.totals.toplam)}</Text>
-            </View>
-            <Text style={styles.periodTextInfo}>{`${data.period.start} → ${data.period.end}`}</Text>
+            <Text style={styles.periodInfo}>
+              {formatDate(data?.period?.start)} - {formatDate(data?.period?.end)}
+            </Text>
           </View>
 
-          {data.rows.map((item, idx) => (
-            <View key={idx} style={styles.itemCard}>
-              <View style={styles.itemHeader}>
-                <View style={styles.iconCircle}>
-                  <Feather name="dollar-sign" size={18} color="#0f766e" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>{item.aciklama || 'İşlem'}</Text>
-                  <Text style={styles.itemSub}>{item.tarih}</Text>
-                </View>
-                <Text style={styles.itemAmount}>{formatCurrency(parseFloat(item.tutar || item.toplam || 0))}</Text>
-              </View>
+          {/* List */}
+          {data?.rows?.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Feather name="info" size={40} color="#cbd5e1" />
+              <Text style={styles.emptyText}>{T.noData}</Text>
             </View>
-          ))}
+          ) : (
+            data.rows.map((row, index) => (
+              <View key={index} style={styles.itemCard}>
+                <View style={styles.itemIcon}>
+                  <Feather name="database" size={20} color="#0f766e" />
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemDate}>{formatDate(row.tarih)}</Text>
+                  <Text style={styles.itemSub}>{T.cashNo}: {row.kasa} • {T.tc}: {row.tc || 0}</Text>
+                </View>
+                <View style={styles.itemRight}>
+                  <Text style={styles.itemAmount}>{formatCurrency(parseFloat(row.tutar))}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
       )}
     </View>
@@ -151,33 +225,25 @@ export default function CashReportScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { backgroundColor: '#0f766e', paddingTop: Platform.OS === 'android' ? 40 : 60, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#0ea5e9' },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
-  backButton: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#0ea5e9', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  periodRow: { flexDirection: 'row', paddingHorizontal: 16 },
-  periodButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#115e59', marginRight: 8 },
-  periodButtonActive: { backgroundColor: '#10b981' },
-  periodText: { color: '#e5e7eb', fontSize: 12, fontWeight: '600' },
-  periodTextActive: { color: '#fff' },
-  customRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 8 },
-  dateBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#115e59', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginRight: 8 },
-  dateText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { flex: 1 },
-  contentInner: { padding: 16 },
-  summaryCard: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#d1fae5', borderRadius: 12, padding: 16, marginBottom: 12 },
-  summaryTitle: { color: '#047857', fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 4 },
-  label: { color: '#0f766e', fontSize: 13 },
-  value: { color: '#1f2937', fontSize: 13, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#d1fae5', marginVertical: 8 },
-  periodTextInfo: { color: '#64748b', fontSize: 11, marginTop: 8 },
-  itemCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 12, marginBottom: 10 },
-  itemHeader: { flexDirection: 'row', alignItems: 'center' },
-  iconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f0fdf4', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  itemTitle: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
-  itemSub: { color: '#64748b', fontSize: 12 },
-  itemAmount: { color: '#059669', fontSize: 14, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  header: { backgroundColor: '#0f766e', paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 15 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  periodScroll: { marginTop: 15, paddingHorizontal: 15 },
+  content: { flex: 1, padding: 15 },
+  summaryCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryLabel: { color: '#64748b', fontSize: 14, fontWeight: '600' },
+  summaryValue: { color: '#0f172a', fontSize: 22, fontWeight: '800' },
+  periodInfo: { color: '#94a3b8', fontSize: 12, marginTop: 10 },
+  itemCard: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
+  itemIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f0fdf4', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  itemInfo: { flex: 1 },
+  itemDate: { color: '#1e293b', fontSize: 15, fontWeight: '700' },
+  itemSub: { color: '#64748b', fontSize: 12, marginTop: 2 },
+  itemRight: { alignItems: 'flex-end' },
+  itemAmount: { color: '#059669', fontSize: 16, fontWeight: '800' },
+  emptyBox: { alignItems: 'center', marginTop: 50 },
+  emptyText: { color: '#94a3b8', marginTop: 10, fontSize: 15 },
 });

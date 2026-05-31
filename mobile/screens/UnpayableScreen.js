@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,21 +13,57 @@ export default function UnpayableScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
+    const getLang = async () => {
+      const storedLang = await AsyncStorage.getItem('language');
+      if (storedLang) {
+        setLang(storedLang);
+      }
+    };
+    getLang();
+  }, []);
+
+  useEffect(() => {
     fetchData();
-  }, [period]);
+  }, [period, lang]);
 
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/unpayable?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -35,13 +71,24 @@ export default function UnpayableScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -51,7 +98,18 @@ export default function UnpayableScreen({ navigation }) {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+    } catch (e) {
+      return dateStr;
+    }
   };
 
   const filteredData = data.filter(item => 
@@ -61,6 +119,19 @@ export default function UnpayableScreen({ navigation }) {
 
   const totalAmount = filteredData.reduce((acc, curr) => acc + (Number(curr.tutar) || 0), 0);
 
+  const T = {
+    unpayableReport: lang === 'tr' ? 'Ödenmez Raporu' : 'Unpayable Report',
+    totalAmount: lang === 'tr' ? 'TOPLAM TUTAR' : 'TOTAL AMOUNT',
+    records: lang === 'tr' ? 'Kayıt' : 'Records',
+    search: lang === 'tr' ? 'Ara...' : 'Search...',
+    customer: lang === 'tr' ? 'Müşteri' : 'Customer',
+    quantity: lang === 'tr' ? 'Adet' : 'Qty',
+    table: lang === 'tr' ? 'Masa' : 'Table',
+    description: lang === 'tr' ? 'Açıklama' : 'Description',
+    noRecordsFound: lang === 'tr' ? 'Kayıt bulunamadı' : 'No records found',
+    unpayable: lang === 'tr' ? 'ÖDENMEZ' : 'UNPAYABLE',
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -68,18 +139,18 @@ export default function UnpayableScreen({ navigation }) {
            <Feather name="slash" size={20} color="#ef4444" />
         </View>
         <View style={styles.cardInfo}>
-          <Text style={styles.customerName}>{item.musteri_fullname || 'Müşteri'}</Text>
-          <Text style={styles.metaText}>{item.tarih} • {item.saat}</Text>
-          <Text style={styles.subText}>{item.product_name} ({item.miktar} Adet)</Text>
+          <Text style={styles.customerName}>{item.musteri_fullname || T.customer}</Text>
+          <Text style={styles.metaText}>{formatDate(item.tarih)} • {item.saat}</Text>
+          <Text style={styles.subText}>{item.product_name} ({item.miktar} {T.quantity})</Text>
         </View>
         <View style={styles.amountInfo}>
            <Text style={styles.amountText}>{formatCurrency(item.tutar)}</Text>
-           <Text style={styles.adsNo}>Masa: {item.masano}</Text>
+           <Text style={styles.adsNo}>{T.table}: {item.masano}</Text>
         </View>
       </View>
       {item.ack4 && (
         <View style={styles.reasonBox}>
-            <Text style={styles.reasonText}>Açıklama: {item.ack4}</Text>
+            <Text style={styles.reasonText}>{T.description}: {item.ack4 === 'ODENMEZ' ? T.unpayable : item.ack4}</Text>
         </View>
       )}
     </View>
@@ -92,7 +163,7 @@ export default function UnpayableScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Ödenmez Raporu</Text>
+            <Text style={styles.headerTitle}>{T.unpayableReport}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -101,9 +172,9 @@ export default function UnpayableScreen({ navigation }) {
             <View style={styles.summarySkeleton} />
           ) : (
             <>
-              <Text style={styles.summaryLabel}>TOPLAM TUTAR</Text>
+              <Text style={styles.summaryLabel}>{T.totalAmount}</Text>
               <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
-              <Text style={styles.summarySub}>{`${filteredData.length} Kayıt`}</Text>
+              <Text style={styles.summarySub}>{`${filteredData.length} ${T.records}`}</Text>
             </>
           )}
          </View>
@@ -114,7 +185,7 @@ export default function UnpayableScreen({ navigation }) {
             <Feather name="search" size={18} color="#94a3b8" />
             <TextInput
                 style={styles.searchInput}
-                placeholder="Ara..."
+                placeholder={T.search}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
             />
@@ -128,6 +199,7 @@ export default function UnpayableScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          lang={lang}
         />
       </View>
 
@@ -142,7 +214,7 @@ export default function UnpayableScreen({ navigation }) {
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                     <Feather name="check-circle" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Kayıt bulunamadı</Text>
+                    <Text style={styles.emptyText}>{T.noRecordsFound}</Text>
                 </View>
             }
         />

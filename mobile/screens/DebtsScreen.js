@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,21 @@ export default function DebtsScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  
+  const T = {
+    title: lang === 'tr' ? 'Borca Atılanlar' : 'On Credit',
+    totalDebt: lang === 'tr' ? 'TOPLAM BORÇ' : 'TOTAL DEBT',
+    records: lang === 'tr' ? 'Kayıt' : 'Records',
+    staff: lang === 'tr' ? 'Personel' : 'Staff',
+    customerFallback: lang === 'tr' ? 'Müşteri' : 'Customer',
+    searchPlaceholder: lang === 'tr' ? 'Müşteri ara...' : 'Search customer...',
+    noRecords: lang === 'tr' ? 'Kayıt bulunamadı' : 'No records found'
+  };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -21,13 +36,41 @@ export default function DebtsScreen({ navigation }) {
   useEffect(() => {
     fetchData();
   }, [period]);
+  
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
+  }, []);
 
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/debts?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -35,13 +78,24 @@ export default function DebtsScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -51,7 +105,7 @@ export default function DebtsScreen({ navigation }) {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
   };
 
   const filteredData = data.filter(item => 
@@ -70,9 +124,9 @@ export default function DebtsScreen({ navigation }) {
            <Feather name="user" size={20} color="#f59e0b" />
         </View>
         <View style={styles.cardInfo}>
-          <Text style={styles.customerName}>{item.musteri_fullname || 'Müşteri'}</Text>
+          <Text style={styles.customerName}>{item.musteri_fullname || T.customerFallback}</Text>
           <Text style={styles.metaText}>{item.tarih} • {item.saat}</Text>
-          <Text style={styles.subText}>Personel: {item.personel_adi || item.pers_id}</Text>
+          <Text style={styles.subText}>{T.staff}: {item.personel_adi || item.pers_id}</Text>
         </View>
         <View style={styles.amountInfo}>
            <Text style={styles.amountText}>{formatCurrency(item.borc)}</Text>
@@ -89,7 +143,7 @@ export default function DebtsScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Borca Atılanlar</Text>
+            <Text style={styles.headerTitle}>{T.title}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -98,9 +152,9 @@ export default function DebtsScreen({ navigation }) {
               <View style={styles.summarySkeleton} />
             ) : (
               <>
-                <Text style={styles.summaryLabel}>TOPLAM BORÇ</Text>
+                <Text style={styles.summaryLabel}>{T.totalDebt}</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totalDebt)}</Text>
-                <Text style={styles.summarySub}>{`${filteredData.length} Kayıt`}</Text>
+                <Text style={styles.summarySub}>{`${filteredData.length} ${T.records}`}</Text>
               </>
             )}
          </View>
@@ -111,7 +165,7 @@ export default function DebtsScreen({ navigation }) {
             <Feather name="search" size={18} color="#94a3b8" />
             <TextInput
                 style={styles.searchInput}
-                placeholder="Müşteri ara..."
+                placeholder={T.searchPlaceholder}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
             />
@@ -139,7 +193,7 @@ export default function DebtsScreen({ navigation }) {
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                     <Feather name="file-text" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Kayıt bulunamadı</Text>
+                    <Text style={styles.emptyText}>{T.noRecords}</Text>
                 </View>
             }
         />

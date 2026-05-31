@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,17 +19,90 @@ export default function OrdersScreen({ navigation, route }) {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [lang, setLang] = useState('tr');
+
+  useEffect(() => {
+    const loadLang = async () => {
+      const storedLang = await AsyncStorage.getItem('language');
+      if (storedLang) {
+        setLang(storedLang);
+      }
+    };
+    loadLang();
+  }, []);
+
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+
+  const T = {
+    tr: {
+      order: 'Adisyon',
+      package: 'Paket',
+      fastSale: 'Hızlı Satış',
+      table: 'Masa',
+      noOrdersFound: 'Adisyon bulunamadı',
+      openOrders: 'Açık Adisyonlar',
+      closedOrders: 'Kapalı Adisyonlar',
+      searchPlaceholder: 'Masa / No Ara',
+      today: 'Bugün',
+      yesterday: 'Dün',
+      thisWeek: 'Bu Hafta',
+      thisMonth: 'Bu Ay',
+      all: 'Tümü',
+      delivery: 'Paket',
+      quick: 'Hızlı Satış',
+      waiter: 'Garson',
+      time: 'Saat',
+      date: 'Tarih',
+    },
+    en: {
+      order: 'Order',
+      package: 'Package',
+      fastSale: 'Fast Sale',
+      table: 'Table',
+      noOrdersFound: 'No orders found',
+      openOrders: 'Open Orders',
+      closedOrders: 'Closed Orders',
+      searchPlaceholder: 'Search Table / No',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      thisWeek: 'This Week',
+      thisMonth: 'This Month',
+      all: 'All',
+      delivery: 'Delivery',
+      quick: 'Quick Sale',
+      waiter: 'Waiter',
+      time: 'Time',
+      date: 'Date',
+    }
+  }[lang];
 
   // Filters
   const [filterMasa, setFilterMasa] = useState('');
   const [adturFilter, setAdturFilter] = useState(adturParam ? String(adturParam) : 'all');
   const [period, setPeriod] = useState(isClosed ? 'today' : 'all'); // 'today', 'all', 'custom'
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevKeyRef = useRef(`${period}|${orderType}`);
 
   useEffect(() => {
+    const key = `${period}|${orderType}`;
+    if (prevKeyRef.current !== key) {
+      setOrders([]);
+      setPage(1);
+      setTotalPages(1);
+      prevKeyRef.current = key;
+    }
     fetchOrders(1);
   }, [period, orderType]);
 
   const fetchOrders = async (pageNum = 1, append = false) => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
     if (append) {
         setLoadingMore(true);
     } else {
@@ -38,12 +111,22 @@ export default function OrdersScreen({ navigation, route }) {
 
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
+      
       const endpoint = isClosed ? '/reports/closed-orders' : '/reports/open-orders';
       
       // Build query params
       let params = new URLSearchParams();
       params.append('page', pageNum.toString());
       params.append('limit', '20');
+      if (branchId) {
+        params.append('branchId', branchId.toString());
+      }
       
       // Period param
       if (isClosed) {
@@ -54,27 +137,34 @@ export default function OrdersScreen({ navigation, route }) {
       }
 
       const response = await axios.get(`${API_URL}${endpoint}?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       
       const responseData = response.data.data || response.data;
       const meta = response.data;
 
-      if (append) {
-        setOrders(prev => [...prev, ...responseData]);
-      } else {
-        setOrders(responseData);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        if (append) {
+          setOrders(prev => [...prev, ...responseData]);
+        } else {
+          setOrders(responseData);
+        }
+        setTotalPages(meta.total_pages || 1);
+        setPage(pageNum);
       }
-      
-      setTotalPages(meta.total_pages || 1);
-      setPage(pageNum);
 
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      setRefreshing(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -126,7 +216,7 @@ export default function OrdersScreen({ navigation, route }) {
   });
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
   };
 
   const formatTime = (timeString) => {
@@ -134,13 +224,24 @@ export default function OrdersScreen({ navigation, route }) {
     return timeString.substring(0, 5);
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   const getOrderTypeLabel = (order) => {
     const fromAdtur = () => {
       if (typeof order.adtur === 'undefined' || order.adtur === null) return null;
       const t = Number(order.adtur);
-      if (t === 1) return { label: 'Paket', color: '#fbbf24', bg: '#fffbeb' };
-      if (t === 3) return { label: 'Hızlı Satış', color: '#ec4899', bg: '#fdf2f8' };
-      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+      if (t === 1) return { label: T.package, color: '#fbbf24', bg: '#fffbeb' };
+      if (t === 3) return { label: T.fastSale, color: '#ec4899', bg: '#fdf2f8' };
+      return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
     };
 
     if (isClosed) {
@@ -149,30 +250,30 @@ export default function OrdersScreen({ navigation, route }) {
 
       if (order.type_label) {
         const text = String(order.type_label).toLowerCase();
-        if (text.includes('paket')) return { label: order.type_label, color: '#fbbf24', bg: '#fffbeb' };
-        if (text.includes('hızlı')) return { label: order.type_label, color: '#ec4899', bg: '#fdf2f8' };
-        return { label: order.type_label, color: '#10b981', bg: '#ecfdf5' };
+        if (text.includes('paket')) return { label: T.package, color: '#fbbf24', bg: '#fffbeb' };
+        if (text.includes('hızlı')) return { label: T.fastSale, color: '#ec4899', bg: '#fdf2f8' };
+        return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
       }
 
-      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+      return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
     } else {
       const byAdtur = fromAdtur();
       if (byAdtur) return byAdtur;
 
       if (order.type_label) {
         const text = String(order.type_label).toLowerCase();
-        if (text.includes('paket')) return { label: order.type_label, color: '#fbbf24', bg: '#fffbeb' };
-        if (text.includes('hızlı')) return { label: order.type_label, color: '#ec4899', bg: '#fdf2f8' };
-        return { label: order.type_label, color: '#10b981', bg: '#ecfdf5' };
+        if (text.includes('paket')) return { label: T.package, color: '#fbbf24', bg: '#fffbeb' };
+        if (text.includes('hızlı')) return { label: T.fastSale, color: '#ec4899', bg: '#fdf2f8' };
+        return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
       }
 
       if (typeof order.sipyer !== 'undefined' && order.sipyer !== null) {
         const s = Number(order.sipyer);
-        if (s === 2) return { label: 'Paket', color: '#fbbf24', bg: '#fffbeb' };
-        return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+        if (s === 2) return { label: T.package, color: '#fbbf24', bg: '#fffbeb' };
+        return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
       }
 
-      return { label: 'Adisyon', color: '#10b981', bg: '#ecfdf5' };
+      return { label: T.order, color: '#10b981', bg: '#ecfdf5' };
     }
   };
 
@@ -209,7 +310,7 @@ export default function OrdersScreen({ navigation, route }) {
             {item.masa_no && (
                 <View style={styles.detailItem}>
                     <Feather name="map-pin" size={14} color="#94a3b8" />
-                    <Text style={styles.detailText}>Masa: {item.masa_no}</Text>
+                    <Text style={styles.detailText}>{T.table}: {item.masa_no}</Text>
                 </View>
             )}
             {item.garson_adi && (
@@ -232,7 +333,7 @@ export default function OrdersScreen({ navigation, route }) {
                 {item.tarih && (
                     <View style={styles.detailItem}>
                          <Feather name="calendar" size={14} color="#94a3b8" />
-                         <Text style={styles.detailText}>{item.tarih.split(' ')[0]}</Text>
+                         <Text style={styles.detailText}>{formatDate(item.tarih)}</Text>
                     </View>
                 )}
             </View>
@@ -248,7 +349,7 @@ export default function OrdersScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{isClosed ? 'Kapalı Adisyonlar' : 'Açık Adisyonlar'}</Text>
+            <Text style={styles.headerTitle}>{isClosed ? T.closedOrders : T.openOrders}</Text>
             <View style={{width: 24}} /> 
          </View>
       </View>
@@ -260,7 +361,7 @@ export default function OrdersScreen({ navigation, route }) {
                 <Feather name="search" size={18} color="#94a3b8" />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Masa / No Ara"
+                    placeholder={T.searchPlaceholder}
                     value={filterMasa}
                     onChangeText={setFilterMasa}
                 />
@@ -280,7 +381,7 @@ export default function OrdersScreen({ navigation, route }) {
                         ]}
                     >
                         <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
-                            {p === 'today' ? 'Bugün' : p === 'yesterday' ? 'Dün' : p === 'week' ? 'Bu Hafta' : p === 'month' ? 'Bu Ay' : 'Tümü'}
+                            {p === 'today' ? T.today : p === 'yesterday' ? T.yesterday : p === 'week' ? T.thisWeek : p === 'month' ? T.thisMonth : T.all}
                         </Text>
                     </TouchableOpacity>
                 ))}
@@ -298,7 +399,7 @@ export default function OrdersScreen({ navigation, route }) {
                     ]}
                 >
                     <Text style={[styles.typeText, adturFilter === t && { color: '#1e293b' }]}>
-                        {t === 'all' ? 'Tümü' : t === '0' ? 'Adisyon' : t === '1' ? 'Paket' : 'Hızlı Satış'}
+                        {t === 'all' ? T.all : t === '0' ? T.order : t === '1' ? T.package : T.fastSale}
                     </Text>
                 </TouchableOpacity>
             ))}
@@ -321,7 +422,7 @@ export default function OrdersScreen({ navigation, route }) {
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                     <Feather name="inbox" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Adisyon bulunamadı</Text>
+                    <Text style={styles.emptyText}>{T.noOrdersFound}</Text>
                 </View>
             }
         />

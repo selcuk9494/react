@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,22 @@ export default function DiscountScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  
+  // Translation object
+  const T = {
+    title: lang === 'tr' ? 'İndirimler' : 'Discounts',
+    totalDiscount: lang === 'tr' ? 'TOPLAM İNDİRİM' : 'TOTAL DISCOUNT',
+    records: lang === 'tr' ? 'Kayıt' : 'Records',
+    discount: lang === 'tr' ? 'İndirim' : 'Discount',
+    amount: lang === 'tr' ? 'Tutar' : 'Amount',
+    customer: lang === 'tr' ? 'Müşteri' : 'Customer',
+    noData: lang === 'tr' ? 'Veri bulunamadı' : 'No data found'
+  };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -21,12 +37,40 @@ export default function DiscountScreen({ navigation }) {
     fetchData();
   }, [period]);
 
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
+  }, []);
+
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/discount?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -34,13 +78,24 @@ export default function DiscountScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -50,7 +105,7 @@ export default function DiscountScreen({ navigation }) {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
   };
 
   const totalDiscount = data.reduce((acc, curr) => {
@@ -62,7 +117,7 @@ export default function DiscountScreen({ navigation }) {
     const discountAmount = item.iskonto || item.discount || 0;
     const orderAmount = item.tutar || item.total || 0;
     const orderNo = item.adsno || item.order_no || index + 1;
-    const customerName = item.customer_name || item.mustid || 'Müşteri';
+    const customerName = item.customer_name || item.mustid || T.customer;
     const orderDate = item.tarih || item.date || '';
     const orderId = item.adsno || item.order_no;
 
@@ -85,10 +140,10 @@ export default function DiscountScreen({ navigation }) {
           <View style={styles.cardInfo}>
             <Text style={styles.customerName}>{customerName}</Text>
             <Text style={styles.dateText}>{orderDate}</Text>
-            <Text style={styles.totalText}>Tutar: {formatCurrency(parseFloat(orderAmount))}</Text>
+            <Text style={styles.totalText}>{T.amount}: {formatCurrency(parseFloat(orderAmount))}</Text>
           </View>
           <View style={styles.amountInfo}>
-             <Text style={styles.discountLabel}>İndirim</Text>
+             <Text style={styles.discountLabel}>{T.discount}</Text>
              <Text style={styles.amountText}>{formatCurrency(parseFloat(discountAmount))}</Text>
           </View>
         </View>
@@ -104,7 +159,7 @@ export default function DiscountScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>İndirimler</Text>
+            <Text style={styles.headerTitle}>{T.title}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -113,9 +168,9 @@ export default function DiscountScreen({ navigation }) {
               <View style={styles.summarySkeleton} />
             ) : (
               <>
-                <Text style={styles.summaryLabel}>TOPLAM İNDİRİM</Text>
+                <Text style={styles.summaryLabel}>{T.totalDiscount}</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totalDiscount)}</Text>
-                <Text style={styles.summarySub}>{`${data.length} Kayıt`}</Text>
+                <Text style={styles.summarySub}>{`${data.length} ${T.records}`}</Text>
               </>
             )}
          </View>
@@ -145,7 +200,7 @@ export default function DiscountScreen({ navigation }) {
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                     <Feather name="tag" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Veri bulunamadı</Text>
+                    <Text style={styles.emptyText}>{T.noData}</Text>
                 </View>
             }
         />

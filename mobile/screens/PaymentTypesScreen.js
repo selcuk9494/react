@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,22 @@ export default function PaymentTypesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
+  const [lang, setLang] = useState('tr');
+  const fetchControllerRef = useRef(null);
+  const reqIdRef = useRef(0);
+  const prevPeriodRef = useRef(period);
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  
+  // Translation object
+  const T = {
+    title: lang === 'tr' ? 'Ödeme Tipleri' : 'Payment Types',
+    totalPayments: lang === 'tr' ? 'TOPLAM ÖDEME' : 'TOTAL PAYMENTS',
+    transactions: lang === 'tr' ? 'İşlem' : 'Transactions',
+    distribution: lang === 'tr' ? 'Dağılım' : 'Distribution',
+    details: lang === 'tr' ? 'Detaylar' : 'Details',
+    noData: lang === 'tr' ? 'Veri bulunamadı' : 'No data found',
+    countTransactions: lang === 'tr' ? 'Adet İşlem' : 'Transactions'
+  };
   
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -22,12 +38,40 @@ export default function PaymentTypesScreen({ navigation }) {
     fetchData();
   }, [period]);
 
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('language');
+      setLang(stored || 'tr');
+    })();
+  }, []);
+
   const fetchData = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const myId = ++reqIdRef.current;
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    if (prevPeriodRef.current !== period) {
+      setData([]);
+      prevPeriodRef.current = period;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
+      const userRaw = await AsyncStorage.getItem('user');
+      let branchId = null;
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      }
       
       let url = `${API_URL}/reports/payment-types?period=${period}`;
+      if (branchId) {
+        url += `&branchId=${branchId}`;
+      }
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -35,13 +79,24 @@ export default function PaymentTypesScreen({ navigation }) {
       }
 
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
-      setData(response.data);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData(response.data);
+      }
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error(error);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && reqIdRef.current === myId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -51,7 +106,7 @@ export default function PaymentTypesScreen({ navigation }) {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
   };
 
   const totalAmount = data.reduce((acc, curr) => acc + (curr.total || 0), 0);
@@ -79,7 +134,7 @@ export default function PaymentTypesScreen({ navigation }) {
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.paymentName}>{item.payment_name}</Text>
-            <Text style={styles.transactionCount}>{item.count} İşlem</Text>
+            <Text style={styles.transactionCount}>{item.count} {T.transactions}</Text>
             
             <View style={styles.progressContainer}>
                 <View style={[styles.progressBar, { width: `${percent}%`, backgroundColor: color }]} />
@@ -104,7 +159,7 @@ export default function PaymentTypesScreen({ navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Ödeme Tipleri</Text>
+            <Text style={styles.headerTitle}>{T.title}</Text>
             <View style={{width: 24}} /> 
          </View>
          
@@ -113,9 +168,9 @@ export default function PaymentTypesScreen({ navigation }) {
               <View style={styles.summarySkeleton} />
             ) : (
               <>
-                <Text style={styles.summaryLabel}>TOPLAM ÖDEME</Text>
+                <Text style={styles.summaryLabel}>{T.totalPayments}</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
-                <Text style={styles.summarySub}>{`${totalCount} Adet İşlem`}</Text>
+                <Text style={styles.summarySub}>{`${totalCount} ${T.countTransactions}`}</Text>
               </>
             )}
          </View>
@@ -141,7 +196,7 @@ export default function PaymentTypesScreen({ navigation }) {
             {data.length > 0 ? (
                 <>
                     <View style={styles.chartContainer}>
-                        <Text style={styles.sectionTitle}>Dağılım</Text>
+                        <Text style={styles.sectionTitle}>{T.distribution}</Text>
                         <PieChart
                             data={chartData}
                             width={screenWidth - 32}
@@ -157,7 +212,7 @@ export default function PaymentTypesScreen({ navigation }) {
                         />
                     </View>
 
-                    <Text style={[styles.sectionTitle, { marginLeft: 16, marginTop: 16 }]}>Detaylar</Text>
+                    <Text style={[styles.sectionTitle, { marginLeft: 16, marginTop: 16 }]}>{T.details}</Text>
                     <FlatList
                         data={data}
                         renderItem={renderItem}
@@ -169,7 +224,7 @@ export default function PaymentTypesScreen({ navigation }) {
             ) : (
                 <View style={styles.emptyContainer}>
                     <Feather name="alert-circle" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Veri bulunamadı</Text>
+                    <Text style={styles.emptyText}>{T.noData}</Text>
                 </View>
             )}
             <View style={{height: 40}} />
