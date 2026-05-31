@@ -321,6 +321,10 @@ export default function Dashboard() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
+  const showPlaceholder = isDataLoading || !data;
+  const renderMoney = (val: number) => (showPlaceholder ? '...' : formatCurrency(val || 0));
+  const renderCount = (val: number) => (showPlaceholder ? '...' : String(val || 0));
+
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPeriod('custom');
@@ -727,9 +731,9 @@ export default function Dashboard() {
                             <h3 className="text-gray-600 text-sm font-semibold">{t('open_orders')}</h3>
                           </div>
                           <p className="text-3xl font-black text-gray-900 tracking-tight">
-                              {formatCurrency(data?.acik_adisyon_toplam || 0)}
+                              {renderMoney(data?.acik_adisyon_toplam || 0)}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">{data?.acik_adisyon_adet || 0} {t('count_orders')}</p>
+                          <p className="text-xs text-gray-400 mt-1">{renderCount(data?.acik_adisyon_adet || 0)} {t('count_orders')}</p>
                       </div>
                       {/* Mini Donut Chart */}
                       <div className="w-20 h-20">
@@ -761,6 +765,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Details List - Improved */}
+                  {!showPlaceholder && (
                   <div className="space-y-2">
                       <div 
                           onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/open?adtur=0'); }}
@@ -772,12 +777,12 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <span className="text-xs font-bold text-orange-800 block">{t('order_type_adisyon')}</span>
-                                <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
+                                <span className="text-sm font-black text-gray-900">{renderMoney(data?.dagilim?.adisyon.acik_toplam || 0)}</span>
                               </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-orange-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-orange-200">
-                                {data?.dagilim?.adisyon.acik_adet || 0} {t('piece')}
+                                {renderCount(data?.dagilim?.adisyon.acik_adet || 0)} {t('piece')}
                             </span>
                             {typeof data?.dagilim?.adisyon.acik_yuzde !== 'undefined' && (
                               <span className="text-[10px] text-white bg-orange-500 px-2 py-1 rounded-lg font-bold">
@@ -799,12 +804,12 @@ export default function Dashboard() {
                                   </div>
                                   <div>
                                     <span className="text-xs font-bold text-amber-800 block">{t('order_type_paket')}</span>
-                                    <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.paket.acik_toplam || 0)}</span>
+                                    <span className="text-sm font-black text-gray-900">{renderMoney(data?.dagilim?.paket.acik_toplam || 0)}</span>
                                   </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-amber-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-amber-200">
-                                    {data?.dagilim?.paket.acik_adet || 0} {t('piece')}
+                                    {renderCount(data?.dagilim?.paket.acik_adet || 0)} {t('piece')}
                                 </span>
                                 {typeof data?.dagilim?.paket.acik_yuzde !== 'undefined' && (
                                   <span className="text-[10px] text-white bg-amber-500 px-2 py-1 rounded-lg font-bold">
@@ -816,6 +821,7 @@ export default function Dashboard() {
                           </div>
                       )}
                   </div>
+                  )}
                 </div>
             </div>
             )}
@@ -839,13 +845,13 @@ export default function Dashboard() {
                             <h3 className="text-gray-600 text-sm font-semibold">{t('closed_orders')}</h3>
                           </div>
                           <p className="text-3xl font-black text-gray-900 tracking-tight">
-                              {formatCurrency(data?.kapali_adisyon_toplam || 0)}
+                              {renderMoney(data?.kapali_adisyon_toplam || 0)}
                           </p>
                           <div className="flex items-center gap-2 mt-2">
-                            <span className="text-xs text-gray-400">{data?.kapali_adisyon_adet || 0} {t('count_orders')}</span>
+                            <span className="text-xs text-gray-400">{renderCount(data?.kapali_adisyon_adet || 0)} {t('count_orders')}</span>
                             <span className="bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg inline-flex items-center gap-1 shadow-sm">
                                 <Tag className="w-3 h-3" />
-                                -{formatCurrency(data?.kapali_iskonto_toplam || 0)}
+                                -{renderMoney(data?.kapali_iskonto_toplam || 0)}
                             </span>
                           </div>
                       </div>
@@ -881,6 +887,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Details List - Improved */}
+                {!showPlaceholder && (
                 <div className="space-y-2">
                     <div 
                         onClick={(e) => { e.stopPropagation(); navigateWithOverlay('/reports/orders/closed?adtur=0'); }}
@@ -892,18 +899,18 @@ export default function Dashboard() {
                             </div>
                             <div>
                               <span className="text-xs font-bold text-emerald-800 block">{t('order_type_adisyon')}</span>
-                              <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
+                              <span className="text-sm font-black text-gray-900">{renderMoney(data?.dagilim?.adisyon.kapali_toplam || 0)}</span>
                               {(data?.dagilim?.adisyon.kapali_iskonto || 0) > 0 && (
                                 <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
                                   <Tag className="w-3 h-3" />
-                                  {t('discount')}: -{formatCurrency(data?.dagilim?.adisyon.kapali_iskonto || 0)}
+                                  {t('discount')}: -{renderMoney(data?.dagilim?.adisyon.kapali_iskonto || 0)}
                                 </span>
                               )}
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-emerald-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-emerald-200">
-                              {data?.dagilim?.adisyon.kapali_adet || 0} {t('piece')}
+                              {renderCount(data?.dagilim?.adisyon.kapali_adet || 0)} {t('piece')}
                           </span>
                           {typeof data?.dagilim?.adisyon.kapali_yuzde !== 'undefined' && (
                             <span className="text-[10px] text-white bg-emerald-500 px-2 py-1 rounded-lg font-bold">
@@ -925,18 +932,18 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                   <span className="text-xs font-bold text-amber-800 block">{t('order_type_paket')}</span>
-                                  <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.paket.kapali_toplam || 0)}</span>
+                                  <span className="text-sm font-black text-gray-900">{renderMoney(data?.dagilim?.paket.kapali_toplam || 0)}</span>
                                   {(data?.dagilim?.paket.kapali_iskonto || 0) > 0 && (
                                     <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
                                       <Tag className="w-3 h-3" />
-                                      {t('discount')}: -{formatCurrency(data?.dagilim?.paket.kapali_iskonto || 0)}
+                                      {t('discount')}: -{renderMoney(data?.dagilim?.paket.kapali_iskonto || 0)}
                                     </span>
                                   )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-amber-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-amber-200">
-                                  {data?.dagilim?.paket.kapali_adet || 0} {t('piece')}
+                                  {renderCount(data?.dagilim?.paket.kapali_adet || 0)} {t('piece')}
                               </span>
                               {typeof data?.dagilim?.paket.kapali_yuzde !== 'undefined' && (
                                 <span className="text-[10px] text-white bg-amber-500 px-2 py-1 rounded-lg font-bold">
@@ -959,18 +966,18 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                   <span className="text-xs font-bold text-pink-800 block">{t('order_type_hizli')}</span>
-                                  <span className="text-sm font-black text-gray-900">{formatCurrency(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
+                                  <span className="text-sm font-black text-gray-900">{renderMoney(data?.dagilim?.hizli?.kapali_toplam || 0)}</span>
                                   {((data?.dagilim?.hizli?.kapali_iskonto) || 0) > 0 && (
                                     <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">
                                       <Tag className="w-3 h-3" />
-                                      {t('discount')}: -{formatCurrency(data?.dagilim?.hizli?.kapali_iskonto || 0)}
+                                      {t('discount')}: -{renderMoney(data?.dagilim?.hizli?.kapali_iskonto || 0)}
                                     </span>
                                   )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-pink-700 bg-white px-2.5 py-1 rounded-lg font-bold shadow-sm border border-pink-200">
-                                  {data?.dagilim?.hizli?.kapali_adet || 0} {t('piece')}
+                                  {renderCount(data?.dagilim?.hizli?.kapali_adet || 0)} {t('piece')}
                               </span>
                               {typeof data?.dagilim?.hizli?.kapali_yuzde !== 'undefined' && (
                                 <span className="text-[10px] text-white bg-pink-500 px-2 py-1 rounded-lg font-bold">
@@ -982,6 +989,7 @@ export default function Dashboard() {
                         </div>
                     )}
                 </div>
+                )}
               </div>
             </div>
             )}
