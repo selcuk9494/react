@@ -1,19 +1,25 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { CreditCard as CreditCardIcon, AlertCircle } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useReportData } from '@/utils/useReportData';
+import { useRouter } from 'next/navigation';
 
 export default function PaymentTypesPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
+  const router = useRouter();
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
+  const [multiOnly, setMultiOnly] = useState(false);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Use optimized hook with SWR
   const { data, error, isLoading } = useReportData({
@@ -23,6 +29,19 @@ export default function PaymentTypesPage() {
     customStartDate,
     customEndDate,
   });
+
+  const canDrilldown = useMemo(() => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
+    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes('payment_types_detail');
+  }, [user]);
+
+  useEffect(() => {
+    setSelectedPayment(null);
+    setMultiOnly(false);
+    setOrdersPage(1);
+  }, [period, customStartDate, customEndDate]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
@@ -54,6 +73,37 @@ export default function PaymentTypesPage() {
       return <CreditCardIcon className="w-6 h-6" style={{ color }} />;
   };
 
+  const ordersParams = useMemo(() => {
+    if (!selectedPayment) return {};
+    const p: Record<string, any> = {
+      page: String(ordersPage),
+      limit: '20',
+    };
+    if (multiOnly) p.multi_only = '1';
+    if (typeof selectedPayment?.otip !== 'undefined' && selectedPayment?.otip !== null && String(selectedPayment.otip) !== '') {
+      p.otip = String(selectedPayment.otip);
+    }
+    return p;
+  }, [selectedPayment, ordersPage, multiOnly]);
+
+  const {
+    data: ordersResponse,
+    error: ordersError,
+    isLoading: ordersLoading,
+  } = useReportData({
+    endpoint: '/reports/payment-types/orders',
+    token,
+    period,
+    customStartDate,
+    customEndDate,
+    additionalParams: ordersParams,
+    enabled: Boolean(token && canDrilldown && selectedPayment),
+  });
+
+  const orders = (ordersResponse as any)?.data || [];
+  const ordersTotalPages = Number((ordersResponse as any)?.total_pages) || 1;
+  const ordersTotal = Number((ordersResponse as any)?.total) || 0;
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
       <ReportHeader
@@ -67,6 +117,11 @@ export default function PaymentTypesPage() {
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+        {notice && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm font-semibold">
+            {notice}
+          </div>
+        )}
         {isLoading ? (
             <div className="space-y-4">
               {/* Shimmer Summary Card */}
@@ -157,11 +212,21 @@ export default function PaymentTypesPage() {
                             return (
                                 <div 
                                     key={index} 
-                                    className="bg-gradient-to-br from-white to-gray-50 rounded-3xl p-5 shadow-lg border-2 hover:shadow-xl hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+                                    className={[
+                                      "bg-gradient-to-br from-white to-gray-50 rounded-3xl p-5 shadow-lg border-2 transition-all duration-200",
+                                      canDrilldown ? "hover:shadow-xl hover:scale-[1.02] cursor-pointer" : "opacity-60 cursor-not-allowed",
+                                      selectedPayment?.otip === item.otip ? "ring-2 ring-emerald-400/60" : "",
+                                    ].join(' ')}
                                     style={{ borderColor: `${color}40` }}
                                     onClick={() => {
-                                        // Not implementing navigation yet as order details page needs to be ready
-                                        // router.push(...)
+                                        setNotice(null);
+                                        if (!canDrilldown) {
+                                          setNotice('Bu detay için yetkiniz yok. Admin panelden "Ödeme Tipleri (Detay)" yetkisini açın.');
+                                          return;
+                                        }
+                                        setSelectedPayment(item);
+                                        setMultiOnly(false);
+                                        setOrdersPage(1);
                                     }}
                                 >
                                     <div className="flex items-center">
@@ -200,6 +265,111 @@ export default function PaymentTypesPage() {
                         })}
                     </div>
                 </div>
+
+                {canDrilldown && selectedPayment && (
+                  <div className="bg-white rounded-3xl p-5 shadow-lg border-2 border-gray-100">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-black text-gray-900 truncate">
+                          {selectedPayment.payment_name} • Adisyonlar
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Toplam: {ordersTotal} • Sayfa: {ordersPage}/{ordersTotalPages}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700"
+                        onClick={() => setSelectedPayment(null)}
+                      >
+                        Kapat
+                      </button>
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={multiOnly}
+                          onChange={(e) => {
+                            setMultiOnly(e.target.checked);
+                            setOrdersPage(1);
+                          }}
+                        />
+                        Sadece çok ürünlü adisyonlar
+                      </label>
+                    </div>
+
+                    <div className="mt-4">
+                      {ordersLoading ? (
+                        <div className="text-sm text-gray-500">Yükleniyor...</div>
+                      ) : ordersError ? (
+                        <div className="text-sm text-red-600">
+                          Adisyonlar alınamadı.
+                        </div>
+                      ) : orders.length === 0 ? (
+                        <div className="text-sm text-gray-500">Adisyon bulunamadı.</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {orders.map((o: any, idx: number) => (
+                            <button
+                              key={`${o.adsno}-${o.adtur}-${idx}`}
+                              type="button"
+                              className="w-full text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-3"
+                              onClick={() => {
+                                const id = o.adsno;
+                                const adtur = typeof o.adtur !== 'undefined' && o.adtur !== null ? String(o.adtur) : '';
+                                router.push(`/reports/orders/detail?id=${encodeURIComponent(String(id))}&type=closed${adtur ? `&adtur=${encodeURIComponent(adtur)}` : ''}`);
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-black text-gray-900 truncate">
+                                    #{o.adsno}
+                                    {typeof o.masa_no !== 'undefined' && o.masa_no !== null ? ` • Masa ${o.masa_no}` : ''}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {o.tarih ? new Date(o.tarih).toLocaleString('tr-TR') : ''}
+                                    {o.garson_adi ? ` • ${o.garson_adi}` : ''}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-black text-emerald-700">
+                                    {formatCurrency(Number(o.order_total ?? o.tutar ?? 0))}
+                                  </div>
+                                  {Number.isFinite(Number(o.item_count)) && (
+                                    <div className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg inline-block mt-1">
+                                      {Number(o.item_count)} ürün
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50"
+                        disabled={ordersPage <= 1}
+                        onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                      >
+                        Önceki
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50"
+                        disabled={ordersPage >= ordersTotalPages}
+                        onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
+                      >
+                        Sonraki
+                      </button>
+                    </div>
+                  </div>
+                )}
             </>
         )}
       </main>

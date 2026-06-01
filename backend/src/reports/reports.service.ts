@@ -1201,11 +1201,11 @@ export class ReportsService {
           COALESCE(od.odmname, 'Tanımsız') as payment_name,
           COALESCE(SUM(f.otutar), 0) as total,
           COUNT(DISTINCT (f.adsno, f.adtur)) as count,
-          COALESCE(od.odmno, NULL) as otip,
+          f.otip as otip,
           (SELECT COUNT(DISTINCT (adsno, adtur)) FROM filtered) as overall_count
       FROM filtered f
       LEFT JOIN ads_odmsekli od ON f.otip = od.odmno
-      GROUP BY od.odmno, od.odmname
+      GROUP BY f.otip, od.odmname
       ORDER BY total DESC
     `;
 
