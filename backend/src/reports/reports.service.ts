@@ -1178,14 +1178,23 @@ export class ReportsService {
     }
 
     const query = `
-      SELECT 
+      WITH filtered AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur,
+          o.otip,
+          COALESCE(o.otutar, 0) as otutar
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}
+      )
+      SELECT
           COALESCE(od.odmname, 'Tanımsız') as payment_name,
-          COALESCE(SUM(o.otutar), 0) as total,
-          COUNT(DISTINCT o.adsno) as count,
-          COALESCE(od.odmno, NULL) as otip
-      FROM ads_odeme o
-      LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-      WHERE o.kasa = ANY($1)${dateFilter}
+          COALESCE(SUM(f.otutar), 0) as total,
+          COUNT(DISTINCT (f.adsno, f.adtur)) as count,
+          COALESCE(od.odmno, NULL) as otip,
+          (SELECT COUNT(DISTINCT (adsno, adtur)) FROM filtered) as overall_count
+      FROM filtered f
+      LEFT JOIN ads_odmsekli od ON f.otip = od.odmno
       GROUP BY od.odmno, od.odmname
       ORDER BY total DESC
     `;
@@ -1196,6 +1205,7 @@ export class ReportsService {
       total: parseFloat(row.total),
       count: parseInt(row.count),
       otip: row.otip,
+      overall_count: parseInt(row.overall_count),
     }));
   }
 

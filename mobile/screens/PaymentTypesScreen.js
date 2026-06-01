@@ -110,7 +110,10 @@ export default function PaymentTypesScreen({ navigation }) {
   };
 
   const totalAmount = data.reduce((acc, curr) => acc + (curr.total || 0), 0);
-  const totalCount = data.reduce((acc, curr) => acc + (curr.count || 0), 0);
+  const overallCount =
+    data && data.length > 0 && Number.isFinite(Number(data[0]?.overall_count))
+      ? Number(data[0].overall_count)
+      : data.reduce((acc, curr) => acc + (curr.count || 0), 0);
 
   const chartColors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
@@ -170,7 +173,7 @@ export default function PaymentTypesScreen({ navigation }) {
               <>
                 <Text style={styles.summaryLabel}>{T.totalPayments}</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
-                <Text style={styles.summarySub}>{`${totalCount} ${T.countTransactions}`}</Text>
+                <Text style={styles.summarySub}>{`${overallCount} ${T.countTransactions}`}</Text>
               </>
             )}
          </View>

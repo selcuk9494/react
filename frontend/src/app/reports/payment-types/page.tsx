@@ -33,10 +33,12 @@ export default function PaymentTypesPage() {
     [data]
   );
 
-  const totalCount = useMemo(() =>
-    data ? data.reduce((acc: number, curr: any) => acc + curr.count, 0) : 0,
-    [data]
-  );
+  const totalCount = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) return 0;
+    const overall = Number((data as any)[0]?.overall_count);
+    if (Number.isFinite(overall)) return overall;
+    return data.reduce((acc: number, curr: any) => acc + curr.count, 0);
+  }, [data]);
 
   const getPercent = (value: number) => {
     if (!totalAmount) return 0;
