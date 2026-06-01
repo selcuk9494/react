@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput, Alert } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
@@ -190,6 +190,14 @@ export default function OrdersScreen({ navigation, route }) {
         return;
       }
       console.error(error);
+      if (!append) {
+        Alert.alert(
+          lang === 'tr' ? 'Hata' : 'Error',
+          lang === 'tr'
+            ? 'Adisyonlar alınamadı.'
+            : 'Could not fetch orders.',
+        );
+      }
     } finally {
       if (!controller.signal.aborted && reqIdRef.current === myId) {
         setLoading(false);

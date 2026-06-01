@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, Alert } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
@@ -144,7 +144,15 @@ export default function PaymentTypesScreen({ navigation }) {
     const percent = totalAmount > 0 ? Math.round((item.total / totalAmount) * 100) : 0;
 
     const handlePress = () => {
-      if (!canDrilldown) return;
+      if (!canDrilldown) {
+        Alert.alert(
+          lang === 'tr' ? 'Yetki Gerekli' : 'Permission Required',
+          lang === 'tr'
+            ? 'Ödeme tipi detaylarını görüntüleme yetkiniz yok.'
+            : 'You do not have permission to view payment type details.',
+        );
+        return;
+      }
       const params = {
         type: 'closed',
         paymentTypeMode: true,
@@ -184,8 +192,6 @@ export default function PaymentTypesScreen({ navigation }) {
         </View>
       </View>
     );
-
-    if (!canDrilldown) return card;
 
     return (
       <TouchableOpacity activeOpacity={0.85} onPress={handlePress}>
