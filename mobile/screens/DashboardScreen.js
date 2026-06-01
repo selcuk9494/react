@@ -92,6 +92,7 @@ export default function DashboardScreen({ navigation, route }) {
   const reqIdRef = useRef(0);
   const prevPeriodRef = useRef(period);
   const prevBranchRef = useRef(selectedBranch);
+  const lastProfileFetchRef = useRef(0);
 
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
@@ -311,6 +312,27 @@ export default function DashboardScreen({ navigation, route }) {
         fetchDashboardData();
     }
   }, [user]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', async () => {
+      const now = Date.now();
+      if (now - lastProfileFetchRef.current < 30000) return;
+      lastProfileFetchRef.current = now;
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+        const response = await axios.get(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userData = response.data;
+        setUser(userData);
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   // Period change effect
   useEffect(() => {

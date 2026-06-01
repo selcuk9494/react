@@ -18,6 +18,7 @@ export default function PaymentTypesScreen({ navigation }) {
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
   const prevPeriodRef = useRef(period);
+  const lastProfileFetchRef = useRef(0);
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
   
   // Translation object
@@ -47,17 +48,50 @@ export default function PaymentTypesScreen({ navigation }) {
       if (userRaw) {
         setUser(JSON.parse(userRaw));
       }
+      await refreshUserProfile(true);
     })();
   }, []);
 
-  const isReportAllowed = (reportId) => {
-    if (!user) return false;
-    if (user.is_admin) return true;
-    if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
-    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes(reportId);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      refreshUserProfile(false);
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const isReportAllowedForUser = (u, reportId) => {
+    if (!u) return false;
+    if (u.is_admin) return true;
+    if (u.allowed_reports === null || u.allowed_reports === undefined) return true;
+    return Array.isArray(u.allowed_reports) && u.allowed_reports.includes(reportId);
   };
 
-  const canDrilldown = useMemo(() => isReportAllowed('payment_types_detail'), [user]);
+  const refreshUserProfile = async (force = false) => {
+    try {
+      const now = Date.now();
+      if (!force && now - lastProfileFetchRef.current < 30000) return null;
+      lastProfileFetchRef.current = now;
+
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return null;
+
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const userData = response.data;
+      setUser(userData);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      return userData;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
+  const canDrilldown = useMemo(
+    () => isReportAllowedForUser(user, 'payment_types_detail'),
+    [user],
+  );
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -143,8 +177,14 @@ export default function PaymentTypesScreen({ navigation }) {
     const color = chartColors[index % chartColors.length];
     const percent = totalAmount > 0 ? Math.round((item.total / totalAmount) * 100) : 0;
 
-    const handlePress = () => {
-      if (!canDrilldown) {
+    const handlePress = async () => {
+      let effectiveUser = user;
+      if (!isReportAllowedForUser(effectiveUser, 'payment_types_detail')) {
+        const refreshed = await refreshUserProfile(true);
+        if (refreshed) effectiveUser = refreshed;
+      }
+
+      if (!isReportAllowedForUser(effectiveUser, 'payment_types_detail')) {
         Alert.alert(
           lang === 'tr' ? 'Yetki Gerekli' : 'Permission Required',
           lang === 'tr'

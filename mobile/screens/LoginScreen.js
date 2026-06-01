@@ -38,6 +38,9 @@ export default function LoginScreen({ navigation }) {
 
       const { access_token, user } = response.data;
       await AsyncStorage.setItem('token', access_token);
+      if (user) {
+        await AsyncStorage.setItem('user', JSON.stringify(user));
+      }
       await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
       
       // Navigate to Dashboard
