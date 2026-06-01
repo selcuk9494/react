@@ -9,7 +9,13 @@ import { Picker } from '@react-native-picker/picker';
 const screenWidth = Dimensions.get('window').width;
 
 export default function OrdersScreen({ navigation, route }) {
-  const orderType = route.params?.type || 'open'; // 'open' or 'closed'
+  const paymentTypeMode = route.params?.paymentTypeMode === true;
+  const paymentOtip = route.params?.otip;
+  const paymentName = route.params?.paymentName;
+  const customStartDate = route.params?.start_date;
+  const customEndDate = route.params?.end_date;
+
+  const orderType = paymentTypeMode ? 'closed' : route.params?.type || 'open'; // 'open' or 'closed'
   const isClosed = orderType === 'closed';
   const adturParam = route.params?.adtur;
   
@@ -79,13 +85,22 @@ export default function OrdersScreen({ navigation, route }) {
   // Filters
   const [filterMasa, setFilterMasa] = useState('');
   const [adturFilter, setAdturFilter] = useState(adturParam ? String(adturParam) : 'all');
-  const [period, setPeriod] = useState(isClosed ? 'today' : 'all'); // 'today', 'all', 'custom'
+  const [multiOnly, setMultiOnly] = useState(false);
+  const [period, setPeriod] = useState(
+    paymentTypeMode
+      ? route.params?.period || 'today'
+      : isClosed
+        ? 'today'
+        : 'all',
+  ); // 'today', 'all', 'custom'
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
-  const prevKeyRef = useRef(`${period}|${orderType}`);
+  const prevKeyRef = useRef(
+    `${period}|${orderType}|${paymentTypeMode ? 'pt' : 'std'}|${String(paymentOtip ?? '')}|${multiOnly ? '1' : '0'}|${String(customStartDate ?? '')}|${String(customEndDate ?? '')}`,
+  );
 
   useEffect(() => {
-    const key = `${period}|${orderType}`;
+    const key = `${period}|${orderType}|${paymentTypeMode ? 'pt' : 'std'}|${String(paymentOtip ?? '')}|${multiOnly ? '1' : '0'}|${String(customStartDate ?? '')}|${String(customEndDate ?? '')}`;
     if (prevKeyRef.current !== key) {
       setOrders([]);
       setPage(1);
@@ -93,7 +108,7 @@ export default function OrdersScreen({ navigation, route }) {
       prevKeyRef.current = key;
     }
     fetchOrders(1);
-  }, [period, orderType]);
+  }, [period, orderType, paymentTypeMode, paymentOtip, multiOnly, customStartDate, customEndDate]);
 
   const fetchOrders = async (pageNum = 1, append = false) => {
     if (fetchControllerRef.current) {
@@ -118,7 +133,11 @@ export default function OrdersScreen({ navigation, route }) {
         branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
       }
       
-      const endpoint = isClosed ? '/reports/closed-orders' : '/reports/open-orders';
+      const endpoint = paymentTypeMode
+        ? '/reports/payment-types/orders'
+        : isClosed
+          ? '/reports/closed-orders'
+          : '/reports/open-orders';
       
       // Build query params
       let params = new URLSearchParams();
@@ -129,11 +148,23 @@ export default function OrdersScreen({ navigation, route }) {
       }
       
       // Period param
-      if (isClosed) {
-          params.append('period', period);
+      if (paymentTypeMode) {
+        params.append('period', period);
+        if (typeof paymentOtip !== 'undefined' && paymentOtip !== null && String(paymentOtip) !== 'null' && String(paymentOtip) !== '') {
+          params.append('otip', String(paymentOtip));
+        }
+        if (multiOnly) {
+          params.append('multi_only', '1');
+        }
+        if (period === 'custom' && customStartDate && customEndDate) {
+          params.append('start_date', customStartDate);
+          params.append('end_date', customEndDate);
+        }
+      } else if (isClosed) {
+        params.append('period', period);
       } else {
-          // Open orders endpoint uses 'period' differently (today vs all)
-          params.append('period', period === 'today' ? 'today' : 'all');
+        // Open orders endpoint uses 'period' differently (today vs all)
+        params.append('period', period === 'today' ? 'today' : 'all');
       }
 
       const response = await axios.get(`${API_URL}${endpoint}?${params.toString()}`, {
@@ -283,7 +314,13 @@ export default function OrdersScreen({ navigation, route }) {
     return (
       <TouchableOpacity 
         style={[styles.card, { borderColor: isClosed ? '#d1fae5' : '#ffedd5' }]}
-        onPress={() => navigation.navigate('OrderDetail', { id: item.adsno || item.id, type: isClosed ? 'closed' : 'open' })}
+        onPress={() =>
+          navigation.navigate('OrderDetail', {
+            id: item.adsno || item.id,
+            type: isClosed ? 'closed' : 'open',
+            adtur: typeof item.adtur !== 'undefined' ? item.adtur : undefined,
+          })
+        }
       >
         <View style={styles.cardHeader}>
             <View style={styles.headerLeft}>
@@ -349,12 +386,27 @@ export default function OrdersScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{isClosed ? T.closedOrders : T.openOrders}</Text>
+            <Text style={styles.headerTitle}>
+              {paymentTypeMode && paymentName ? paymentName : isClosed ? T.closedOrders : T.openOrders}
+            </Text>
             <View style={{width: 24}} /> 
          </View>
       </View>
 
       <View style={styles.controlsContainer}>
+        {paymentTypeMode && (
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              onPress={() => setMultiOnly((v) => !v)}
+              style={[styles.multiToggle, multiOnly && styles.multiToggleActive]}
+            >
+              <Feather name={multiOnly ? 'check-circle' : 'circle'} size={16} color={multiOnly ? '#10b981' : '#94a3b8'} />
+              <Text style={[styles.multiToggleText, multiOnly && styles.multiToggleTextActive]}>
+                Sadece çok ürünlü adisyonlar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* Search & Filter Inputs */}
         <View style={styles.filterRow}>
             <View style={styles.searchBox}>
@@ -368,6 +420,7 @@ export default function OrdersScreen({ navigation, route }) {
             </View>
         </View>
         
+        {!paymentTypeMode && (
         <View style={styles.filterRow}>
             {/* Period Filter (Only show appropriate options) */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodScroll}>
@@ -387,6 +440,7 @@ export default function OrdersScreen({ navigation, route }) {
                 ))}
             </ScrollView>
         </View>
+        )}
 
         <View style={styles.filterRow}>
              {(isClosed ? ['all', '0', '1', '3'] : ['all', '0', '1']).map((t) => (
@@ -472,6 +526,30 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: 'row',
     marginBottom: 8,
+  },
+  multiToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  multiToggleActive: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#10b98140',
+  },
+  multiToggleText: {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  multiToggleTextActive: {
+    color: '#047857',
   },
   searchBox: {
     flex: 1,

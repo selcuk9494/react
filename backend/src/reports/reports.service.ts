@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
 import { format } from 'date-fns';
@@ -815,6 +815,16 @@ export class ReportsService {
     };
   }
 
+  private ensureReportAllowed(user: any, reportId: string) {
+    if (!user) throw new ForbiddenException();
+    if (user.is_admin) return;
+    if (user.allowed_reports === null || typeof user.allowed_reports === 'undefined')
+      return;
+    if (Array.isArray(user.allowed_reports) && user.allowed_reports.includes(reportId))
+      return;
+    throw new ForbiddenException();
+  }
+
   async getDashboard(
     user: any,
     period: string,
@@ -1207,6 +1217,285 @@ export class ReportsService {
       otip: row.otip,
       overall_count: parseInt(row.overall_count),
     }));
+  }
+
+  async getPaymentTypeOrders(
+    user: any,
+    period: string,
+    otip?: string,
+    startDate?: string,
+    endDate?: string,
+    page: number = 1,
+    limit: number = 20,
+    multiOnly: boolean = false,
+  ) {
+    this.ensureReportAllowed(user, 'payment_types_detail');
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
+
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.floor(limit)) : 20;
+    const offset = (safePage - 1) * safeLimit;
+
+    const params: any[] = [kasa_nos];
+    let dateFilter = '';
+    if (period !== 'all') {
+      if (w.isBusinessPeriod) {
+        dateFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
+        params.push(w.startTs, w.endTs);
+      } else {
+        dateFilter =
+          ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
+        params.push(w.startDateOnly, w.endDateOnly);
+      }
+    }
+
+    const parsedOtip =
+      typeof otip === 'string' && otip !== '' && otip !== 'null'
+        ? parseInt(otip, 10)
+        : null;
+    const otipFilter =
+      Number.isFinite(parsedOtip) && parsedOtip !== null
+        ? ` AND o.otip = $${params.length + 1}`
+        : '';
+    if (otipFilter) params.push(parsedOtip);
+
+    const multiIndex = params.length + 1;
+    const countQuery = `
+      WITH pay_filtered AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}${otipFilter}
+        GROUP BY o.adsno, COALESCE(o.adtur, 0)
+      ),
+      adisyon_meta AS (
+        SELECT
+          a.adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          COUNT(DISTINCT a.pluid) FILTER (WHERE a.pluid IS NOT NULL) as item_count
+        FROM ads_adisyon a
+        INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+        WHERE a.kasa = ANY($1)
+        GROUP BY a.adsno, COALESCE(a.adtur, 0)
+      )
+      SELECT COUNT(*)::int as total
+      FROM pay_filtered pf
+      LEFT JOIN adisyon_meta m ON m.adsno = pf.adsno AND m.adtur = pf.adtur
+      WHERE ($${multiIndex}::boolean = false OR COALESCE(m.item_count, 0) > 1)
+    `;
+    const countRows = await this.db.executeQuery(pool, countQuery, [
+      ...params,
+      multiOnly,
+    ]);
+    const total = Number(countRows?.[0]?.total) || 0;
+    const total_pages = Math.max(1, Math.ceil(total / safeLimit));
+
+    const limitIndex = multiIndex + 1;
+    const offsetIndex = multiIndex + 2;
+
+    const query = `
+      WITH pay_filtered AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur,
+          MAX(o.raptar) as raptar,
+          COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as tutar
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}${otipFilter}
+        GROUP BY o.adsno, COALESCE(o.adtur, 0)
+      ),
+      pay_all AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur,
+          COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as order_total,
+          COALESCE(SUM(COALESCE(o.iskonto, 0)), 0) as iskonto
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}
+        GROUP BY o.adsno, COALESCE(o.adtur, 0)
+      ),
+      adisyon_meta AS (
+        SELECT
+          a.adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          MAX(COALESCE(a.masano, 0)) as masa_no,
+          MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) as sipyer,
+          MAX(a.acsaat) as acilis_saati,
+          MAX(a.kapsaat) as kapanis_saati,
+          COUNT(DISTINCT a.pluid) FILTER (WHERE a.pluid IS NOT NULL) as item_count,
+          MAX(a.garsonno) as garsonno
+        FROM ads_adisyon a
+        INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+        WHERE a.kasa = ANY($1)
+        GROUP BY a.adsno, COALESCE(a.adtur, 0)
+      )
+      SELECT
+        pf.adsno,
+        pf.adtur,
+        pf.raptar as tarih,
+        m.masa_no,
+        m.sipyer,
+        m.acilis_saati,
+        m.kapanis_saati,
+        pf.tutar,
+        COALESCE(pa.iskonto, 0) as iskonto,
+        COALESCE(pa.order_total, pf.tutar) as order_total,
+        COALESCE(m.item_count, 0)::int as item_count,
+        per.adi as garson_adi
+      FROM pay_filtered pf
+      LEFT JOIN pay_all pa ON pa.adsno = pf.adsno AND pa.adtur = pf.adtur
+      LEFT JOIN adisyon_meta m ON m.adsno = pf.adsno AND m.adtur = pf.adtur
+      LEFT JOIN personel per ON m.garsonno = per.id
+      WHERE ($${multiIndex}::boolean = false OR COALESCE(m.item_count, 0) > 1)
+      ORDER BY pf.raptar DESC, pf.adsno DESC
+      LIMIT $${limitIndex} OFFSET $${offsetIndex}
+    `;
+    const rows = await this.db.executeQuery(pool, query, [
+      ...params,
+      multiOnly,
+      safeLimit,
+      offset,
+    ]);
+
+    return { data: rows, page: safePage, limit: safeLimit, total, total_pages };
+  }
+
+  async getPaymentTypeItems(
+    user: any,
+    period: string,
+    otip?: string,
+    startDate?: string,
+    endDate?: string,
+    page: number = 1,
+    limit: number = 50,
+    multiOnly: boolean = false,
+  ) {
+    this.ensureReportAllowed(user, 'payment_types_detail');
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
+
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0 ? Math.min(200, Math.floor(limit)) : 50;
+    const offset = (safePage - 1) * safeLimit;
+
+    const params: any[] = [kasa_nos];
+    let dateFilter = '';
+    if (period !== 'all') {
+      if (w.isBusinessPeriod) {
+        dateFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
+        params.push(w.startTs, w.endTs);
+      } else {
+        dateFilter =
+          ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
+        params.push(w.startDateOnly, w.endDateOnly);
+      }
+    }
+
+    const parsedOtip =
+      typeof otip === 'string' && otip !== '' && otip !== 'null'
+        ? parseInt(otip, 10)
+        : null;
+    const otipFilter =
+      Number.isFinite(parsedOtip) && parsedOtip !== null
+        ? ` AND o.otip = $${params.length + 1}`
+        : '';
+    if (otipFilter) params.push(parsedOtip);
+
+    const multiIndex = params.length + 1;
+    const limitIndex = multiIndex + 1;
+    const offsetIndex = multiIndex + 2;
+
+    const countQuery = `
+      WITH pay_filtered AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur,
+          MAX(o.raptar) as raptar
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}${otipFilter}
+        GROUP BY o.adsno, COALESCE(o.adtur, 0)
+      ),
+      adisyon_meta AS (
+        SELECT
+          a.adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          COUNT(DISTINCT a.pluid) FILTER (WHERE a.pluid IS NOT NULL) as item_count
+        FROM ads_adisyon a
+        INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+        WHERE a.kasa = ANY($1)
+        GROUP BY a.adsno, COALESCE(a.adtur, 0)
+      )
+      SELECT COUNT(*)::int as total
+      FROM ads_adisyon a
+      INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+      LEFT JOIN adisyon_meta m ON m.adsno = a.adsno AND m.adtur = COALESCE(a.adtur, 0)
+      WHERE a.kasa = ANY($1)
+        AND a.pluid IS NOT NULL
+        AND ($${multiIndex}::boolean = false OR COALESCE(m.item_count, 0) > 1)
+    `;
+    const countRows = await this.db.executeQuery(pool, countQuery, [
+      ...params,
+      multiOnly,
+    ]);
+    const total = Number(countRows?.[0]?.total) || 0;
+    const total_pages = Math.max(1, Math.ceil(total / safeLimit));
+
+    const query = `
+      WITH pay_filtered AS (
+        SELECT
+          o.adsno,
+          COALESCE(o.adtur, 0) as adtur,
+          MAX(o.raptar) as raptar
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1)${dateFilter}${otipFilter}
+        GROUP BY o.adsno, COALESCE(o.adtur, 0)
+      ),
+      adisyon_meta AS (
+        SELECT
+          a.adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          MAX(COALESCE(a.masano, 0)) as masa_no,
+          MAX(CAST(COALESCE(a.sipyer, 0) AS INTEGER)) as sipyer,
+          COUNT(DISTINCT a.pluid) FILTER (WHERE a.pluid IS NOT NULL) as item_count
+        FROM ads_adisyon a
+        INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+        WHERE a.kasa = ANY($1)
+        GROUP BY a.adsno, COALESCE(a.adtur, 0)
+      )
+      SELECT
+        a.adsno,
+        COALESCE(a.adtur, 0) as adtur,
+        pf.raptar as tarih,
+        m.masa_no,
+        m.sipyer,
+        COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
+        a.pluid,
+        COALESCE(a.miktar, 1) as miktar,
+        COALESCE(a.bfiyat, 0) as bfiyat,
+        COALESCE(a.tutar, 0) as tutar,
+        COALESCE(m.item_count, 0)::int as item_count
+      FROM ads_adisyon a
+      INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
+      LEFT JOIN adisyon_meta m ON m.adsno = a.adsno AND m.adtur = COALESCE(a.adtur, 0)
+      LEFT JOIN product p ON a.pluid = p.plu
+      WHERE a.kasa = ANY($1)
+        AND a.pluid IS NOT NULL
+        AND ($${multiIndex}::boolean = false OR COALESCE(m.item_count, 0) > 1)
+      ORDER BY pf.raptar DESC, a.adsno DESC
+      LIMIT $${limitIndex} OFFSET $${offsetIndex}
+    `;
+    const rows = await this.db.executeQuery(pool, query, [
+      ...params,
+      multiOnly,
+      safeLimit,
+      offset,
+    ]);
+
+    return { data: rows, page: safePage, limit: safeLimit, total, total_pages };
   }
 
   async getCourierTracking(

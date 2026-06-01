@@ -22,6 +22,7 @@ const AVAILABLE_REPORTS = [
   { id: 'product_sales', label: 'Ürün Satışları' },
   { id: 'personnel', label: 'Personel' },
   { id: 'payment_types', label: 'Ödeme Tipleri' },
+  { id: 'payment_types_detail', label: 'Ödeme Tipleri (Detay)' },
   { id: 'hourly_sales', label: 'Saatlik Satış' },
   { id: 'cancels', label: 'İptaller' },
   { id: 'discounts', label: 'İskontolar' },

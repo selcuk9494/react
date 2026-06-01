@@ -270,6 +270,54 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/payment-types/orders')
+  async getPaymentTypeOrders(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('otip') otip?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('multi_only') multiOnly?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getPaymentTypeOrders(
+      req.user,
+      period,
+      otip,
+      startDate,
+      endDate,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+      multiOnly === '1' || multiOnly === 'true',
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/payment-types/items')
+  async getPaymentTypeItems(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('otip') otip?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('multi_only') multiOnly?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getPaymentTypeItems(
+      req.user,
+      period,
+      otip,
+      startDate,
+      endDate,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+      multiOnly === '1' || multiOnly === 'true',
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/cancelled-items')
   async getCancelledItems(
     @Request() req,

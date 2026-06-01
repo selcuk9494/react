@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,6 +14,7 @@ export default function PaymentTypesScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
   const [lang, setLang] = useState('tr');
+  const [user, setUser] = useState(null);
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
   const prevPeriodRef = useRef(period);
@@ -42,8 +43,21 @@ export default function PaymentTypesScreen({ navigation }) {
     (async () => {
       const stored = await AsyncStorage.getItem('language');
       setLang(stored || 'tr');
+      const userRaw = await AsyncStorage.getItem('user');
+      if (userRaw) {
+        setUser(JSON.parse(userRaw));
+      }
     })();
   }, []);
+
+  const isReportAllowed = (reportId) => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
+    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes(reportId);
+  };
+
+  const canDrilldown = useMemo(() => isReportAllowed('payment_types_detail'), [user]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -129,8 +143,26 @@ export default function PaymentTypesScreen({ navigation }) {
     const color = chartColors[index % chartColors.length];
     const percent = totalAmount > 0 ? Math.round((item.total / totalAmount) * 100) : 0;
 
-    return (
-      <View style={[styles.card, { borderColor: `${color}40` }]}>
+    const handlePress = () => {
+      if (!canDrilldown) return;
+      const params = {
+        type: 'closed',
+        paymentTypeMode: true,
+        otip: item.otip,
+        paymentName: item.payment_name,
+        period,
+      };
+      if (period === 'custom') {
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        params.start_date = startStr;
+        params.end_date = endStr;
+      }
+      navigation.navigate('Orders', params);
+    };
+
+    const card = (
+      <View style={[styles.card, { borderColor: `${color}40`, opacity: canDrilldown ? 1 : 0.9 }]}>
         <View style={styles.cardContent}>
           <View style={[styles.iconBox, { backgroundColor: `${color}20` }]}>
              <MaterialCommunityIcons name="credit-card-outline" size={24} color={color} />
@@ -151,6 +183,14 @@ export default function PaymentTypesScreen({ navigation }) {
           </View>
         </View>
       </View>
+    );
+
+    if (!canDrilldown) return card;
+
+    return (
+      <TouchableOpacity activeOpacity={0.85} onPress={handlePress}>
+        {card}
+      </TouchableOpacity>
     );
   };
 
