@@ -1162,24 +1162,19 @@ export class ReportsService {
     endDate?: string,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(
-      period,
-      closingHour,
-      startDate,
-      endDate,
-    );
-    let dStart = format(start, 'yyyy-MM-dd HH:mm:ss');
-    let dEnd = format(end, 'yyyy-MM-dd HH:mm:ss');
+    const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
 
-    if (period === 'today' || period === 'yesterday') {
-      const biz =
-        period === 'today'
-          ? this.getBusinessDayDate(closingHour, 'today')
-          : this.getBusinessDayDate(closingHour, 'yesterday');
-      const b = new Date(`${biz}T00:00:00Z`);
-      const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
-      dStart = `${biz} 00:00:00`;
-      dEnd = `${format(n, 'yyyy-MM-dd')} 00:00:00`;
+    const params: any[] = [kasa_nos];
+    let dateFilter = '';
+    if (period !== 'all') {
+      if (w.isBusinessPeriod) {
+        dateFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
+        params.push(w.startTs, w.endTs);
+      } else {
+        dateFilter =
+          ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
+        params.push(w.startDateOnly, w.endDateOnly);
+      }
     }
 
     const query = `
@@ -1190,16 +1185,12 @@ export class ReportsService {
           COALESCE(od.odmno, NULL) as otip
       FROM ads_odeme o
       LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
-      WHERE o.raptar >= $1 AND o.raptar < $2 AND o.kasa = ANY($3)
+      WHERE o.kasa = ANY($1)${dateFilter}
       GROUP BY od.odmno, od.odmname
       ORDER BY total DESC
     `;
 
-    const rows = await this.db.executeQuery(pool, query, [
-      dStart,
-      dEnd,
-      kasa_nos,
-    ]);
+    const rows = await this.db.executeQuery(pool, query, params);
     return rows.map((row) => ({
       payment_name: row.payment_name,
       total: parseFloat(row.total),
