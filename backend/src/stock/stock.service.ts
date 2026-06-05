@@ -403,12 +403,19 @@ export class StockService {
         pf.fiyat as fiyat
       FROM products p
       LEFT JOIN LATERAL (
-        SELECT pf.fiyat
+        SELECT COALESCE(pf.fiyat, pf.fiyat_2, pf.fiyat_3) as fiyat
         FROM product_fiyat pf
         WHERE pf.plu = p.plu
-          AND (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
-          AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
-        ORDER BY COALESCE(pf.bastar, DATE '1900-01-01') DESC, pf.tarih DESC, pf.id DESC
+        ORDER BY
+          CASE
+            WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
+             AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
+            THEN 0
+            ELSE 1
+          END,
+          COALESCE(pf.bastar, DATE '1900-01-01') DESC,
+          pf.tarih DESC,
+          pf.id DESC
         LIMIT 1
       ) pf ON true
       ORDER BY p.grup2, p.product_name
