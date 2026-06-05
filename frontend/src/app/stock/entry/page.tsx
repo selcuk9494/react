@@ -45,6 +45,7 @@ export default function StockEntryPage() {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [overrideCanEditPrices, setOverrideCanEditPrices] = useState<boolean | null>(null);
+  const didAutoLoadPriceRef = useRef(false);
 
   const canEditPrices = useMemo(() => {
     if (!user) return false;
@@ -147,6 +148,19 @@ export default function StockEntryPage() {
       return false;
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (mode !== 'price') return;
+    if (didAutoLoadPriceRef.current) return;
+    didAutoLoadPriceRef.current = true;
+
+    (async () => {
+      const ok = await refreshPermissionForPrices();
+      if (!ok) return;
+      await fetchPrices();
+    })();
+  }, [token, mode, refreshPermissionForPrices, fetchPrices]);
 
   const handleRefresh = () => {
     if (mode === 'price') {
