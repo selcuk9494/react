@@ -31,10 +31,8 @@ export default function ProductPricesPage() {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [draftEnabled, setDraftEnabled] = useState(true);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const initialPriceMapRef = useRef<Record<string, string>>({});
-  const draftSaveTimerRef = useRef<number | null>(null);
 
   const canEditPrices = useMemo(() => {
     if (!user) return false;
@@ -61,24 +59,6 @@ export default function ProductPricesPage() {
     const bid = branchId ? String(branchId) : 'unknown';
     return `product_prices_draft:${uid}:${bid}`;
   }, [user, branchId]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem('product_prices_draft_enabled');
-      if (raw === '0' || raw === 'false') setDraftEnabled(false);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(
-        'product_prices_draft_enabled',
-        draftEnabled ? '1' : '0',
-      );
-    } catch {}
-  }, [draftEnabled]);
 
   useEffect(() => {
     if (!token && !loading) {
@@ -213,47 +193,31 @@ export default function ProductPricesPage() {
     return changes;
   }, [items, priceMap]);
 
-  useEffect(() => {
+  const saveDraft = useCallback(() => {
     if (!canEditPrices) return;
     if (!draftKey) return;
     if (typeof window === 'undefined') return;
-
-    if (!draftEnabled) {
-      try {
-        window.localStorage.removeItem(draftKey);
-      } catch {}
-      return;
-    }
-
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(draftSaveTimerRef.current);
-    }
-    draftSaveTimerRef.current = window.setTimeout(() => {
-      try {
-        const base = initialPriceMapRef.current || {};
-        const prices: Record<string, string> = {};
-        for (const [k, v] of Object.entries(priceMap)) {
-          const cur = String(v ?? '').trim();
-          const prev = String(base[k] ?? '').trim();
-          if (cur && cur !== prev) prices[k] = cur;
-        }
-        if (Object.keys(prices).length === 0) {
-          window.localStorage.removeItem(draftKey);
-          return;
-        }
-        window.localStorage.setItem(
-          draftKey,
-          JSON.stringify({ updatedAt: Date.now(), prices }),
-        );
-      } catch {}
-    }, 300);
-
-    return () => {
-      if (draftSaveTimerRef.current) {
-        window.clearTimeout(draftSaveTimerRef.current);
+    try {
+      const base = initialPriceMapRef.current || {};
+      const prices: Record<string, string> = {};
+      for (const [k, v] of Object.entries(priceMap)) {
+        const cur = String(v ?? '').trim();
+        const prev = String(base[k] ?? '').trim();
+        if (cur && cur !== prev) prices[k] = cur;
       }
-    };
-  }, [priceMap, canEditPrices, draftKey, draftEnabled]);
+      if (Object.keys(prices).length === 0) {
+        alert('Taslağa kaydedilecek değişiklik yok.');
+        return;
+      }
+      window.localStorage.setItem(
+        draftKey,
+        JSON.stringify({ updatedAt: Date.now(), prices }),
+      );
+      alert('Taslak kaydedildi.');
+    } catch {
+      alert('Taslak kaydedilemedi.');
+    }
+  }, [canEditPrices, draftKey, priceMap]);
 
   const focusNextInput = useCallback((productId: number) => {
     const ids = filtered.map((p) => p.id);
@@ -342,14 +306,6 @@ export default function ProductPricesPage() {
         )}
 
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
-          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-            <input
-              type="checkbox"
-              checked={draftEnabled}
-              onChange={(e) => setDraftEnabled(e.target.checked)}
-            />
-            Taslak olarak kaydet
-          </label>
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -460,18 +416,32 @@ export default function ProductPricesPage() {
             <div className="text-sm font-black text-gray-700">
               {changedItems.length} değişiklik
             </div>
-            <button
-              onClick={saveAll}
-              disabled={saving || changedItems.length === 0}
-              className={clsx(
-                "px-5 py-3 rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg",
-                saving || changedItems.length === 0
-                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                  : "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 hover:shadow-xl"
-              )}
-            >
-              Kaydet
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveDraft}
+                disabled={saving}
+                className={clsx(
+                  'px-4 py-3 rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg border',
+                  saving
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed border-gray-200'
+                    : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50',
+                )}
+              >
+                Taslak olarak kayıt et
+              </button>
+              <button
+                onClick={saveAll}
+                disabled={saving || changedItems.length === 0}
+                className={clsx(
+                  'px-5 py-3 rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg',
+                  saving || changedItems.length === 0
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 hover:shadow-xl',
+                )}
+              >
+                Kaydet
+              </button>
+            </div>
           </div>
         </div>
       )}
