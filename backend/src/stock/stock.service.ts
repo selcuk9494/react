@@ -420,7 +420,7 @@ export class StockService {
                 END,
                 COALESCE(pf.bastar, DATE '1900-01-01') DESC,
                 pf.tarih DESC,
-                pf.id DESC
+                pf.sirano DESC
             ) as rn
           FROM product_fiyat pf
           WHERE pf.plu = p.plu
@@ -481,7 +481,7 @@ export class StockService {
                   END,
                   COALESCE(pf.bastar, DATE '1900-01-01') DESC,
                   pf.tarih DESC,
-                  pf.id DESC
+                  pf.sirano DESC
               ) as rn
             FROM product_fiyat pf
             WHERE pf.plu = p.plu
