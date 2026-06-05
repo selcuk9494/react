@@ -369,7 +369,7 @@ export class StockService {
         WHERE pf.plu = p.plu
           AND (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
           AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
-        ORDER BY COALESCE(pf.bastar, DATE '1900-01-01') DESC, pf.sirano DESC
+        ORDER BY COALESCE(pf.bastar, DATE '1900-01-01') DESC, pf.tarih DESC, pf.id DESC
         LIMIT 1
       ) pf ON true
       ORDER BY pg.adi, p.product_name
@@ -426,8 +426,8 @@ export class StockService {
 
       await client.query(
         `
-        INSERT INTO product_fiyat (plu, tarih, id, fiyat, fiyat_2, fiyat_3, bastar, bittar)
-        VALUES ($1, $2, $3, $4, 0, 0, CURRENT_DATE, NULL)
+        INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
+        VALUES ($1, $2, $3, $4, CURRENT_DATE, NULL)
       `,
         [plu, tarih, plu, fiyat],
       );
