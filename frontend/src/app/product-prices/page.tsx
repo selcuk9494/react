@@ -439,7 +439,7 @@ export default function ProductPricesPage() {
                     : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 hover:shadow-xl',
                 )}
               >
-                Kaydet
+                Fiyat Gönder
               </button>
             </div>
           </div>

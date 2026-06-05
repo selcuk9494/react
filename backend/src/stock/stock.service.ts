@@ -625,13 +625,35 @@ export class StockService {
         [plu],
       );
 
-      await client.query(
-        `
-        INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
-        VALUES ($1, $2, $3, $4, CURRENT_DATE, NULL)
-      `,
-        [plu, tarih, plu, fiyat],
-      );
+      await client.query('SAVEPOINT product_fiyat_insert');
+      try {
+        await client.query(
+          `
+          INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
+          VALUES ($1, $2, $3, $4, CURRENT_DATE, NULL)
+        `,
+          [plu, tarih, plu, fiyat],
+        );
+        await client.query('RELEASE SAVEPOINT product_fiyat_insert');
+      } catch (e: any) {
+        try {
+          await client.query('ROLLBACK TO SAVEPOINT product_fiyat_insert');
+          await client.query('RELEASE SAVEPOINT product_fiyat_insert');
+        } catch {}
+        const code = e?.code;
+        const msg = String(e?.message || '');
+        if (code === '42703' && msg.toLowerCase().includes('product_fiyat') && msg.toLowerCase().includes('"id"')) {
+          await client.query(
+            `
+            INSERT INTO product_fiyat (plu, tarih, fiyat, bastar, bittar)
+            VALUES ($1, $2, $3, CURRENT_DATE, NULL)
+          `,
+            [plu, tarih, fiyat],
+          );
+        } else {
+          throw e;
+        }
+      }
 
       await client.query('COMMIT');
       return { success: true };
@@ -692,20 +714,48 @@ export class StockService {
         [plus],
       );
 
-      await client.query(
-        `
-        INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
-        SELECT
-          u.plu,
-          $3,
-          u.plu,
-          u.fiyat,
-          CURRENT_DATE,
-          NULL
-        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-      `,
-        [plus, prices, tarih],
-      );
+      await client.query('SAVEPOINT product_fiyat_bulk_insert');
+      try {
+        await client.query(
+          `
+          INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
+          SELECT
+            u.plu,
+            $3,
+            u.plu,
+            u.fiyat,
+            CURRENT_DATE,
+            NULL
+          FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        `,
+          [plus, prices, tarih],
+        );
+        await client.query('RELEASE SAVEPOINT product_fiyat_bulk_insert');
+      } catch (e: any) {
+        try {
+          await client.query('ROLLBACK TO SAVEPOINT product_fiyat_bulk_insert');
+          await client.query('RELEASE SAVEPOINT product_fiyat_bulk_insert');
+        } catch {}
+        const code = e?.code;
+        const msg = String(e?.message || '');
+        if (code === '42703' && msg.toLowerCase().includes('product_fiyat') && msg.toLowerCase().includes('"id"')) {
+          await client.query(
+            `
+            INSERT INTO product_fiyat (plu, tarih, fiyat, bastar, bittar)
+            SELECT
+              u.plu,
+              $3,
+              u.fiyat,
+              CURRENT_DATE,
+              NULL
+            FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+          `,
+            [plus, prices, tarih],
+          );
+        } else {
+          throw e;
+        }
+      }
 
       await client.query('COMMIT');
       return { success: true, updated: items.length };
