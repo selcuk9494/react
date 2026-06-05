@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '@/utils/api';
@@ -36,6 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const lastUserFetchRef = useRef(0);
 
   useEffect(() => {
     const getCookieToken = () => {
@@ -75,6 +76,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!token) return;
+
+    const maybeRefresh = async () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastUserFetchRef.current < 15000) return;
+      lastUserFetchRef.current = now;
+      await fetchUser(token);
+    };
+
+    const onFocus = () => {
+      maybeRefresh();
+    };
+    const onVis = () => {
+      maybeRefresh();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [token]);
 
   const login = async (email: string, pass: string) => {
     dispatchStart();
