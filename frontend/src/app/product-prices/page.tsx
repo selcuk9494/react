@@ -31,6 +31,7 @@ export default function ProductPricesPage() {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [draftEnabled, setDraftEnabled] = useState(true);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const initialPriceMapRef = useRef<Record<string, string>>({});
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -51,10 +52,33 @@ export default function ProductPricesPage() {
   }, [user]);
 
   const draftKey = useMemo(() => {
-    const uid = user?.id ? String(user.id) : 'unknown';
+    const uid =
+      user?.email
+        ? String(user.email).trim().toLowerCase()
+        : user?.id
+          ? String(user.id)
+          : 'unknown';
     const bid = branchId ? String(branchId) : 'unknown';
     return `product_prices_draft:${uid}:${bid}`;
   }, [user, branchId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem('product_prices_draft_enabled');
+      if (raw === '0' || raw === 'false') setDraftEnabled(false);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        'product_prices_draft_enabled',
+        draftEnabled ? '1' : '0',
+      );
+    } catch {}
+  }, [draftEnabled]);
 
   useEffect(() => {
     if (!token && !loading) {
@@ -91,17 +115,33 @@ export default function ProductPricesPage() {
         let merged = { ...nextMap };
         try {
           if (typeof window !== 'undefined') {
-            const raw = window.localStorage.getItem(draftKey);
-            if (raw) {
+            const legacyKeyById = `product_prices_draft:${user?.id ? String(user.id) : 'unknown'}:${branchId ? String(branchId) : 'unknown'}`;
+            const legacyKeyUnknown = `product_prices_draft:unknown:${branchId ? String(branchId) : 'unknown'}`;
+            const tryKeys = [draftKey, legacyKeyById, legacyKeyUnknown];
+            for (const key of tryKeys) {
+              const raw = window.localStorage.getItem(key);
+              if (!raw) continue;
               const parsed = JSON.parse(raw);
-              const draftPrices = parsed?.prices && typeof parsed.prices === 'object' ? parsed.prices : null;
-              if (draftPrices) {
-                for (const [k, v] of Object.entries(draftPrices)) {
-                  if (Object.prototype.hasOwnProperty.call(merged, k)) {
-                    merged[k] = String(v ?? '');
-                  }
+              const draftPrices =
+                parsed?.prices && typeof parsed.prices === 'object'
+                  ? parsed.prices
+                  : null;
+              if (!draftPrices) continue;
+              for (const [k, v] of Object.entries(draftPrices)) {
+                if (Object.prototype.hasOwnProperty.call(merged, k)) {
+                  merged[k] = String(v ?? '');
                 }
               }
+              if (key !== draftKey) {
+                try {
+                  window.localStorage.setItem(
+                    draftKey,
+                    JSON.stringify({ updatedAt: Date.now(), prices: draftPrices }),
+                  );
+                  window.localStorage.removeItem(key);
+                } catch {}
+              }
+              break;
             }
           }
         } catch {}
@@ -123,7 +163,7 @@ export default function ProductPricesPage() {
         setRefreshing(false);
       }
     },
-    [token, branchId, canEditPrices],
+    [token, branchId, canEditPrices, draftKey, user?.id, user?.email],
   );
 
   useEffect(() => {
@@ -178,6 +218,13 @@ export default function ProductPricesPage() {
     if (!draftKey) return;
     if (typeof window === 'undefined') return;
 
+    if (!draftEnabled) {
+      try {
+        window.localStorage.removeItem(draftKey);
+      } catch {}
+      return;
+    }
+
     if (draftSaveTimerRef.current) {
       window.clearTimeout(draftSaveTimerRef.current);
     }
@@ -206,7 +253,7 @@ export default function ProductPricesPage() {
         window.clearTimeout(draftSaveTimerRef.current);
       }
     };
-  }, [priceMap, canEditPrices, draftKey]);
+  }, [priceMap, canEditPrices, draftKey, draftEnabled]);
 
   const focusNextInput = useCallback((productId: number) => {
     const ids = filtered.map((p) => p.id);
@@ -239,6 +286,7 @@ export default function ProductPricesPage() {
         }
       } catch {}
       await loadPrices(true);
+      alert('Fiyatlar başarıyla gönderildi.');
     } catch (e: any) {
       const status = e?.response?.status;
       const message = e?.response?.data?.message;
@@ -294,6 +342,14 @@ export default function ProductPricesPage() {
         )}
 
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
+          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+            <input
+              type="checkbox"
+              checked={draftEnabled}
+              onChange={(e) => setDraftEnabled(e.target.checked)}
+            />
+            Taslak olarak kaydet
+          </label>
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
