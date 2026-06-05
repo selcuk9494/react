@@ -354,15 +354,54 @@ export class StockService {
   async getProductPrices(user: any, branchId: string) {
     this.ensureFeatureAllowed(user, 'product_prices');
     const { pool } = await this.getBranchPool(branchId);
+    const date = await this.getCurrentBusinessDate(branchId);
 
     const query = `
+      WITH candidates AS (
+        SELECT
+          p.plu,
+          p.product_name,
+          COALESCE(pg.adi, 'Diğer') AS grup2,
+          1 AS prio
+        FROM product p
+        LEFT JOIN product_group pg ON p.tip = pg.id
+
+        UNION ALL
+
+        SELECT
+          COALESCE(p.plu, a.pluid) AS plu,
+          COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) AS product_name,
+          COALESCE(pg.adi, 'Diğer') AS grup2,
+          2 AS prio
+        FROM ads_adisyon a
+        LEFT JOIN product p ON a.pluid = p.plu
+        LEFT JOIN product_group pg ON p.tip = pg.id
+        WHERE a.kaptar >= $1::date - INTERVAL '90 days'
+
+        UNION ALL
+
+        SELECT
+          pf.plu,
+          CAST(pf.plu AS VARCHAR) AS product_name,
+          'Diğer' AS grup2,
+          3 AS prio
+        FROM product_fiyat pf
+      ),
+      products AS (
+        SELECT DISTINCT ON (plu)
+          plu,
+          product_name,
+          grup2
+        FROM candidates
+        WHERE plu IS NOT NULL
+        ORDER BY plu, prio
+      )
       SELECT
         p.plu as id,
         p.product_name AS urun_adi,
-        COALESCE(pg.adi, 'Diğer') as grup2,
+        p.grup2 as grup2,
         pf.fiyat as fiyat
-      FROM product p
-      LEFT JOIN product_group pg ON p.tip = pg.id
+      FROM products p
       LEFT JOIN LATERAL (
         SELECT pf.fiyat
         FROM product_fiyat pf
@@ -372,10 +411,10 @@ export class StockService {
         ORDER BY COALESCE(pf.bastar, DATE '1900-01-01') DESC, pf.tarih DESC, pf.id DESC
         LIMIT 1
       ) pf ON true
-      ORDER BY pg.adi, p.product_name
+      ORDER BY p.grup2, p.product_name
     `;
 
-    const res = await pool.query(query);
+    const res = await pool.query(query, [date]);
     return (res.rows || []).map((r: any) => ({
       id: Number(r.id),
       urun_adi: r.urun_adi,
