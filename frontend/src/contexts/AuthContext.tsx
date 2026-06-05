@@ -98,9 +98,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVis);
+    const intervalId = window.setInterval(() => {
+      maybeRefresh();
+    }, 30000);
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVis);
+      window.clearInterval(intervalId);
     };
   }, [token]);
 

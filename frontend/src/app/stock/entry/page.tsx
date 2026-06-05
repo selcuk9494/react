@@ -44,6 +44,7 @@ export default function StockEntryPage() {
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [overrideCanEditPrices, setOverrideCanEditPrices] = useState<boolean | null>(null);
 
   const canEditPrices = useMemo(() => {
     if (!user) return false;
@@ -51,6 +52,8 @@ export default function StockEntryPage() {
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
     return Array.isArray(user.allowed_reports) && user.allowed_reports.includes('product_prices');
   }, [user]);
+
+  const effectiveCanEditPrices = overrideCanEditPrices ?? canEditPrices;
 
   useEffect(() => {
     const m = searchParams?.get('mode');
@@ -100,7 +103,7 @@ export default function StockEntryPage() {
 
   const fetchPrices = useCallback(async () => {
     if (!token) return;
-    if (!canEditPrices) return;
+    if (!effectiveCanEditPrices) return;
     try {
       setLoading(true);
       const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
@@ -123,7 +126,27 @@ export default function StockEntryPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, user, canEditPrices]);
+  }, [token, user, effectiveCanEditPrices]);
+
+  const refreshPermissionForPrices = useCallback(async () => {
+    if (!token) return false;
+    try {
+      const res = await axios.get(`${getApiUrl()}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const u = res.data;
+      const allowed =
+        !!u?.is_admin ||
+        u?.allowed_reports === null ||
+        typeof u?.allowed_reports === 'undefined' ||
+        (Array.isArray(u?.allowed_reports) && u.allowed_reports.includes('product_prices'));
+      setOverrideCanEditPrices(allowed);
+      return allowed;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [token]);
 
   const handleRefresh = () => {
     if (mode === 'price') {
@@ -323,7 +346,7 @@ export default function StockEntryPage() {
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Search & Filter Card */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
-          {canEditPrices && (
+          {
             <div className="flex gap-2 mb-4">
               <button
                 type="button"
@@ -340,8 +363,13 @@ export default function StockEntryPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setMode('price');
+                  const ok = await refreshPermissionForPrices();
+                  if (!ok) {
+                    alert('Bu alanı görüntüleme yetkiniz yok. Admin panelden \"Ürün Fiyatları\" yetkisini açın.');
+                    return;
+                  }
                   fetchPrices();
                 }}
                 className={clsx(
@@ -352,7 +380,7 @@ export default function StockEntryPage() {
                 Fiyat
               </button>
             </div>
-          )}
+          }
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
@@ -404,7 +432,7 @@ export default function StockEntryPage() {
           </div>
         )}
 
-        {mode === 'price' && !canEditPrices && (
+        {mode === 'price' && !effectiveCanEditPrices && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 font-bold">
             Bu alanı görüntüleme yetkiniz yok. Admin panelden "Ürün Fiyatları" yetkisini açın.
           </div>
