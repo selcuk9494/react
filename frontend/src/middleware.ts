@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get('token')?.value;
-  const protectedPaths = ['/dashboard', '/admin', '/reports'];
+  const protectedPaths = ['/dashboard', '/admin', '/reports', '/stock', '/product-prices'];
   const isProtected = protectedPaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
   if (pathname === '/') {
     const url = req.nextUrl.clone();
@@ -25,5 +25,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/dashboard', '/admin/:path*', '/reports/:path*', '/branches/:path*', '/auth/login'],
+  matcher: ['/', '/dashboard', '/admin/:path*', '/reports/:path*', '/branches/:path*', '/stock/:path*', '/product-prices', '/auth/login'],
 };
