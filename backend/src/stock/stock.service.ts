@@ -657,6 +657,8 @@ export class StockService {
     try {
       await client.query('BEGIN');
 
+      await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [plu]);
+
       await client.query(
         `
         UPDATE product_fiyat
@@ -748,6 +750,15 @@ export class StockService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await client.query(
+        `
+        SELECT pg_advisory_xact_lock(plu::bigint)
+        FROM unnest($1::int[]) AS t(plu)
+        ORDER BY plu
+      `,
+        [plus],
+      );
 
       await client.query(
         `
