@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 import axios from 'axios';
 import { 
@@ -30,6 +30,7 @@ interface Product {
 export default function StockEntryPage() {
   const { token, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [mode, setMode] = useState<'stock' | 'price'>('stock');
   const [loading, setLoading] = useState(true);
@@ -50,6 +51,13 @@ export default function StockEntryPage() {
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
     return Array.isArray(user.allowed_reports) && user.allowed_reports.includes('product_prices');
   }, [user]);
+
+  useEffect(() => {
+    const m = searchParams?.get('mode');
+    if (m === 'price') {
+      setMode('price');
+    }
+  }, [searchParams]);
 
   const fetchProducts = useCallback(async (showRefreshIndicator = false) => {
     if (!token) return;

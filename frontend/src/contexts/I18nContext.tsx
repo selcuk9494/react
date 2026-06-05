@@ -195,6 +195,8 @@ const dict: Record<Lang, Record<string, string>> = {
     debts_report_desc: 'Borca atılan adisyonlar',
     quick_stats: 'Hızlı İstatistikler',
     view_details: 'Detayları Gör',
+    product_prices_title: 'Ürün Fiyatları',
+    product_prices_desc: 'Hızlı fiyat güncelle',
   },
   en: {
     app_title: 'Reports App',
@@ -386,6 +388,8 @@ const dict: Record<Lang, Record<string, string>> = {
     debts_report_desc: 'Orders added to debt',
     quick_stats: 'Quick Stats',
     view_details: 'View Details',
+    product_prices_title: 'Product Prices',
+    product_prices_desc: 'Quick price edit',
   }
 };
 
