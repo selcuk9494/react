@@ -289,10 +289,13 @@ export default function ProductPricesPage() {
             <button
               onClick={() => loadPrices(true)}
               disabled={refreshing}
-              className="p-2.5 hover:bg-emerald-50 rounded-xl text-emerald-700 transition-all active:scale-95 disabled:opacity-50"
-              title="Yenile"
+              className={clsx(
+                'px-4 py-2.5 hover:bg-emerald-50 rounded-xl text-emerald-700 transition-all active:scale-95 disabled:opacity-50 font-black text-sm inline-flex items-center gap-2',
+              )}
+              title="Şubeden ürünleri çek"
             >
-              <RefreshCw className={clsx('w-5 h-5', refreshing && 'animate-spin')} />
+              <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
+              Şubeden ürünleri çek
             </button>
           </div>
         </div>
