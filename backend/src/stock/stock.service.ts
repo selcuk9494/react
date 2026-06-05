@@ -585,6 +585,49 @@ export class StockService {
     return items;
   }
 
+  private async getProductFiyatInsertConfig(client: any): Promise<{
+    includeId: boolean;
+    includePId: boolean;
+    hasBastar: boolean;
+    hasBittar: boolean;
+  }> {
+    try {
+      const res = await client.query(
+        `
+        SELECT
+          lower(column_name) as column_name,
+          is_nullable,
+          column_default
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'product_fiyat'
+      `,
+      );
+      const rows = res?.rows || [];
+      const byName = new Map<string, { is_nullable: string; column_default: any }>();
+      for (const r of rows) {
+        const name = String(r.column_name || '').trim().toLowerCase();
+        if (!name) continue;
+        byName.set(name, { is_nullable: r.is_nullable, column_default: r.column_default });
+      }
+      const isRequiredNoDefault = (col: string) => {
+        const c = byName.get(col);
+        if (!c) return false;
+        const notNull = String(c.is_nullable || '').toUpperCase() === 'NO';
+        const hasDefault = c.column_default !== null && typeof c.column_default !== 'undefined';
+        return notNull && !hasDefault;
+      };
+      return {
+        includeId: isRequiredNoDefault('id'),
+        includePId: isRequiredNoDefault('p_id'),
+        hasBastar: byName.has('bastar'),
+        hasBittar: byName.has('bittar'),
+      };
+    } catch {
+      return { includeId: true, includePId: false, hasBastar: true, hasBittar: true };
+    }
+  }
+
   async updateProductPrice(
     user: any,
     branchId: string,
@@ -625,35 +668,38 @@ export class StockService {
         [plu],
       );
 
-      await client.query('SAVEPOINT product_fiyat_insert');
-      try {
-        await client.query(
-          `
-          INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
-          VALUES ($1, $2, $3, $4, CURRENT_DATE, NULL)
-        `,
-          [plu, tarih, plu, fiyat],
-        );
-        await client.query('RELEASE SAVEPOINT product_fiyat_insert');
-      } catch (e: any) {
-        try {
-          await client.query('ROLLBACK TO SAVEPOINT product_fiyat_insert');
-          await client.query('RELEASE SAVEPOINT product_fiyat_insert');
-        } catch {}
-        const code = e?.code;
-        const msg = String(e?.message || '');
-        if (code === '42703' && msg.toLowerCase().includes('product_fiyat') && msg.toLowerCase().includes('"id"')) {
-          await client.query(
-            `
-            INSERT INTO product_fiyat (plu, tarih, fiyat, bastar, bittar)
-            VALUES ($1, $2, $3, CURRENT_DATE, NULL)
-          `,
-            [plu, tarih, fiyat],
-          );
-        } else {
-          throw e;
-        }
+      const insertCfg = await this.getProductFiyatInsertConfig(client);
+      const cols: string[] = ['plu', 'tarih'];
+      const vals: string[] = ['$1', '$2'];
+      const params: any[] = [plu, tarih];
+      let p = 3;
+      if (insertCfg.includeId) {
+        cols.push('id');
+        vals.push(`$${p}`);
+        params.push(plu);
+        p++;
       }
+      if (insertCfg.includePId) {
+        cols.push('p_id');
+        vals.push(`$${p}`);
+        params.push(plu);
+        p++;
+      }
+      cols.push('fiyat');
+      vals.push(`$${p}`);
+      params.push(fiyat);
+      if (insertCfg.hasBastar) {
+        cols.push('bastar');
+        vals.push('CURRENT_DATE');
+      }
+      if (insertCfg.hasBittar) {
+        cols.push('bittar');
+        vals.push('NULL');
+      }
+      await client.query(
+        `INSERT INTO product_fiyat (${cols.join(', ')}) VALUES (${vals.join(', ')})`,
+        params,
+      );
 
       await client.query('COMMIT');
       return { success: true };
@@ -714,48 +760,35 @@ export class StockService {
         [plus],
       );
 
-      await client.query('SAVEPOINT product_fiyat_bulk_insert');
-      try {
-        await client.query(
-          `
-          INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
-          SELECT
-            u.plu,
-            $3,
-            u.plu,
-            u.fiyat,
-            CURRENT_DATE,
-            NULL
-          FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-        `,
-          [plus, prices, tarih],
-        );
-        await client.query('RELEASE SAVEPOINT product_fiyat_bulk_insert');
-      } catch (e: any) {
-        try {
-          await client.query('ROLLBACK TO SAVEPOINT product_fiyat_bulk_insert');
-          await client.query('RELEASE SAVEPOINT product_fiyat_bulk_insert');
-        } catch {}
-        const code = e?.code;
-        const msg = String(e?.message || '');
-        if (code === '42703' && msg.toLowerCase().includes('product_fiyat') && msg.toLowerCase().includes('"id"')) {
-          await client.query(
-            `
-            INSERT INTO product_fiyat (plu, tarih, fiyat, bastar, bittar)
-            SELECT
-              u.plu,
-              $3,
-              u.fiyat,
-              CURRENT_DATE,
-              NULL
-            FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-          `,
-            [plus, prices, tarih],
-          );
-        } else {
-          throw e;
-        }
+      const insertCfg = await this.getProductFiyatInsertConfig(client);
+      const cols: string[] = ['plu', 'tarih'];
+      const select: string[] = ['u.plu', '$3'];
+      if (insertCfg.includeId) {
+        cols.push('id');
+        select.push('u.plu');
       }
+      if (insertCfg.includePId) {
+        cols.push('p_id');
+        select.push('u.plu');
+      }
+      cols.push('fiyat');
+      select.push('u.fiyat');
+      if (insertCfg.hasBastar) {
+        cols.push('bastar');
+        select.push('CURRENT_DATE');
+      }
+      if (insertCfg.hasBittar) {
+        cols.push('bittar');
+        select.push('NULL');
+      }
+      await client.query(
+        `
+        INSERT INTO product_fiyat (${cols.join(', ')})
+        SELECT ${select.join(', ')}
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      `,
+        [plus, prices, tarih],
+      );
 
       await client.query('COMMIT');
       return { success: true, updated: items.length };
