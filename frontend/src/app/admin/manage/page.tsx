@@ -23,6 +23,7 @@ export default function AdminManagePage() {
     { id: 'closed_orders', label: 'Kapalı Adisyon (Dashboard)' },
     { id: 'stock_entry', label: 'Günlük Stok Girişi' },
     { id: 'live_stock', label: 'Canlı Stok Takip' },
+    { id: 'product_prices', label: 'Ürün Fiyatları' },
     { id: 'product_sales', label: 'Ürün Satışları' },
     { id: 'personnel', label: 'Personel Performans' },
     { id: 'payment_types', label: 'Ödeme Tipleri' },

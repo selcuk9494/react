@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
@@ -31,14 +31,25 @@ export default function StockEntryPage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [mode, setMode] = useState<'stock' | 'price'>('stock');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stockMap, setStockMap] = useState<Record<string, string>>({});
+  const [priceMap, setPriceMap] = useState<Record<string, string>>({});
+  const [savingPriceId, setSavingPriceId] = useState<number | null>(null);
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const canEditPrices = useMemo(() => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
+    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes('product_prices');
+  }, [user]);
 
   const fetchProducts = useCallback(async (showRefreshIndicator = false) => {
     if (!token) return;
@@ -79,7 +90,38 @@ export default function StockEntryPage() {
     fetchProducts();
   }, [fetchProducts]);
 
+  const fetchPrices = useCallback(async () => {
+    if (!token) return;
+    if (!canEditPrices) return;
+    try {
+      setLoading(true);
+      const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      if (!branchId) return;
+      const res = await axios.get(`${getApiUrl()}/stock/product-prices?branchId=${branchId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const items = res.data || [];
+      setProducts(items);
+      const uniqueGroups = ['Tümü', ...new Set(items.map((p: Product) => p.grup2).filter(Boolean) as string[])];
+      setGroups(uniqueGroups);
+      const nextMap: Record<string, string> = {};
+      for (const p of items) {
+        nextMap[String(p.id)] = typeof (p as any).fiyat === 'number' ? String((p as any).fiyat) : ((p as any).fiyat ?? '') === null ? '' : String((p as any).fiyat ?? '');
+      }
+      setPriceMap(nextMap);
+    } catch (e) {
+      console.error(e);
+      alert('Fiyat listesi alınamadı.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, user, canEditPrices]);
+
   const handleRefresh = () => {
+    if (mode === 'price') {
+      fetchPrices();
+      return;
+    }
     fetchProducts(true);
   };
 
@@ -171,6 +213,56 @@ export default function StockEntryPage() {
     return grouped;
   }, [filteredProducts]);
 
+  const handlePriceChange = useCallback((productId: number, price: string) => {
+    const normalized = price.replace(',', '.');
+    if (normalized !== '' && !/^\d*(\.\d{0,2})?$/.test(normalized)) return;
+    setPriceMap(prev => ({ ...prev, [String(productId)]: normalized }));
+  }, []);
+
+  const savePrice = useCallback(async (productId: number, focusNext = false) => {
+    if (!token) return;
+    if (!canEditPrices) return;
+    const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+    if (!branchId) return;
+
+    const raw = (priceMap[String(productId)] ?? '').trim();
+    if (raw === '') return;
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val < 0) {
+      alert('Geçersiz fiyat');
+      return;
+    }
+
+    try {
+      setSavingPriceId(productId);
+      await axios.put(`${getApiUrl()}/stock/product-price?branchId=${branchId}`, {
+        plu: productId,
+        fiyat: val,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (focusNext) {
+        const ids = filteredProducts.map(p => p.id);
+        const idx = ids.indexOf(productId);
+        const nextId = idx >= 0 ? ids[idx + 1] : null;
+        if (nextId) {
+          const el = inputRefs.current[String(nextId)];
+          if (el) {
+            el.focus();
+            el.select();
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.response?.data?.message || 'Fiyat güncellenemedi.';
+      alert(msg);
+    } finally {
+      setSavingPriceId(null);
+    }
+  }, [token, user, canEditPrices, priceMap, filteredProducts]);
+
   if (saveSuccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center">
@@ -201,9 +293,11 @@ export default function StockEntryPage() {
               <div>
                 <h1 className="text-xl font-black text-gray-900 flex items-center gap-2">
                   <Package className="w-5 h-5 text-blue-600" />
-                  Günlük Stok Girişi
+                  {mode === 'price' ? 'Ürün Fiyatları' : 'Günlük Stok Girişi'}
                 </h1>
-                <p className="text-xs text-gray-500 mt-0.5">Bugünkü başlangıç stoklarını girin</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {mode === 'price' ? 'Ürün fiyatlarını hızlıca güncelleyin' : 'Bugünkü başlangıç stoklarını girin'}
+                </p>
               </div>
             </div>
             <button
@@ -221,6 +315,36 @@ export default function StockEntryPage() {
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Search & Filter Card */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
+          {canEditPrices && (
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('stock');
+                  fetchProducts(false);
+                }}
+                className={clsx(
+                  "flex-1 px-4 py-2 rounded-xl text-sm font-black transition-all",
+                  mode === 'stock' ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/30" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                )}
+              >
+                Stok
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('price');
+                  fetchPrices();
+                }}
+                className={clsx(
+                  "flex-1 px-4 py-2 rounded-xl text-sm font-black transition-all",
+                  mode === 'price' ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                )}
+              >
+                Fiyat
+              </button>
+            </div>
+          )}
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
@@ -259,17 +383,24 @@ export default function StockEntryPage() {
           </div>
         </div>
 
-        {/* Stats Bar */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl p-4 text-white shadow-xl shadow-blue-500/30">
-          <div>
-            <p className="text-blue-100 text-sm font-medium">Girilen Ürün</p>
-            <p className="text-3xl font-black">{enteredCount}</p>
+        {mode === 'stock' && (
+          <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl p-4 text-white shadow-xl shadow-blue-500/30">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Girilen Ürün</p>
+              <p className="text-3xl font-black">{enteredCount}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-blue-100 text-sm font-medium">Toplam Ürün</p>
+              <p className="text-3xl font-black">{filteredProducts.length}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-blue-100 text-sm font-medium">Toplam Ürün</p>
-            <p className="text-3xl font-black">{filteredProducts.length}</p>
+        )}
+
+        {mode === 'price' && !canEditPrices && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 font-bold">
+            Bu alanı görüntüleme yetkiniz yok. Admin panelden "Ürün Fiyatları" yetkisini açın.
           </div>
-        </div>
+        )}
 
         {/* Product List */}
         {loading ? (
@@ -292,57 +423,84 @@ export default function StockEntryPage() {
                   </h3>
                 </div>
                 
-                {/* Products */}
                 <div className="divide-y divide-gray-50">
                   {groupProducts.map(product => {
                     const hasValue = stockMap[product.urun_adi] && parseInt(stockMap[product.urun_adi]) > 0;
-                    
+
                     return (
-                      <div 
-                        key={product.id} 
+                      <div
+                        key={product.id}
                         className={clsx(
                           "p-4 flex items-center justify-between transition-all duration-200",
-                          hasValue ? "bg-blue-50/50" : "hover:bg-gray-50"
+                          mode === 'stock' && (hasValue ? "bg-blue-50/50" : "hover:bg-gray-50"),
+                          mode === 'price' && "hover:bg-gray-50"
                         )}
                       >
                         <div className="flex-1 min-w-0 mr-4">
                           <h4 className={clsx(
                             "font-semibold truncate",
-                            hasValue ? "text-blue-700" : "text-gray-900"
+                            mode === 'stock' && hasValue ? "text-blue-700" : "text-gray-900"
                           )}>
                             {product.urun_adi}
                           </h4>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleDecrement(product.urun_adi)}
-                            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-all active:scale-95"
-                          >
-                            <Minus className="w-4 h-4 text-gray-600" />
-                          </button>
-                          
-                          <input 
-                            type="text" 
-                            inputMode="numeric"
-                            placeholder="0"
-                            className={clsx(
-                              "w-20 text-center font-black text-lg border-2 rounded-xl py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                              hasValue 
-                                ? "border-blue-500 text-blue-700 bg-white shadow-lg shadow-blue-500/20" 
-                                : "border-gray-200 text-gray-700 bg-gray-50"
-                            )}
-                            value={stockMap[product.urun_adi] || ''}
-                            onChange={(e) => handleQuantityChange(product.urun_adi, e.target.value)}
-                          />
-                          
-                          <button
-                            onClick={() => handleIncrement(product.urun_adi)}
-                            className="w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-xl flex items-center justify-center transition-all active:scale-95"
-                          >
-                            <Plus className="w-4 h-4 text-blue-600" />
-                          </button>
-                        </div>
+
+                        {mode === 'price' ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              ref={(el) => {
+                                inputRefs.current[String(product.id)] = el;
+                              }}
+                              value={priceMap[String(product.id)] ?? ''}
+                              onChange={(e) => handlePriceChange(product.id, e.target.value)}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  savePrice(product.id, true);
+                                }
+                              }}
+                              onBlur={() => savePrice(product.id, false)}
+                              inputMode="decimal"
+                              className="w-24 text-right font-black text-lg border-2 rounded-xl py-2 px-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all border-gray-200 text-gray-900 bg-gray-50 disabled:opacity-60"
+                              placeholder="0"
+                              disabled={!canEditPrices || savingPriceId === product.id}
+                            />
+                            <div className="text-xs font-black text-gray-500">₺</div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleDecrement(product.urun_adi)}
+                              className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-all active:scale-95"
+                            >
+                              <Minus className="w-4 h-4 text-gray-600" />
+                            </button>
+
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0"
+                              className={clsx(
+                                "w-20 text-center font-black text-lg border-2 rounded-xl py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                                hasValue
+                                  ? "border-blue-500 text-blue-700 bg-white shadow-lg shadow-blue-500/20"
+                                  : "border-gray-200 text-gray-700 bg-gray-50"
+                              )}
+                              value={stockMap[product.urun_adi] || ''}
+                              onChange={(e) => handleQuantityChange(product.urun_adi, e.target.value)}
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => handleIncrement(product.urun_adi)}
+                              className="w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-xl flex items-center justify-center transition-all active:scale-95"
+                            >
+                              <Plus className="w-4 h-4 text-blue-600" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -364,6 +522,7 @@ export default function StockEntryPage() {
       </div>
 
       {/* Fixed Bottom Save Button */}
+      {mode === 'stock' && (
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 p-4 shadow-2xl shadow-gray-900/20">
         <div className="max-w-4xl mx-auto">
           <button
@@ -390,6 +549,7 @@ export default function StockEntryPage() {
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

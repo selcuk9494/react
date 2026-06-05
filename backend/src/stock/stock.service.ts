@@ -1,9 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class StockService {
   constructor(private db: DatabaseService) {}
+
+  private ensureFeatureAllowed(user: any, featureId: string) {
+    if (!user) throw new ForbiddenException();
+    if (user.is_admin) return;
+    if (user.allowed_reports === null || typeof user.allowed_reports === 'undefined') return;
+    if (Array.isArray(user.allowed_reports) && user.allowed_reports.includes(featureId))
+      return;
+    throw new ForbiddenException();
+  }
 
   private async getClosingHour(branchId: string): Promise<number> {
     let closingHour = 6;
@@ -339,6 +348,99 @@ export class StockService {
     } catch (err) {
       console.error('GetProducts Error:', err);
       throw err;
+    }
+  }
+
+  async getProductPrices(user: any, branchId: string) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+    const { pool } = await this.getBranchPool(branchId);
+
+    const query = `
+      SELECT
+        p.plu as id,
+        p.product_name AS urun_adi,
+        COALESCE(pg.adi, 'Diğer') as grup2,
+        pf.fiyat as fiyat
+      FROM product p
+      LEFT JOIN product_group pg ON p.tip = pg.id
+      LEFT JOIN LATERAL (
+        SELECT pf.fiyat
+        FROM product_fiyat pf
+        WHERE pf.plu = p.plu
+          AND (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
+          AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
+        ORDER BY COALESCE(pf.bastar, DATE '1900-01-01') DESC, pf.sirano DESC
+        LIMIT 1
+      ) pf ON true
+      ORDER BY pg.adi, p.product_name
+    `;
+
+    const res = await pool.query(query);
+    return (res.rows || []).map((r: any) => ({
+      id: Number(r.id),
+      urun_adi: r.urun_adi,
+      grup2: r.grup2,
+      fiyat: r.fiyat !== null && typeof r.fiyat !== 'undefined' ? Number(r.fiyat) : null,
+    }));
+  }
+
+  async updateProductPrice(
+    user: any,
+    branchId: string,
+    payload: { plu: number; fiyat: number },
+  ) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+    const { pool } = await this.getBranchPool(branchId);
+
+    const plu = Number(payload?.plu);
+    const fiyat = Number(payload?.fiyat);
+    if (!Number.isFinite(plu) || plu <= 0) {
+      throw new Error('Invalid product');
+    }
+    if (!Number.isFinite(fiyat) || fiyat < 0) {
+      throw new Error('Invalid price');
+    }
+
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+    const y = turkeyTime.getUTCFullYear();
+    const m = String(turkeyTime.getUTCMonth() + 1).padStart(2, '0');
+    const tarih = `${y}${m}`;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `
+        UPDATE product_fiyat
+        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
+        WHERE plu = $1
+          AND (bittar IS NULL OR bittar >= CURRENT_DATE)
+          AND (bastar IS NULL OR bastar <= CURRENT_DATE)
+      `,
+        [plu],
+      );
+
+      await client.query(
+        `
+        INSERT INTO product_fiyat (plu, tarih, id, fiyat, fiyat_2, fiyat_3, bastar, bittar)
+        VALUES ($1, $2, $3, $4, 0, 0, CURRENT_DATE, NULL)
+      `,
+        [plu, tarih, plu, fiyat],
+      );
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (e) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw e;
+    } finally {
+      client.release();
     }
   }
 

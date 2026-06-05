@@ -5,6 +5,8 @@ import {
   UseGuards,
   Query,
   Get,
+  Put,
+  Request,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -28,6 +30,32 @@ export class StockController {
   @Get('products')
   async getProducts(@Query('branchId') branchId: string) {
     return this.stockService.getProducts(branchId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('product-prices')
+  async getProductPrices(@Request() req, @Query('branchId') branchId: string) {
+    return this.stockService.getProductPrices(req.user, branchId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('product-price')
+  async updateProductPrice(
+    @Request() req,
+    @Query('branchId') branchId: string,
+    @Body() body: any,
+  ) {
+    try {
+      return await this.stockService.updateProductPrice(req.user, branchId, body);
+    } catch (error: any) {
+      console.error('Update price error:', error);
+      const message =
+        error?.message || 'Fiyat güncellenirken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        message,
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard)

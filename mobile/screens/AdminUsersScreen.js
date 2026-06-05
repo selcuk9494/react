@@ -21,6 +21,7 @@ const AVAILABLE_REPORTS = [
   { id: 'closed_orders', label: 'Kapalı Adisyon' },
   { id: 'stock_entry', label: 'Günlük Stok Girişi' },
   { id: 'live_stock', label: 'Canlı Stok' },
+  { id: 'product_prices', label: 'Ürün Fiyatları' },
   { id: 'product_sales', label: 'Ürün Satışları' },
   { id: 'personnel', label: 'Personel' },
   { id: 'payment_types', label: 'Ödeme Tipleri' },
