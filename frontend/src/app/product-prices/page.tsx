@@ -33,6 +33,7 @@ export default function ProductPricesPage() {
   const [saving, setSaving] = useState(false);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const initialPriceMapRef = useRef<Record<string, string>>({});
+  const draftSaveTimerRef = useRef<number | null>(null);
 
   const canEditPrices = useMemo(() => {
     if (!user) return false;
@@ -48,6 +49,12 @@ export default function ProductPricesPage() {
       null
     );
   }, [user]);
+
+  const draftKey = useMemo(() => {
+    const uid = user?.id ? String(user.id) : 'unknown';
+    const bid = branchId ? String(branchId) : 'unknown';
+    return `product_prices_draft:${uid}:${bid}`;
+  }, [user, branchId]);
 
   useEffect(() => {
     if (!token && !loading) {
@@ -80,8 +87,25 @@ export default function ProductPricesPage() {
           nextMap[String(p.id)] =
             typeof p.fiyat === 'number' ? String(p.fiyat) : p.fiyat === null ? '' : String(p.fiyat);
         }
-        setPriceMap(nextMap);
         initialPriceMapRef.current = nextMap;
+        let merged = { ...nextMap };
+        try {
+          if (typeof window !== 'undefined') {
+            const raw = window.localStorage.getItem(draftKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const draftPrices = parsed?.prices && typeof parsed.prices === 'object' ? parsed.prices : null;
+              if (draftPrices) {
+                for (const [k, v] of Object.entries(draftPrices)) {
+                  if (Object.prototype.hasOwnProperty.call(merged, k)) {
+                    merged[k] = String(v ?? '');
+                  }
+                }
+              }
+            }
+          }
+        } catch {}
+        setPriceMap(merged);
       } catch (e: any) {
         const status = e?.response?.status;
         const message = e?.response?.data?.message;
@@ -149,6 +173,41 @@ export default function ProductPricesPage() {
     return changes;
   }, [items, priceMap]);
 
+  useEffect(() => {
+    if (!canEditPrices) return;
+    if (!draftKey) return;
+    if (typeof window === 'undefined') return;
+
+    if (draftSaveTimerRef.current) {
+      window.clearTimeout(draftSaveTimerRef.current);
+    }
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      try {
+        const base = initialPriceMapRef.current || {};
+        const prices: Record<string, string> = {};
+        for (const [k, v] of Object.entries(priceMap)) {
+          const cur = String(v ?? '').trim();
+          const prev = String(base[k] ?? '').trim();
+          if (cur && cur !== prev) prices[k] = cur;
+        }
+        if (Object.keys(prices).length === 0) {
+          window.localStorage.removeItem(draftKey);
+          return;
+        }
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({ updatedAt: Date.now(), prices }),
+        );
+      } catch {}
+    }, 300);
+
+    return () => {
+      if (draftSaveTimerRef.current) {
+        window.clearTimeout(draftSaveTimerRef.current);
+      }
+    };
+  }, [priceMap, canEditPrices, draftKey]);
+
   const focusNextInput = useCallback((productId: number) => {
     const ids = filtered.map((p) => p.id);
     const idx = ids.indexOf(productId);
@@ -174,6 +233,11 @@ export default function ProductPricesPage() {
         { items: changedItems },
         { headers: { Authorization: `Bearer ${token}` } },
       );
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(draftKey);
+        }
+      } catch {}
       await loadPrices(true);
     } catch (e: any) {
       const status = e?.response?.status;

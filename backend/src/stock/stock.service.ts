@@ -356,143 +356,233 @@ export class StockService {
     const { pool } = await this.getBranchPool(branchId);
     const date = await this.getCurrentBusinessDate(branchId);
 
-    const query = `
-      WITH candidates AS (
-        SELECT
-          p.plu,
-          p.product_name,
-          COALESCE(pg.adi, 'Diğer') AS grup2,
-          1 AS prio
-        FROM product p
-        LEFT JOIN product_group pg ON p.tip = pg.id
+    const plusRes = await pool.query(
+      `SELECT DISTINCT plu FROM product_fiyat WHERE plu IS NOT NULL`,
+    );
+    const plus = (plusRes.rows || [])
+      .map((r: any) => Number(r.plu))
+      .filter((v: number) => Number.isFinite(v) && v > 0);
+    if (plus.length === 0) return [];
 
-        UNION ALL
+    const metaByPlu = new Map<number, { urun_adi: string; grup2: string }>();
 
-        SELECT
-          COALESCE(p.plu, a.pluid) AS plu,
-          COALESCE(p.product_name, a.product_name, CAST(a.pluid AS VARCHAR)) AS product_name,
-          COALESCE(pg.adi, 'Diğer') AS grup2,
-          2 AS prio
-        FROM ads_adisyon a
-        LEFT JOIN product p ON a.pluid = p.plu
-        LEFT JOIN product_group pg ON p.tip = pg.id
-        WHERE a.kaptar >= $1::date - INTERVAL '90 days'
+    const tryProductQueries: Array<{ sql: string; nameField: string; tipField: string }> =
+      [
+        { sql: 'SELECT plu, product_name as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
+        { sql: 'SELECT plu, urun_adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
+        { sql: 'SELECT plu, adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
+      ];
 
-        UNION ALL
+    let productTipByPlu: Map<number, number> | null = null;
+    for (const q of tryProductQueries) {
+      try {
+        const res = await pool.query(q.sql);
+        const rows = res.rows || [];
+        if (rows.length === 0) continue;
+        productTipByPlu = new Map<number, number>();
+        for (const r of rows) {
+          const plu = Number(r.plu);
+          const name = String(r[q.nameField] || '').trim();
+          const tip = Number(r[q.tipField]);
+          if (!Number.isFinite(plu) || plu <= 0) continue;
+          if (name) {
+            metaByPlu.set(plu, { urun_adi: name, grup2: 'Diğer' });
+          }
+          if (Number.isFinite(tip)) productTipByPlu.set(plu, tip);
+        }
+        break;
+      } catch {}
+    }
 
+    if (productTipByPlu && productTipByPlu.size > 0) {
+      const tipSet = Array.from(new Set(Array.from(productTipByPlu.values())))
+        .map((v) => Number(v))
+        .filter((v) => Number.isFinite(v));
+      if (tipSet.length > 0) {
+        try {
+          const grpRes = await pool.query(
+            `SELECT id, adi FROM product_group WHERE id = ANY($1::int[])`,
+            [tipSet],
+          );
+          const groupNameById = new Map<number, string>();
+          for (const r of grpRes.rows || []) {
+            const id = Number(r.id);
+            const name = String(r.adi || '').trim();
+            if (Number.isFinite(id) && name) groupNameById.set(id, name);
+          }
+          for (const [plu, tip] of productTipByPlu.entries()) {
+            const g = groupNameById.get(tip);
+            if (!g) continue;
+            const prev = metaByPlu.get(plu);
+            if (prev) metaByPlu.set(plu, { ...prev, grup2: g });
+          }
+        } catch {}
+      }
+    }
+
+    const tryAdsQueries: Array<{ sql: string; nameField: string; groupField?: string }> = [
+      {
+        sql: `SELECT pluid as plu, MAX(product_name) as name FROM ads_adisyon WHERE kaptar >= $1::date - INTERVAL '90 days' GROUP BY pluid`,
+        nameField: 'name',
+      },
+      {
+        sql: `SELECT pluid as plu, MAX(urun_adi) as name FROM ads_adisyon WHERE kaptar >= $1::date - INTERVAL '90 days' GROUP BY pluid`,
+        nameField: 'name',
+      },
+      {
+        sql: `SELECT pluid as plu, MAX(urunadi) as name FROM ads_adisyon WHERE kaptar >= $1::date - INTERVAL '90 days' GROUP BY pluid`,
+        nameField: 'name',
+      },
+      {
+        sql: `SELECT pluid as plu, MAX(grup2) as grup2, MAX(product_name) as name FROM ads_adisyon WHERE kaptar >= $1::date - INTERVAL '90 days' GROUP BY pluid`,
+        nameField: 'name',
+        groupField: 'grup2',
+      },
+    ];
+
+    for (const q of tryAdsQueries) {
+      try {
+        const res = await pool.query(q.sql, [date]);
+        const rows = res.rows || [];
+        if (rows.length === 0) continue;
+        for (const r of rows) {
+          const plu = Number(r.plu);
+          if (!Number.isFinite(plu) || plu <= 0) continue;
+          const name = String(r[q.nameField] || '').trim();
+          const group = q.groupField ? String(r[q.groupField] || '').trim() : '';
+          if (!metaByPlu.has(plu) && name) {
+            metaByPlu.set(plu, { urun_adi: name, grup2: group || 'Diğer' });
+          } else if (metaByPlu.has(plu) && group) {
+            const prev = metaByPlu.get(plu)!;
+            if (!prev.grup2 || prev.grup2 === 'Diğer') {
+              metaByPlu.set(plu, { ...prev, grup2: group });
+            }
+          }
+        }
+        break;
+      } catch {}
+    }
+
+    const chunk = <T,>(arr: T[], size: number) => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+
+    const priceByPlu = new Map<number, { fiyat: number | null; onceki_fiyat: number | null }>();
+    const priceQueryWithAltCols = `
+      SELECT
+        plu,
+        MAX(CASE WHEN rn = 1 THEN fiyat END) as fiyat,
+        MAX(CASE WHEN rn = 2 THEN fiyat END) as onceki_fiyat
+      FROM (
         SELECT
           pf.plu,
-          CAST(pf.plu AS VARCHAR) AS product_name,
-          'Diğer' AS grup2,
-          3 AS prio
+          COALESCE(pf.fiyat, pf.fiyat_2, pf.fiyat_3) as fiyat,
+          ROW_NUMBER() OVER (
+            PARTITION BY pf.plu
+            ORDER BY
+              CASE
+                WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
+                 AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
+                THEN 0
+                ELSE 1
+              END,
+              COALESCE(pf.bastar, DATE '1900-01-01') DESC,
+              COALESCE(pf.sirano, 0) DESC
+          ) as rn
         FROM product_fiyat pf
-      ),
-      products AS (
-        SELECT DISTINCT ON (plu)
-          plu,
-          product_name,
-          grup2
-        FROM candidates
-        WHERE plu IS NOT NULL
-        ORDER BY plu, prio
-      )
-      SELECT
-        p.plu as id,
-        p.product_name AS urun_adi,
-        p.grup2 as grup2,
-        pf.fiyat as fiyat,
-        pf.onceki_fiyat as onceki_fiyat
-      FROM products p
-      LEFT JOIN LATERAL (
-        SELECT
-          MAX(CASE WHEN x.rn = 1 THEN x.fiyat END) as fiyat,
-          MAX(CASE WHEN x.rn = 2 THEN x.fiyat END) as onceki_fiyat
-        FROM (
-          SELECT
-            COALESCE(pf.fiyat, pf.fiyat_2, pf.fiyat_3) as fiyat,
-            ROW_NUMBER() OVER (
-              ORDER BY
-                CASE
-                  WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
-                   AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
-                  THEN 0
-                  ELSE 1
-                END,
-                COALESCE(pf.bastar, DATE '1900-01-01') DESC,
-                pf.tarih DESC,
-                pf.sirano DESC
-            ) as rn
-          FROM product_fiyat pf
-          WHERE pf.plu = p.plu
-        ) x
-      ) pf ON true
-      ORDER BY p.grup2, p.product_name
+        WHERE pf.plu = ANY($1::int[])
+      ) x
+      GROUP BY plu
     `;
 
-    const mapRows = (rows: any[]) =>
-      (rows || []).map((r: any) => ({
-        id: Number(r.id),
-        urun_adi: r.urun_adi,
-        grup2: r.grup2,
-        fiyat:
-          r.fiyat !== null && typeof r.fiyat !== 'undefined'
-            ? Number(r.fiyat)
-            : null,
-        onceki_fiyat:
-          r.onceki_fiyat !== null && typeof r.onceki_fiyat !== 'undefined'
-            ? Number(r.onceki_fiyat)
-            : null,
-      }));
-
-    try {
-      const res = await pool.query(query, [date]);
-      return mapRows(res.rows);
-    } catch (e: any) {
-      const fallbackQuery = `
-        WITH products AS (
-          SELECT DISTINCT
-            pf.plu,
-            CAST(pf.plu AS VARCHAR) AS product_name,
-            'Diğer' AS grup2
-          FROM product_fiyat pf
-          WHERE pf.plu IS NOT NULL
-        )
+    const priceQueryFiyatOnly = `
+      SELECT
+        plu,
+        MAX(CASE WHEN rn = 1 THEN fiyat END) as fiyat,
+        MAX(CASE WHEN rn = 2 THEN fiyat END) as onceki_fiyat
+      FROM (
         SELECT
-          p.plu as id,
-          p.product_name AS urun_adi,
-          p.grup2 as grup2,
+          pf.plu,
           pf.fiyat as fiyat,
-          pf.onceki_fiyat as onceki_fiyat
-        FROM products p
-        LEFT JOIN LATERAL (
-          SELECT
-            MAX(CASE WHEN x.rn = 1 THEN x.fiyat END) as fiyat,
-            MAX(CASE WHEN x.rn = 2 THEN x.fiyat END) as onceki_fiyat
-          FROM (
-            SELECT
-              COALESCE(pf.fiyat, pf.fiyat_2, pf.fiyat_3) as fiyat,
-              ROW_NUMBER() OVER (
-                ORDER BY
-                  CASE
-                    WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
-                     AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
-                    THEN 0
-                    ELSE 1
-                  END,
-                  COALESCE(pf.bastar, DATE '1900-01-01') DESC,
-                  pf.tarih DESC,
-                  pf.sirano DESC
-              ) as rn
-            FROM product_fiyat pf
-            WHERE pf.plu = p.plu
-          ) x
-        ) pf ON true
-        ORDER BY p.grup2, p.product_name
-      `;
+          ROW_NUMBER() OVER (
+            PARTITION BY pf.plu
+            ORDER BY
+              CASE
+                WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
+                 AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
+                THEN 0
+                ELSE 1
+              END,
+              COALESCE(pf.bastar, DATE '1900-01-01') DESC,
+              COALESCE(pf.sirano, 0) DESC
+          ) as rn
+        FROM product_fiyat pf
+        WHERE pf.plu = ANY($1::int[])
+      ) x
+      GROUP BY plu
+    `;
 
-      const res = await pool.query(fallbackQuery);
-      return mapRows(res.rows);
+    for (const part of chunk(plus, 2000)) {
+      try {
+        const res = await pool.query(priceQueryWithAltCols, [part]);
+        for (const r of res.rows || []) {
+          const plu = Number(r.plu);
+          if (!Number.isFinite(plu) || plu <= 0) continue;
+          const fiyat =
+            r.fiyat !== null && typeof r.fiyat !== 'undefined'
+              ? Number(r.fiyat)
+              : null;
+          const onceki =
+            r.onceki_fiyat !== null && typeof r.onceki_fiyat !== 'undefined'
+              ? Number(r.onceki_fiyat)
+              : null;
+          priceByPlu.set(plu, {
+            fiyat: Number.isFinite(fiyat as any) ? (fiyat as any) : null,
+            onceki_fiyat: Number.isFinite(onceki as any) ? (onceki as any) : null,
+          });
+        }
+      } catch {
+        const res = await pool.query(priceQueryFiyatOnly, [part]);
+        for (const r of res.rows || []) {
+          const plu = Number(r.plu);
+          if (!Number.isFinite(plu) || plu <= 0) continue;
+          const fiyat =
+            r.fiyat !== null && typeof r.fiyat !== 'undefined'
+              ? Number(r.fiyat)
+              : null;
+          const onceki =
+            r.onceki_fiyat !== null && typeof r.onceki_fiyat !== 'undefined'
+              ? Number(r.onceki_fiyat)
+              : null;
+          priceByPlu.set(plu, {
+            fiyat: Number.isFinite(fiyat as any) ? (fiyat as any) : null,
+            onceki_fiyat: Number.isFinite(onceki as any) ? (onceki as any) : null,
+          });
+        }
+      }
     }
+
+    const items = plus.map((plu) => {
+      const meta = metaByPlu.get(plu);
+      const prices = priceByPlu.get(plu);
+      return {
+        id: plu,
+        urun_adi: meta?.urun_adi || String(plu),
+        grup2: meta?.grup2 || 'Diğer',
+        fiyat: prices?.fiyat ?? null,
+        onceki_fiyat: prices?.onceki_fiyat ?? null,
+      };
+    });
+
+    items.sort((a, b) => {
+      const g = String(a.grup2 || '').localeCompare(String(b.grup2 || ''), 'tr');
+      if (g !== 0) return g;
+      return String(a.urun_adi || '').localeCompare(String(b.urun_adi || ''), 'tr');
+    });
+
+    return items;
   }
 
   async updateProductPrice(
