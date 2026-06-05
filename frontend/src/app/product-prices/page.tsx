@@ -30,8 +30,9 @@ export default function ProductPricesPage() {
   const [groups, setGroups] = useState<string[]>(['Tümü']);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
-  const [savingId, setSavingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const initialPriceMapRef = useRef<Record<string, string>>({});
 
   const canEditPrices = useMemo(() => {
     if (!user) return false;
@@ -62,10 +63,10 @@ export default function ProductPricesPage() {
       try {
         if (isRefresh) setRefreshing(true);
         else setLoadingList(true);
-        const res = await axios.get(
-          `${getApiUrl()}/stock/product-prices?branchId=${branchId}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const url = `${getApiUrl()}/stock/product-prices?branchId=${branchId}`;
+        const res = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const list = (res.data || []) as PriceItem[];
         setItems(list);
         setGroups([
@@ -80,12 +81,17 @@ export default function ProductPricesPage() {
             typeof p.fiyat === 'number' ? String(p.fiyat) : p.fiyat === null ? '' : String(p.fiyat);
         }
         setPriceMap(nextMap);
+        initialPriceMapRef.current = nextMap;
       } catch (e: any) {
         const status = e?.response?.status;
         const message = e?.response?.data?.message;
+        const extra =
+          typeof e?.response?.data === 'string'
+            ? `: ${e.response.data.slice(0, 200)}`
+            : '';
         alert(
           status
-            ? `Fiyat listesi alınamadı (${status})${message ? `: ${message}` : ''}`
+            ? `Fiyat listesi alınamadı (${status})${message ? `: ${message}` : ''}${extra}`
             : 'Fiyat listesi alınamadı.',
         );
       } finally {
@@ -127,54 +133,60 @@ export default function ProductPricesPage() {
     setPriceMap((prev) => ({ ...prev, [String(productId)]: normalized }));
   }, []);
 
-  const savePrice = useCallback(
-    async (productId: number, focusNext: boolean) => {
-      if (!token) return;
-      if (!branchId) return;
-      if (!canEditPrices) return;
+  const changedItems = useMemo(() => {
+    const base = initialPriceMapRef.current || {};
+    const changes: Array<{ plu: number; fiyat: number }> = [];
+    for (const p of items) {
+      const key = String(p.id);
+      const currentRaw = (priceMap[key] ?? '').trim();
+      const baseRaw = (base[key] ?? '').trim();
+      if (currentRaw === baseRaw) continue;
+      if (currentRaw === '') continue;
+      const val = Number(currentRaw);
+      if (!Number.isFinite(val) || val < 0) continue;
+      changes.push({ plu: p.id, fiyat: val });
+    }
+    return changes;
+  }, [items, priceMap]);
 
-      const raw = (priceMap[String(productId)] ?? '').trim();
-      if (raw === '') return;
-      const val = Number(raw);
-      if (!Number.isFinite(val) || val < 0) {
-        alert('Geçersiz fiyat');
-        return;
-      }
+  const focusNextInput = useCallback((productId: number) => {
+    const ids = filtered.map((p) => p.id);
+    const idx = ids.indexOf(productId);
+    const nextId = idx >= 0 ? ids[idx + 1] : null;
+    if (!nextId) return;
+    const el = inputRefs.current[String(nextId)];
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [filtered]);
 
-      try {
-        setSavingId(productId);
-        await axios.put(
-          `${getApiUrl()}/stock/product-price?branchId=${branchId}`,
-          { plu: productId, fiyat: val },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+  const saveAll = useCallback(async () => {
+    if (!token) return;
+    if (!branchId) return;
+    if (!canEditPrices) return;
+    if (changedItems.length === 0) return;
 
-        if (focusNext) {
-          const ids = filtered.map((p) => p.id);
-          const idx = ids.indexOf(productId);
-          const nextId = idx >= 0 ? ids[idx + 1] : null;
-          if (nextId) {
-            const el = inputRefs.current[String(nextId)];
-            if (el) {
-              el.focus();
-              el.select();
-            }
-          }
-        }
-      } catch (e: any) {
-        const status = e?.response?.status;
-        const message = e?.response?.data?.message;
-        alert(
-          status
-            ? `Fiyat güncellenemedi (${status})${message ? `: ${message}` : ''}`
-            : 'Fiyat güncellenemedi.',
-        );
-      } finally {
-        setSavingId(null);
-      }
-    },
-    [token, branchId, canEditPrices, priceMap, filtered],
-  );
+    try {
+      setSaving(true);
+      const url = `${getApiUrl()}/stock/product-prices?branchId=${branchId}`;
+      await axios.put(
+        url,
+        { items: changedItems },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      await loadPrices(true);
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const message = e?.response?.data?.message;
+      alert(
+        status
+          ? `Fiyatlar güncellenemedi (${status})${message ? `: ${message}` : ''}`
+          : 'Fiyatlar güncellenemedi.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [token, branchId, canEditPrices, changedItems, loadPrices]);
 
   if (!token) return null;
 
@@ -293,14 +305,13 @@ export default function ProductPricesPage() {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
-                              savePrice(p.id, true);
+                              focusNextInput(p.id);
                             }
                           }}
-                          onBlur={() => savePrice(p.id, false)}
                           inputMode="decimal"
                           className="w-24 text-right font-black text-lg border-2 rounded-xl py-2 px-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all border-gray-200 text-gray-900 bg-gray-50 disabled:opacity-60"
                           placeholder="0"
-                          disabled={!canEditPrices || savingId === p.id}
+                          disabled={!canEditPrices || saving}
                         />
                         <div className="text-xs font-black text-gray-500">₺</div>
                       </div>
@@ -322,7 +333,28 @@ export default function ProductPricesPage() {
           </div>
         )}
       </div>
+
+      {canEditPrices && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 p-4 shadow-2xl shadow-gray-900/20">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-gray-700">
+              {changedItems.length} değişiklik
+            </div>
+            <button
+              onClick={saveAll}
+              disabled={saving || changedItems.length === 0}
+              className={clsx(
+                "px-5 py-3 rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg",
+                saving || changedItems.length === 0
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 hover:shadow-xl"
+              )}
+            >
+              Kaydet
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

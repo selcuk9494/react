@@ -35,7 +35,41 @@ export class StockController {
   @UseGuards(JwtAuthGuard)
   @Get('product-prices')
   async getProductPrices(@Request() req, @Query('branchId') branchId: string) {
-    return this.stockService.getProductPrices(req.user, branchId);
+    try {
+      return await this.stockService.getProductPrices(req.user, branchId);
+    } catch (error: any) {
+      console.error('Get product prices error:', error);
+      const message =
+        error?.message || 'Fiyat listesi alınırken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        { message, code: error?.code || null },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('product-prices')
+  async updateProductPrices(
+    @Request() req,
+    @Query('branchId') branchId: string,
+    @Body() body: any,
+  ) {
+    try {
+      return await this.stockService.updateProductPricesBulk(
+        req.user,
+        branchId,
+        body,
+      );
+    } catch (error: any) {
+      console.error('Bulk update prices error:', error);
+      const message =
+        error?.message || 'Fiyatlar güncellenirken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        { message, code: error?.code || null },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard)

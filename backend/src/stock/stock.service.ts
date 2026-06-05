@@ -555,6 +555,80 @@ export class StockService {
     }
   }
 
+  async updateProductPricesBulk(
+    user: any,
+    branchId: string,
+    payload: { items?: Array<{ plu: number; fiyat: number }> },
+  ) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+    const { pool } = await this.getBranchPool(branchId);
+
+    const rawItems = Array.isArray(payload?.items) ? payload.items : [];
+    const normalized = rawItems
+      .map((i) => ({ plu: Number((i as any)?.plu), fiyat: Number((i as any)?.fiyat) }))
+      .filter((i) => Number.isFinite(i.plu) && i.plu > 0 && Number.isFinite(i.fiyat) && i.fiyat >= 0);
+
+    const byPlu = new Map<number, number>();
+    for (const i of normalized) {
+      byPlu.set(i.plu, i.fiyat);
+    }
+    const items = Array.from(byPlu.entries()).map(([plu, fiyat]) => ({ plu, fiyat }));
+
+    if (items.length === 0) return { success: true, updated: 0 };
+
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+    const y = turkeyTime.getUTCFullYear();
+    const m = String(turkeyTime.getUTCMonth() + 1).padStart(2, '0');
+    const tarih = `${y}${m}`;
+
+    const plus = items.map((i) => i.plu);
+    const prices = items.map((i) => i.fiyat);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `
+        UPDATE product_fiyat
+        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
+        WHERE plu = ANY($1::int[])
+          AND (bittar IS NULL OR bittar >= CURRENT_DATE)
+          AND (bastar IS NULL OR bastar <= CURRENT_DATE)
+      `,
+        [plus],
+      );
+
+      await client.query(
+        `
+        INSERT INTO product_fiyat (plu, tarih, id, fiyat, bastar, bittar)
+        SELECT
+          u.plu,
+          $3,
+          u.plu,
+          u.fiyat,
+          CURRENT_DATE,
+          NULL
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      `,
+        [plus, prices, tarih],
+      );
+
+      await client.query('COMMIT');
+      return { success: true, updated: items.length };
+    } catch (e) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   // Canlı Stok Raporu - opsiyonel tarih parametresi ile
   async getLiveStock(branchId: string, selectedDate?: string) {
     const { pool } = await this.getBranchPool(branchId);
