@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 import axios from 'axios';
 import { 
@@ -30,7 +30,6 @@ interface Product {
 export default function StockEntryPage() {
   const { token, user } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [mode, setMode] = useState<'stock' | 'price'>('stock');
   const [loading, setLoading] = useState(true);
@@ -57,11 +56,10 @@ export default function StockEntryPage() {
   const effectiveCanEditPrices = overrideCanEditPrices ?? canEditPrices;
 
   useEffect(() => {
-    const m = searchParams?.get('mode');
-    if (m === 'price') {
-      setMode('price');
-    }
-  }, [searchParams]);
+    if (typeof window === 'undefined') return;
+    const m = new URLSearchParams(window.location.search).get('mode');
+    if (m === 'price') setMode('price');
+  }, []);
 
   const fetchProducts = useCallback(async (showRefreshIndicator = false) => {
     if (!token) return;
