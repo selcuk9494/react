@@ -429,17 +429,70 @@ export class StockService {
       ORDER BY p.grup2, p.product_name
     `;
 
-    const res = await pool.query(query, [date]);
-    return (res.rows || []).map((r: any) => ({
-      id: Number(r.id),
-      urun_adi: r.urun_adi,
-      grup2: r.grup2,
-      fiyat: r.fiyat !== null && typeof r.fiyat !== 'undefined' ? Number(r.fiyat) : null,
-      onceki_fiyat:
-        r.onceki_fiyat !== null && typeof r.onceki_fiyat !== 'undefined'
-          ? Number(r.onceki_fiyat)
-          : null,
-    }));
+    const mapRows = (rows: any[]) =>
+      (rows || []).map((r: any) => ({
+        id: Number(r.id),
+        urun_adi: r.urun_adi,
+        grup2: r.grup2,
+        fiyat:
+          r.fiyat !== null && typeof r.fiyat !== 'undefined'
+            ? Number(r.fiyat)
+            : null,
+        onceki_fiyat:
+          r.onceki_fiyat !== null && typeof r.onceki_fiyat !== 'undefined'
+            ? Number(r.onceki_fiyat)
+            : null,
+      }));
+
+    try {
+      const res = await pool.query(query, [date]);
+      return mapRows(res.rows);
+    } catch (e: any) {
+      const fallbackQuery = `
+        WITH products AS (
+          SELECT DISTINCT
+            pf.plu,
+            CAST(pf.plu AS VARCHAR) AS product_name,
+            'Diğer' AS grup2
+          FROM product_fiyat pf
+          WHERE pf.plu IS NOT NULL
+        )
+        SELECT
+          p.plu as id,
+          p.product_name AS urun_adi,
+          p.grup2 as grup2,
+          pf.fiyat as fiyat,
+          pf.onceki_fiyat as onceki_fiyat
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT
+            MAX(CASE WHEN x.rn = 1 THEN x.fiyat END) as fiyat,
+            MAX(CASE WHEN x.rn = 2 THEN x.fiyat END) as onceki_fiyat
+          FROM (
+            SELECT
+              COALESCE(pf.fiyat, pf.fiyat_2, pf.fiyat_3) as fiyat,
+              ROW_NUMBER() OVER (
+                ORDER BY
+                  CASE
+                    WHEN (pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)
+                     AND (pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)
+                    THEN 0
+                    ELSE 1
+                  END,
+                  COALESCE(pf.bastar, DATE '1900-01-01') DESC,
+                  pf.tarih DESC,
+                  pf.id DESC
+              ) as rn
+            FROM product_fiyat pf
+            WHERE pf.plu = p.plu
+          ) x
+        ) pf ON true
+        ORDER BY p.grup2, p.product_name
+      `;
+
+      const res = await pool.query(fallbackQuery);
+      return mapRows(res.rows);
+    }
   }
 
   async updateProductPrice(
