@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -52,17 +54,26 @@ export default function ProductPricesScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState({});
-  const [listKey, setListKey] = useState(0);
   const initialPriceMapRef = useRef({});
   const inputRefs = useRef({});
   const listRef = useRef(null);
-  const pendingScrollResetRef = useRef(true);
 
-  const resetScrollToTop = useCallback((animated = false) => {
-    const ref = listRef.current;
-    if (ref && typeof ref.scrollTo === 'function') {
-      ref.scrollTo({ y: 0, animated });
-    }
+  const scrollToTopHard = useCallback((animated = false) => {
+    const tryScroll = () => {
+      const ref = listRef.current;
+      if (!ref) return;
+      if (typeof ref.scrollToOffset === 'function') {
+        ref.scrollToOffset({ offset: 0, animated });
+        return;
+      }
+      if (typeof ref.scrollTo === 'function') {
+        ref.scrollTo({ y: 0, animated });
+      }
+    };
+
+    tryScroll();
+    requestAnimationFrame(tryScroll);
+    setTimeout(tryScroll, 50);
   }, []);
 
   const canEditPrices = useCallback((user) => {
@@ -108,9 +119,7 @@ export default function ProductPricesScreen({ navigation }) {
       });
 
       const list = Array.isArray(response.data) ? response.data : [];
-      pendingScrollResetRef.current = true;
       setItems(list);
-      setListKey((v) => v + 1);
 
       const nextMap = {};
       for (const p of list) {
@@ -137,6 +146,7 @@ export default function ProductPricesScreen({ navigation }) {
       } catch (e) {}
 
       setPriceMap(merged);
+      InteractionManager.runAfterInteractions(() => scrollToTopHard(false));
     } catch (error) {
       console.error(error);
       Alert.alert('Hata', error?.response?.data?.message || 'Fiyat listesi alınamadı.');
@@ -151,9 +161,15 @@ export default function ProductPricesScreen({ navigation }) {
   }, [fetchPrices]);
 
   useEffect(() => {
-    pendingScrollResetRef.current = true;
-    setListKey((v) => v + 1);
+    InteractionManager.runAfterInteractions(() => scrollToTopHard(false));
   }, [selectedGroup]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      InteractionManager.runAfterInteractions(() => scrollToTopHard(false));
+    });
+    return unsubscribe;
+  }, [navigation, scrollToTopHard]);
 
   useEffect(() => {
     const showSub = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -195,6 +211,17 @@ export default function ProductPricesScreen({ navigation }) {
       data: data.sort((a, b) => String(a.urun_adi || '').localeCompare(String(b.urun_adi || ''), 'tr')),
     }));
   }, [filteredItems]);
+
+  const rows = useMemo(() => {
+    const out = [];
+    for (const s of sections) {
+      out.push({ type: 'header', title: s.title, count: s.data.length, key: `h:${s.title}` });
+      for (const p of s.data) {
+        out.push({ type: 'item', item: p, key: `i:${p.id}` });
+      }
+    }
+    return out;
+  }, [sections]);
 
   const flatIds = useMemo(() => filteredItems.map((p) => p.id), [filteredItems]);
 
@@ -301,7 +328,7 @@ export default function ProductPricesScreen({ navigation }) {
     const value = priceMap[key] ?? '';
     const hasChange = String(value).trim() !== String(initialPriceMapRef.current?.[key] ?? '').trim();
     return (
-      <View key={key} style={[styles.itemRow, hasChange && styles.itemRowChanged]}>
+      <View style={[styles.itemRow, hasChange && styles.itemRowChanged]}>
         <View style={{ flex: 1, paddingRight: 10 }}>
           <Text style={styles.itemName} numberOfLines={2}>{p.urun_adi}</Text>
           {typeof p.onceki_fiyat === 'number' ? (
@@ -338,6 +365,20 @@ export default function ProductPricesScreen({ navigation }) {
       </View>
     );
   }, [focusNextInput, handlePriceChange, keyboardVisible, priceMap]);
+
+  const renderListRow = useCallback(({ item }) => {
+    if (item.type === 'header') {
+      return (
+        <View style={styles.groupHeaderRow}>
+          <Text style={styles.groupHeaderText}>{item.title}</Text>
+          <View style={styles.groupHeaderBadge}>
+            <Text style={styles.groupHeaderBadgeText}>{item.count} ürün</Text>
+          </View>
+        </View>
+      );
+    }
+    return renderRow(item.item);
+  }, [renderRow]);
 
   const content = (
     <View style={{ flex: 1 }}>
@@ -403,52 +444,23 @@ export default function ProductPricesScreen({ navigation }) {
           <Text style={styles.loadingText}>Ürünler yükleniyor...</Text>
         </View>
       ) : (
-        <ScrollView
-          key={`list:${listKey}:${selectedGroup}:${searchQuery}:${items.length}`}
+        <FlatList
           ref={listRef}
-          style={{ flex: 1 }}
+          data={rows}
+          renderItem={renderListRow}
+          keyExtractor={(r) => r.key}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
-          contentOffset={{ x: 0, y: 0 }}
-          onLayout={() => {
-            if (!pendingScrollResetRef.current) return;
-            resetScrollToTop(false);
-            requestAnimationFrame(() => resetScrollToTop(false));
-            setTimeout(() => resetScrollToTop(false), 50);
-            pendingScrollResetRef.current = false;
-          }}
-          onContentSizeChange={() => {
-            if (!pendingScrollResetRef.current) return;
-            resetScrollToTop(false);
-            requestAnimationFrame(() => resetScrollToTop(false));
-            setTimeout(() => resetScrollToTop(false), 50);
-            pendingScrollResetRef.current = false;
-          }}
           contentContainerStyle={{ paddingBottom: keyboardVisible ? 64 : 96 }}
-        >
-          {sections.length === 0 ? (
+          ListEmptyComponent={
             <View style={styles.emptyBox}>
               <Text style={styles.emptyTitle}>Ürün bulunamadı</Text>
               <Text style={styles.emptyDesc}>Arama kriterlerinize uygun ürün yok.</Text>
             </View>
-          ) : (
-            sections.map((s) => (
-              <View key={s.title} style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{s.title}</Text>
-                  <View style={styles.sectionBadge}>
-                    <Text style={styles.sectionBadgeText}>{s.data.length} ürün</Text>
-                  </View>
-                </View>
-                <View>
-                  {s.data.map(renderRow)}
-                </View>
-              </View>
-            ))
-          )}
-        </ScrollView>
+          }
+        />
       )}
 
     </View>
@@ -657,6 +669,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
   },
   sectionBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#334155',
+  },
+  groupHeaderRow: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groupHeaderText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  groupHeaderBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
+  },
+  groupHeaderBadgeText: {
     fontSize: 10,
     fontWeight: '900',
     color: '#334155',
