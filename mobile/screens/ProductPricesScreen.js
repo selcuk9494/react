@@ -399,6 +399,7 @@ export default function ProductPricesScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView
+          key={`list:${selectedGroup}:${searchQuery}`}
           ref={listRef}
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
