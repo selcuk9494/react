@@ -1258,7 +1258,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportProductPricesDesc}
                     icon="tag"
                     colors={['#10b981', '#0ea5e9']}
-                    onPress={() => openAdminPage('/product-prices')}
+                    onPress={() => navigation.navigate('ProductPrices')}
                 />
                 )}
                 {isReportAllowed('debts') && (

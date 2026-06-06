@@ -26,6 +26,7 @@ import LiveStockScreen from './screens/LiveStockScreen';
 import AdminBranchesScreen from './screens/AdminBranchesScreen';
 import AdminUsersScreen from './screens/AdminUsersScreen';
 import AdminManageScreen from './screens/AdminManageScreen';
+import ProductPricesScreen from './screens/ProductPricesScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -166,6 +167,11 @@ export default function App() {
             name="LiveStock" 
             component={LiveStockScreen} 
             options={{ headerShown: false }} 
+          />
+          <Stack.Screen
+            name="ProductPrices"
+            component={ProductPricesScreen}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>
