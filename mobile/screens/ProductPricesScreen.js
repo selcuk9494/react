@@ -54,6 +54,7 @@ export default function ProductPricesScreen({ navigation }) {
   const [priceMap, setPriceMap] = useState({});
   const initialPriceMapRef = useRef({});
   const inputRefs = useRef({});
+  const listRef = useRef(null);
 
   const canEditPrices = useCallback((user) => {
     if (!user) return false;
@@ -99,6 +100,11 @@ export default function ProductPricesScreen({ navigation }) {
 
       const list = Array.isArray(response.data) ? response.data : [];
       setItems(list);
+      setTimeout(() => {
+        if (listRef.current && typeof listRef.current.scrollTo === 'function') {
+          listRef.current.scrollTo({ y: 0, animated: false });
+        }
+      }, 0);
 
       const nextMap = {};
       for (const p of list) {
@@ -137,6 +143,12 @@ export default function ProductPricesScreen({ navigation }) {
   useEffect(() => {
     fetchPrices(false);
   }, [fetchPrices]);
+
+  useEffect(() => {
+    if (listRef.current && typeof listRef.current.scrollTo === 'function') {
+      listRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [selectedGroup]);
 
   useEffect(() => {
     const showSub = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -375,6 +387,7 @@ export default function ProductPricesScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView
+          ref={listRef}
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
