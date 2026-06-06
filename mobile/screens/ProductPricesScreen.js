@@ -303,7 +303,17 @@ export default function ProductPricesScreen({ navigation }) {
             <Text style={styles.prevPrice}>Önceki: {p.onceki_fiyat}</Text>
           ) : null}
         </View>
-        <View style={styles.priceBox}>
+        <TouchableOpacity
+          style={styles.priceBox}
+          activeOpacity={0.9}
+          onPress={() => {
+            const ref = inputRefs.current[key];
+            if (ref && typeof ref.focus === 'function') {
+              ref.focus();
+            }
+            if (!keyboardVisible) setKeyboardVisible(true);
+          }}
+        >
           <TextInput
             ref={(el) => { inputRefs.current[key] = el; }}
             style={[styles.priceInput, !hasChange && styles.priceInputIdle]}
@@ -312,12 +322,14 @@ export default function ProductPricesScreen({ navigation }) {
             onChangeText={(text) => handlePriceChange(p.id, text)}
             returnKeyType="next"
             onSubmitEditing={() => focusNextInput(p.id)}
+            blurOnSubmit={false}
+            selectTextOnFocus={true}
             onFocus={() => {
               if (!keyboardVisible) setKeyboardVisible(true);
             }}
           />
           <Text style={styles.currency}>₺</Text>
-        </View>
+        </TouchableOpacity>
       </View>
     );
   }, [focusNextInput, handlePriceChange, keyboardVisible, priceMap]);
