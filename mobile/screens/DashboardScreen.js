@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, Scr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL, WEB_URL } from '../config';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -157,6 +157,8 @@ export default function DashboardScreen({ navigation, route }) {
       reportCancelsDesc: 'İptal edilen ürünler',
       reportDiscountsTitle: 'İndirimler',
       reportDiscountsDesc: 'Yapılan indirimler',
+      reportProductPricesTitle: 'Ürün Fiyatları',
+      reportProductPricesDesc: 'Fiyat güncelle',
       reportDebtsTitle: 'Borca Atılanlar',
       reportDebtsDesc: 'Veresiye listesi',
       reportCourierTitle: 'Kurye Takip',
@@ -233,6 +235,8 @@ export default function DashboardScreen({ navigation, route }) {
       reportCancelsDesc: 'Cancelled items',
       reportDiscountsTitle: 'Discounts',
       reportDiscountsDesc: 'Applied discounts',
+      reportProductPricesTitle: 'Product Prices',
+      reportProductPricesDesc: 'Update prices',
       reportDebtsTitle: 'Debts',
       reportDebtsDesc: 'Customer credit list',
       reportCourierTitle: 'Courier Tracking',
@@ -353,8 +357,9 @@ export default function DashboardScreen({ navigation, route }) {
   };
 
   const getWebBaseUrl = () => {
+    if (WEB_URL) return String(WEB_URL).replace(/\/+$/, '');
     if (!API_URL) return '';
-    return API_URL.replace(/\/api\/?$/, '');
+    return API_URL.replace(/\/api\/?$/, '').replace(/\/+$/, '');
   };
 
   const openAdminPage = (path) => {
@@ -1245,6 +1250,15 @@ export default function DashboardScreen({ navigation, route }) {
                     icon="tag" 
                     colors={['#10b981', '#16a34a']} 
                     onPress={() => navigation.navigate('Discount')} 
+                />
+                )}
+                {isReportAllowed('product_prices') && (
+                <ReportCard
+                    title={T.reportProductPricesTitle}
+                    desc={T.reportProductPricesDesc}
+                    icon="tag"
+                    colors={['#10b981', '#0ea5e9']}
+                    onPress={() => openAdminPage('/product-prices')}
                 />
                 )}
                 {isReportAllowed('debts') && (
