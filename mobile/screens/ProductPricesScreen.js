@@ -309,7 +309,7 @@ export default function ProductPricesScreen({ navigation }) {
           disabled={refreshing}
           onPress={() => fetchPrices(true)}
         >
-          <Feather name="refresh-cw" size={16} color="#0f766e" />
+          <Feather name="refresh-cw" size={16} color="#065f46" />
           <Text style={styles.fetchBtnText}>Şubeden çek</Text>
         </TouchableOpacity>
       </View>
@@ -330,7 +330,12 @@ export default function ProductPricesScreen({ navigation }) {
         ) : null}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.groupScroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.groupScroll}
+        contentContainerStyle={styles.groupScrollContent}
+      >
         {groups.map((g) => {
           const active = selectedGroup === g;
           return (
@@ -351,7 +356,7 @@ export default function ProductPricesScreen({ navigation }) {
           <Text style={styles.loadingText}>Ürünler yükleniyor...</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 96 }}>
+        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
           {sections.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyTitle}>Ürün bulunamadı</Text>
@@ -375,40 +380,43 @@ export default function ProductPricesScreen({ navigation }) {
         </ScrollView>
       )}
 
-      <View style={styles.bottomBar}>
-        <Text style={styles.changedText}>{changedItems.length} değişiklik</Text>
-        <View style={styles.bottomBtns}>
-          <TouchableOpacity
-            style={[styles.draftBtn, saving && styles.btnDisabled]}
-            onPress={saveDraft}
-            disabled={saving}
-          >
-            <Text style={styles.draftBtnText}>Taslak kaydet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.sendBtn, (saving || changedItems.length === 0) && styles.btnDisabled]}
-            onPress={sendPrices}
-            disabled={saving || changedItems.length === 0}
-          >
-            <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.sendBtnGradient}>
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.sendBtnText}>Fiyat Gönder</Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 6 : 0}
       style={styles.container}
     >
-      {content}
+      <View style={{ flex: 1 }}>
+        {content}
+        <View style={styles.bottomBar}>
+          <Text style={styles.changedText}>{changedItems.length} değişiklik</Text>
+          <View style={styles.bottomBtns}>
+            <TouchableOpacity
+              style={[styles.draftBtn, saving && styles.btnDisabled]}
+              onPress={saveDraft}
+              disabled={saving}
+            >
+              <Text style={styles.draftBtnText}>Taslak</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sendBtn, (saving || changedItems.length === 0) && styles.btnDisabled]}
+              onPress={sendPrices}
+              disabled={saving || changedItems.length === 0}
+            >
+              <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.sendBtnGradient}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.sendBtnText}>Fiyat Gönder</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -421,7 +429,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? 40 : 60,
+    paddingTop: Platform.OS === 'android' ? 44 : 56,
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: '#fff',
@@ -438,12 +446,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
     color: '#0f172a',
   },
   headerSub: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748b',
     marginTop: 2,
@@ -451,24 +459,25 @@ const styles = StyleSheet.create({
   fetchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: '#ecfeff',
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
   },
   fetchBtnDisabled: {
     opacity: 0.6,
   },
   fetchBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#0f766e',
+    color: '#065f46',
+    marginLeft: 6,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     backgroundColor: '#fff',
     margin: 16,
     marginBottom: 10,
@@ -480,26 +489,34 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#0f172a',
+    marginLeft: 8,
   },
   groupScroll: {
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingBottom: 12,
+  },
+  groupScrollContent: {
+    paddingRight: 16,
   },
   groupChip: {
+    height: 40,
     paddingHorizontal: 14,
-    paddingVertical: 10,
     borderRadius: 14,
     backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginRight: 10,
+    justifyContent: 'center',
   },
   groupChipActive: {
     backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
   groupChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#475569',
   },
@@ -538,7 +555,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f1f5f9',
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#0f172a',
   },
@@ -549,7 +566,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
   },
   sectionBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     color: '#334155',
   },
@@ -565,13 +582,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0f172a',
   },
   prevPrice: {
     marginTop: 4,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: '#64748b',
   },
@@ -589,7 +606,7 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
     backgroundColor: '#fff',
     textAlign: 'right',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     color: '#0f172a',
   },
@@ -598,7 +615,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   currency: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#64748b',
   },
@@ -613,13 +630,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
     color: '#0f172a',
   },
   emptyDesc: {
     marginTop: 8,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748b',
     textAlign: 'center',
@@ -630,7 +647,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 12,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
@@ -639,25 +657,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   changedText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#334155',
   },
   bottomBtns: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   draftBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 40,
+    paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     backgroundColor: '#fff',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   draftBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#334155',
   },
@@ -666,15 +685,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sendBtnGradient: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: 40,
+    paddingHorizontal: 16,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 110,
   },
   sendBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#fff',
   },
@@ -682,4 +701,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-
