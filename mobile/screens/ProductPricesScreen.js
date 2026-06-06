@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -46,6 +47,7 @@ export default function ProductPricesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
@@ -135,6 +137,17 @@ export default function ProductPricesScreen({ navigation }) {
   useEffect(() => {
     fetchPrices(false);
   }, [fetchPrices]);
+
+  useEffect(() => {
+    const showSub = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideSub = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showSub, () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(hideSub, () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const groups = useMemo(() => {
     const uniqueGroups = [...new Set(items.map((p) => p.grup2 || 'Diğer').filter(Boolean))];
@@ -287,12 +300,15 @@ export default function ProductPricesScreen({ navigation }) {
             onChangeText={(text) => handlePriceChange(p.id, text)}
             returnKeyType="next"
             onSubmitEditing={() => focusNextInput(p.id)}
+            onFocus={() => {
+              if (!keyboardVisible) setKeyboardVisible(true);
+            }}
           />
           <Text style={styles.currency}>₺</Text>
         </View>
       </View>
     );
-  }, [focusNextInput, handlePriceChange, priceMap]);
+  }, [focusNextInput, handlePriceChange, keyboardVisible, priceMap]);
 
   const content = (
     <View style={{ flex: 1 }}>
@@ -302,7 +318,7 @@ export default function ProductPricesScreen({ navigation }) {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Ürün Fiyatları</Text>
-          <Text style={styles.headerSub}>Hızlı fiyat güncelle</Text>
+          {!keyboardVisible && <Text style={styles.headerSub}>Hızlı fiyat güncelle</Text>}
         </View>
         <TouchableOpacity
           style={[styles.fetchBtn, refreshing && styles.fetchBtnDisabled]}
@@ -330,25 +346,27 @@ export default function ProductPricesScreen({ navigation }) {
         ) : null}
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.groupScroll}
-        contentContainerStyle={styles.groupScrollContent}
-      >
-        {groups.map((g) => {
-          const active = selectedGroup === g;
-          return (
-            <TouchableOpacity
-              key={g}
-              style={[styles.groupChip, active && styles.groupChipActive]}
-              onPress={() => setSelectedGroup(g)}
-            >
-              <Text style={[styles.groupChipText, active && styles.groupChipTextActive]}>{g}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {!keyboardVisible && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.groupScroll}
+          contentContainerStyle={styles.groupScrollContent}
+        >
+          {groups.map((g) => {
+            const active = selectedGroup === g;
+            return (
+              <TouchableOpacity
+                key={g}
+                style={[styles.groupChip, active && styles.groupChipActive]}
+                onPress={() => setSelectedGroup(g)}
+              >
+                <Text style={[styles.groupChipText, active && styles.groupChipTextActive]}>{g}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -356,7 +374,12 @@ export default function ProductPricesScreen({ navigation }) {
           <Text style={styles.loadingText}>Ürünler yükleniyor...</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ paddingBottom: keyboardVisible ? 64 : 96 }}
+        >
           {sections.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyTitle}>Ürün bulunamadı</Text>
@@ -391,31 +414,50 @@ export default function ProductPricesScreen({ navigation }) {
     >
       <View style={{ flex: 1 }}>
         {content}
-        <View style={styles.bottomBar}>
-          <Text style={styles.changedText}>{changedItems.length} değişiklik</Text>
-          <View style={styles.bottomBtns}>
-            <TouchableOpacity
-              style={[styles.draftBtn, saving && styles.btnDisabled]}
-              onPress={saveDraft}
-              disabled={saving}
-            >
-              <Text style={styles.draftBtnText}>Taslak</Text>
-            </TouchableOpacity>
+        {!keyboardVisible ? (
+          <View style={styles.bottomBar}>
+            <Text style={styles.changedText}>{changedItems.length} değişiklik</Text>
+            <View style={styles.bottomBtns}>
+              <TouchableOpacity
+                style={[styles.draftBtn, saving && styles.btnDisabled]}
+                onPress={saveDraft}
+                disabled={saving}
+              >
+                <Text style={styles.draftBtnText}>Taslak</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendBtn, (saving || changedItems.length === 0) && styles.btnDisabled]}
+                onPress={sendPrices}
+                disabled={saving || changedItems.length === 0}
+              >
+                <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.sendBtnGradient}>
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.sendBtnText}>Fiyat Gönder</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.bottomBarCompact}>
+            <Text style={styles.changedText}>{changedItems.length}</Text>
             <TouchableOpacity
               style={[styles.sendBtn, (saving || changedItems.length === 0) && styles.btnDisabled]}
               onPress={sendPrices}
               disabled={saving || changedItems.length === 0}
             >
-              <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.sendBtnGradient}>
+              <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.sendBtnGradientCompact}>
                 {saving ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.sendBtnText}>Fiyat Gönder</Text>
+                  <Text style={styles.sendBtnText}>Gönder</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -431,7 +473,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Platform.OS === 'android' ? 44 : 56,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
@@ -479,8 +521,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    margin: 16,
-    marginBottom: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 16,
@@ -496,7 +539,7 @@ const styles = StyleSheet.create({
   },
   groupScroll: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
   groupScrollContent: {
     paddingRight: 16,
@@ -537,7 +580,7 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     backgroundColor: '#fff',
     borderRadius: 18,
     borderWidth: 1,
@@ -699,5 +742,28 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.5,
+  },
+  bottomBarCompact: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sendBtnGradientCompact: {
+    height: 38,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 92,
   },
 });
