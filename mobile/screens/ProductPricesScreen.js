@@ -52,10 +52,11 @@ export default function ProductPricesScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState({});
+  const [listKey, setListKey] = useState(0);
   const initialPriceMapRef = useRef({});
   const inputRefs = useRef({});
   const listRef = useRef(null);
-  const pendingScrollResetRef = useRef(false);
+  const pendingScrollResetRef = useRef(true);
 
   const resetScrollToTop = useCallback((animated = false) => {
     const ref = listRef.current;
@@ -109,6 +110,7 @@ export default function ProductPricesScreen({ navigation }) {
       const list = Array.isArray(response.data) ? response.data : [];
       pendingScrollResetRef.current = true;
       setItems(list);
+      setListKey((v) => v + 1);
 
       const nextMap = {};
       for (const p of list) {
@@ -150,6 +152,7 @@ export default function ProductPricesScreen({ navigation }) {
 
   useEffect(() => {
     pendingScrollResetRef.current = true;
+    setListKey((v) => v + 1);
   }, [selectedGroup]);
 
   useEffect(() => {
@@ -401,13 +404,14 @@ export default function ProductPricesScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView
-          key={`list:${selectedGroup}:${searchQuery}`}
+          key={`list:${listKey}:${selectedGroup}:${searchQuery}:${items.length}`}
           ref={listRef}
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
+          contentOffset={{ x: 0, y: 0 }}
           onLayout={() => {
             if (!pendingScrollResetRef.current) return;
             resetScrollToTop(false);
