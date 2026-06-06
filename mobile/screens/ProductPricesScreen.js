@@ -55,6 +55,14 @@ export default function ProductPricesScreen({ navigation }) {
   const initialPriceMapRef = useRef({});
   const inputRefs = useRef({});
   const listRef = useRef(null);
+  const pendingScrollResetRef = useRef(false);
+
+  const resetScrollToTop = useCallback((animated = false) => {
+    const ref = listRef.current;
+    if (ref && typeof ref.scrollTo === 'function') {
+      ref.scrollTo({ y: 0, animated });
+    }
+  }, []);
 
   const canEditPrices = useCallback((user) => {
     if (!user) return false;
@@ -99,12 +107,8 @@ export default function ProductPricesScreen({ navigation }) {
       });
 
       const list = Array.isArray(response.data) ? response.data : [];
+      pendingScrollResetRef.current = true;
       setItems(list);
-      setTimeout(() => {
-        if (listRef.current && typeof listRef.current.scrollTo === 'function') {
-          listRef.current.scrollTo({ y: 0, animated: false });
-        }
-      }, 0);
 
       const nextMap = {};
       for (const p of list) {
@@ -145,9 +149,7 @@ export default function ProductPricesScreen({ navigation }) {
   }, [fetchPrices]);
 
   useEffect(() => {
-    if (listRef.current && typeof listRef.current.scrollTo === 'function') {
-      listRef.current.scrollTo({ y: 0, animated: false });
-    }
+    pendingScrollResetRef.current = true;
   }, [selectedGroup]);
 
   useEffect(() => {
@@ -404,6 +406,22 @@ export default function ProductPricesScreen({ navigation }) {
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          onLayout={() => {
+            if (!pendingScrollResetRef.current) return;
+            resetScrollToTop(false);
+            requestAnimationFrame(() => resetScrollToTop(false));
+            setTimeout(() => resetScrollToTop(false), 50);
+            pendingScrollResetRef.current = false;
+          }}
+          onContentSizeChange={() => {
+            if (!pendingScrollResetRef.current) return;
+            resetScrollToTop(false);
+            requestAnimationFrame(() => resetScrollToTop(false));
+            setTimeout(() => resetScrollToTop(false), 50);
+            pendingScrollResetRef.current = false;
+          }}
           contentContainerStyle={{ paddingBottom: keyboardVisible ? 64 : 96 }}
         >
           {sections.length === 0 ? (
