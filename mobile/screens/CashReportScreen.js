@@ -158,18 +158,6 @@ export default function CashReportScreen({ navigation }) {
           <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodScroll}>
-          {['today', 'yesterday', 'week', 'month', 'custom'].map(p => (
-            <TouchableOpacity 
-              key={p} 
-              onPress={() => setPeriod(p)}
-              style={[styles.periodBtn, period === p && styles.periodBtnActive]}
-            >
-              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{T[p]}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
         <DateFilterComponent
           period={period}
           setPeriod={setPeriod}
