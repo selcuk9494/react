@@ -183,7 +183,7 @@ export default function CancelsScreen({ navigation }) {
             <View style={styles.cardInfo}>
                 <Text style={styles.productName}>{item.product_name}</Text>
                 <Text style={styles.metaText}>
-                    {item.quantity} {translations.quantity} • {item.waiter_name}
+                    {item.quantity} {translations.quantity} • {(item.cancelled_by_name || item.waiter_name || '')}
                 </Text>
             </View>
             <View style={[styles.badge, { backgroundColor: `${color}20` }]}>

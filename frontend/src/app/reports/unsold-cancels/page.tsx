@@ -17,6 +17,7 @@ interface UnsoldCancelItem {
   saat: string;
   pers_id: number;
   personel_adi: string;
+  aciklama?: string | null;
   miktar: number;
   bfiyat?: number;
   tutar: number;
@@ -133,6 +134,7 @@ export default function UnsoldCancelsPage() {
                 <tr>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ürün</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Personel</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Açıklama</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
                   <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
                   <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Miktar</th>
@@ -145,6 +147,7 @@ export default function UnsoldCancelsPage() {
                   <tr key={idx} className="border-t">
                     <td className="px-3 py-2 text-sm text-gray-900">{i.urun_adi}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.personel_adi || i.pers_id}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{i.aciklama || '-'}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
                     <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
                     <td className="px-3 py-2 text-sm text-gray-900 text-right">{i.miktar}</td>
@@ -154,7 +157,7 @@ export default function UnsoldCancelsPage() {
                 ))}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
+                    <td colSpan={8} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
                   </tr>
                 )}
               </tbody>
