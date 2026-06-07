@@ -2,7 +2,7 @@
   "expo": {
     "name": "FR Rapor",
     "slug": "mobile",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -27,7 +27,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.micrapor.mobile",
-      "versionCode": 5,
+      "versionCode": 6,
       "navigationBar": {
         "visible": "shown",
         "backgroundColor": "#ffffff",
