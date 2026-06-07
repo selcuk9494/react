@@ -2492,7 +2492,31 @@ export class ReportsService {
 
     // Doğrudan sizin belirttiğiniz ve görselde teyit ettiğimiz yapı:
     // tarih, kasa, ykt, toplam, z_tutar, tc
-    const query = `
+    const kasaListQuery = `
+      SELECT DISTINCT kasa
+      FROM kasa_raporu
+      WHERE tarih::date >= $1::date AND tarih::date <= $2::date
+      ORDER BY kasa ASC
+    `;
+
+    let kasaListRows: any[] = [];
+    try {
+      kasaListRows = await this.db.executeQuery(pool, kasaListQuery, [
+        startDateOnly,
+        endDateOnly,
+      ]);
+    } catch {}
+
+    const detectedKasas = kasaListRows
+      .map((r) => (r?.kasa === null || typeof r?.kasa === 'undefined' ? null : Number(r.kasa)))
+      .filter((n) => Number.isFinite(n)) as number[];
+
+    const kasaFilter =
+      detectedKasas.length > 0 ? detectedKasas : Array.isArray(kasa_nos) ? kasa_nos : [];
+
+    const query =
+      kasaFilter.length > 0
+        ? `
       SELECT 
         id,
         tarih,
@@ -2505,8 +2529,24 @@ export class ReportsService {
       WHERE tarih::date >= $1::date AND tarih::date <= $2::date
         AND kasa = ANY($3)
       ORDER BY tarih DESC, id DESC
+    `
+        : `
+      SELECT 
+        id,
+        tarih,
+        kasa,
+        tc,
+        ykt,
+        toplam,
+        z_tutar
+      FROM kasa_raporu
+      WHERE tarih::date >= $1::date AND tarih::date <= $2::date
+      ORDER BY tarih DESC, id DESC
     `;
-    const params = [startDateOnly, endDateOnly, kasa_nos];
+    const params =
+      kasaFilter.length > 0
+        ? [startDateOnly, endDateOnly, kasaFilter]
+        : [startDateOnly, endDateOnly];
 
     console.log('[getCashReport] SQL:', query, params);
     let rows = await this.db.executeQuery(pool, query, params);
