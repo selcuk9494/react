@@ -1646,54 +1646,16 @@ export class ReportsService {
       endDateOnly = biz;
     }
 
-    const buildReasonExpr = (alias: string, columns: string[]) => {
-      if (!columns || columns.length === 0) return 'NULL::text';
-      const parts = columns.map(
-        (c) => `NULLIF(TRIM(COALESCE(${alias}.${c}::text, '')), '')`,
-      );
-      return `COALESCE(${parts.join(', ')})`;
-    };
-
-    const [
-      openAck1,
-      openAck2,
-      openAck3,
-      closedAck1,
-      closedAck2,
-      closedAck3,
-    ] = await Promise.all([
-      this.hasColumn(pool, 'ads_acik', 'ack1').catch(() => false),
-      this.hasColumn(pool, 'ads_acik', 'ack2').catch(() => false),
-      this.hasColumn(pool, 'ads_acik', 'ack3').catch(() => false),
-      this.hasColumn(pool, 'ads_adisyon', 'ack1').catch(() => false),
-      this.hasColumn(pool, 'ads_adisyon', 'ack2').catch(() => false),
-      this.hasColumn(pool, 'ads_adisyon', 'ack3').catch(() => false),
-    ]);
-
-    const openReasonCols = [openAck1 && 'ack1', openAck2 && 'ack2', openAck3 && 'ack3'].filter(
-      Boolean,
-    ) as string[];
-    const closedReasonCols = [
-      closedAck1 && 'ack1',
-      closedAck2 && 'ack2',
-      closedAck3 && 'ack3',
-    ].filter(Boolean) as string[];
-
-    const openReasonExpr = buildReasonExpr('a', openReasonCols);
-    const closedReasonExpr = buildReasonExpr('a', closedReasonCols);
-
     // Open - actar kullan
     const openQuery = `
       SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
           COALESCE(a.miktar, 0) as quantity,
-          ${openReasonExpr} as reason,
+          a.ack1 as reason,
           a.actar as date,
           a.adsno as order_id,
           a.adtur as adtur,
           per.adi as waiter_name,
-          per.id as cancelled_by_id,
-          per.adi as cancelled_by_name,
           CASE a.sturu WHEN 1 THEN 'ikram' WHEN 2 THEN 'iade' WHEN 4 THEN 'iptal' ELSE 'diğer' END as type,
           'open' as status
       FROM ads_acik a
@@ -1712,13 +1674,11 @@ export class ReportsService {
       SELECT 
           COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
           COALESCE(a.miktar, 0) as quantity,
-          ${closedReasonExpr} as reason,
+          a.ack1 as reason,
           a.raptar as date,
           a.adsno as order_id,
           a.adtur as adtur,
           per.adi as waiter_name,
-          per.id as cancelled_by_id,
-          per.adi as cancelled_by_name,
           CASE a.sturu WHEN 1 THEN 'ikram' WHEN 2 THEN 'iade' WHEN 4 THEN 'iptal' ELSE 'diğer' END as type,
           'closed' as status
       FROM ads_adisyon a
@@ -1764,32 +1724,12 @@ export class ReportsService {
       dStart = `${biz} 00:00:00`;
       dEnd = `${format(n, 'yyyy-MM-dd')} 00:00:00`;
     }
-    const descCandidates = [
-      'aciklama',
-      'sebep',
-      'neden',
-      'ack1',
-      'ack2',
-      'ack3',
-      'aciklama1',
-      'aciklama2',
-      'aciklama3',
-    ];
-    const descFlags = await Promise.all(
-      descCandidates.map((c) => this.hasColumn(pool, 'ads_iptal', c).catch(() => false)),
-    );
-    const descCol = descCandidates.find((_, idx) => descFlags[idx]) || null;
-    const descSelect = descCol
-      ? `NULLIF(TRIM(COALESCE(a.${descCol}::text, '')), '') as aciklama`
-      : `NULL::text as aciklama`;
-
     const query = `
       SELECT 
         COALESCE(a.urun_adi, 'Ürün') as urun_adi,
         a.tarih_saat,
         a.pers_id,
         per.adi as personel_adi,
-        ${descSelect},
         COALESCE(a.miktar, 0) as miktar,
         COALESCE(a.tutar, 0) as tutar
       FROM ads_iptal a
@@ -1804,7 +1744,6 @@ export class ReportsService {
       saat: format(r.tarih_saat, 'HH:mm'),
       pers_id: r.pers_id,
       personel_adi: r.personel_adi,
-      aciklama: r.aciklama || null,
       miktar: parseFloat(r.miktar),
       tutar: parseFloat(r.tutar),
     }));
