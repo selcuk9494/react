@@ -2447,47 +2447,48 @@ export class ReportsService {
     endDate?: string,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
-    const safeClosing = Number.isFinite(closingHour)
-      ? Math.min(23, Math.max(0, Math.floor(closingHour)))
-      : 6;
+    const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
+    const startDateOnly = w.startDateOnly;
+    const endDateOnly = w.endDateOnly;
 
-    // İş günü tarihini hesapla (Türkiye saati)
-    const { year, month, day, hour } = this.getTurkeyTimeComponents();
-    const baseUtc = Date.UTC(year, month, day, 0, 0, 0, 0);
-    const baseDate = new Date(baseUtc);
-    const prevDate = new Date(baseUtc);
-    prevDate.setUTCDate(prevDate.getUTCDate() - 1);
-    const nextDate = new Date(baseUtc);
-    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    try {
+      const paymentQuery = `
+        SELECT
+          o.kasa,
+          COUNT(DISTINCT o.adsno)::int as tc,
+          COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as toplam
+        FROM ads_odeme o
+        WHERE o.raptar >= $1 AND o.raptar < $2
+        GROUP BY o.kasa
+        ORDER BY o.kasa ASC
+      `;
+      const paymentRows = await this.db.executeQuery(pool, paymentQuery, [
+        w.startTs,
+        w.endTs,
+      ]);
 
-    const fmt = (d: Date) =>
-      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-
-    let startDateOnly: string;
-    let endDateOnly: string;
-
-    if (period === 'today') {
-      // Şu an kapanış saatinden önceyse iş günü dündür, değilse bugündür
-      const bizDate = hour < safeClosing ? prevDate : baseDate;
-      startDateOnly = fmt(bizDate);
-      endDateOnly = startDateOnly;
-    } else if (period === 'yesterday') {
-      // Dün = bugünkü iş gününden bir önceki iş günü
-      const todayBiz = hour < safeClosing ? prevDate : baseDate;
-      const yestBiz = new Date(Date.UTC(todayBiz.getUTCFullYear(), todayBiz.getUTCMonth(), todayBiz.getUTCDate()));
-      yestBiz.setUTCDate(yestBiz.getUTCDate() - 1);
-      startDateOnly = fmt(yestBiz);
-      endDateOnly = startDateOnly;
-    } else {
-      // Diğer periyotlar getDateRange ile (takvim esaslı)
-      const { start, end } = this.getDateRange(
-        period,
-        closingHour,
-        startDate,
-        endDate,
-      );
-      startDateOnly = format(start, 'yyyy-MM-dd');
-      endDateOnly = format(end, 'yyyy-MM-dd');
+      if (paymentRows && paymentRows.length > 0) {
+        const total = paymentRows.reduce(
+          (acc, r) => acc + (Number(r.toplam) || 0),
+          0,
+        );
+        return {
+          period: { start: startDateOnly, end: endDateOnly },
+          count: paymentRows.length,
+          totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: total },
+          rows: paymentRows.map((r) => ({
+            id: `${startDateOnly}:${r.kasa}`,
+            tarih: startDateOnly,
+            kasa: r.kasa,
+            tc: r.tc,
+            tutar: (Number(r.toplam) || 0).toFixed(2),
+            aciklama: `Kasa: ${r.kasa} (İşlem: ${r.tc || 0})`,
+          })),
+          source: 'ads_odeme',
+        };
+      }
+    } catch (error) {
+      console.log('[getCashReport] ads_odeme fallback:', error?.message || error);
     }
 
     // Doğrudan sizin belirttiğiniz ve görselde teyit ettiğimiz yapı:
@@ -2622,6 +2623,7 @@ export class ReportsService {
           aciklama: `Kasa: ${row.kasa} (İşlem: ${row.tc || 0})`,
         };
       }),
+      source: 'kasa_raporu',
     };
   }
 }
