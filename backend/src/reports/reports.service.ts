@@ -906,7 +906,11 @@ export class ReportsService {
       const openParams: any[] = [kasa_nos];
       let openFilter = '';
       if (period !== 'all') {
-        if (w.isBusinessPeriod) {
+        if (period === 'today') {
+          // Dashboard "acik adisyon" toplaminda halen acik olan tum masalari gostermeli.
+          // Eski tarihten kalmis acik adisyonlar da bugunun dashboard toplaminda yer almali.
+          openFilter = '';
+        } else if (w.isBusinessPeriod) {
           openFilter = `
             AND (
               (a.actar = $2::date AND COALESCE(a.acsaat, '00:00:00') >= $4)
