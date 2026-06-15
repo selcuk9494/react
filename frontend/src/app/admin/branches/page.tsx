@@ -7,14 +7,15 @@ import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 
 export default function AdminBranchesPage() {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!token) return;
-    if (user && !user['is_admin']) {
+    if (!user?.is_admin) {
       router.push('/dashboard');
       return;
     }
@@ -32,7 +33,7 @@ export default function AdminBranchesPage() {
       }
     };
     fetchBranches();
-  }, [token, user]);
+  }, [token, authLoading, user?.is_admin, router]);
 
   const refresh = async () => {
     const res = await axios.get(`${getApiUrl()}/branches`, {

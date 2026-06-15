@@ -102,7 +102,7 @@ const toBranchPayload = (branch: BranchFormState) => {
 };
 
 export default function AdminUsersPage() {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,8 +160,9 @@ export default function AdminUsersPage() {
   const [assignBranchId, setAssignBranchId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!token) return;
-    if (user && !user?.['is_admin']) {
+    if (!user?.is_admin) {
       router.push('/dashboard');
       return;
     }
@@ -183,7 +184,7 @@ export default function AdminUsersPage() {
       }
     };
     fetchUsers();
-  }, [token, user]);
+  }, [token, authLoading, user?.is_admin, router]);
 
   const refresh = async () => {
     const res = await axios.get(`${getApiUrl()}/admin/users`, {

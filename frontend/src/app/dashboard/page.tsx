@@ -18,6 +18,7 @@ import {
   BarChart2,
   TrendingUp,
   CreditCard,
+  Banknote,
   Users,
   LogOut,
   Edit2,
@@ -1052,7 +1053,7 @@ export default function Dashboard() {
                 </div>
                 {t('other_reports')}
               </h3>
-              <span className="text-xs text-gray-400 font-medium">8 {lang === 'tr' ? 'rapor' : 'reports'}</span>
+              <span className="text-xs text-gray-400 font-medium">12 {lang === 'tr' ? 'rapor' : 'reports'}</span>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1120,6 +1121,23 @@ export default function Dashboard() {
                     <div className="relative z-10">
                       <h4 className="font-bold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">{t('payments_title')}</h4>
                       <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('payment_types_card_desc')}</p>
+                    </div>
+                </Link>
+                )}
+
+                {/* Cash Report */}
+                {isReportAllowed('cash_report') && (
+                <Link 
+                    href="/reports/cash-report"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-emerald-100 to-sky-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-emerald-500 to-sky-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-emerald-500/30">
+                        <Banknote className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors">{t('cash_report')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('cash_report_desc')}</p>
                     </div>
                 </Link>
                 )}

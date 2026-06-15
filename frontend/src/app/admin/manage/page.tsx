@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 
 export default function AdminManagePage() {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,7 @@ export default function AdminManagePage() {
     { id: 'personnel', label: 'Personel Performans' },
     { id: 'payment_types', label: 'Ödeme Tipleri' },
     { id: 'payment_types_detail', label: 'Ödeme Tipleri (Detay)' },
+    { id: 'cash_report', label: 'Kasa Raporu' },
     { id: 'hourly_sales', label: 'Saatlik Satış' },
     { id: 'cancels', label: 'İptaller' },
     { id: 'discounts', label: 'İndirimler' },
@@ -38,8 +39,9 @@ export default function AdminManagePage() {
   ];
 
   useEffect(() => {
+    if (authLoading) return;
     if (!token) return;
-    if (user && !user['is_admin']) {
+    if (!user?.is_admin) {
       router.push('/dashboard');
       return;
     }
@@ -57,7 +59,7 @@ export default function AdminManagePage() {
       }
     };
     fetchUsers();
-  }, [token, user]);
+  }, [token, authLoading, user?.is_admin, router]);
 
   const selectedUser = useMemo(() => {
     if (selectedUserId === 'new') return null;
