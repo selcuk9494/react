@@ -261,6 +261,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       return {
         rows: [
           {
+            id: 1,
             name: 'Merkez Şube',
             kasa_no: 1,
             db_host: 'mock',
@@ -269,6 +270,30 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             db_user: 'mock',
             db_password: 'mock',
           },
+        ],
+      };
+    }
+    if (lowerText.includes('from branches where id')) {
+      return {
+        rows: [
+          {
+            id: 1,
+            name: 'Merkez Şube',
+            kasa_no: 1,
+            db_host: 'mock',
+            db_port: 5432,
+            db_name: 'mock',
+            db_user: 'mock',
+            db_password: 'mock',
+          },
+        ],
+      };
+    }
+    if (lowerText.includes('from myazici_group')) {
+      return {
+        rows: [
+          { id: 1, name: 'Mutfak' },
+          { id: 2, name: 'Bar' },
         ],
       };
     }

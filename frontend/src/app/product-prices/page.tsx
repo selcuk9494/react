@@ -8,14 +8,20 @@ import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 import Link from 'next/link';
-import { ArrowLeft, Search, RefreshCw, Tag, X, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, Tag, X, Plus, Save, Edit2 } from 'lucide-react';
 
 type PriceItem = {
   id: number;
   urun_adi: string;
   grup2: string;
+  kitchen_printer_id?: number | null;
   fiyat: number | null;
   onceki_fiyat?: number | null;
+};
+
+type KitchenPrinter = {
+  id: number;
+  name: string;
 };
 
 export default function ProductPricesPage() {
@@ -33,11 +39,13 @@ export default function ProductPricesPage() {
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<PriceItem | null>(null);
+  const [kitchenPrinters, setKitchenPrinters] = useState<KitchenPrinter[]>([]);
   const [productForm, setProductForm] = useState({
     product_name: '',
     group_name: '',
     price: '',
-    kitchen_printer: '',
+    kitchen_printer_id: '',
   });
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const initialPriceMapRef = useRef<Record<string, string>>({});
@@ -160,6 +168,23 @@ export default function ProductPricesPage() {
     loadPrices(false);
   }, [token, canEditPrices, loadPrices]);
 
+  const loadKitchenPrinters = useCallback(async () => {
+    if (!token || !branchId || !canEditPrices) return;
+    try {
+      const res = await axios.get(`${getApiUrl()}/stock/kitchen-printers?branchId=${branchId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setKitchenPrinters(res.data || []);
+    } catch (e) {
+      console.error(e);
+      setKitchenPrinters([]);
+    }
+  }, [token, branchId, canEditPrices]);
+
+  useEffect(() => {
+    loadKitchenPrinters();
+  }, [loadKitchenPrinters]);
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return items.filter((p) => {
@@ -272,47 +297,82 @@ export default function ProductPricesPage() {
     }
   }, [token, branchId, canEditPrices, changedItems, loadPrices]);
 
-  const createProduct = useCallback(async () => {
+  const resetProductForm = useCallback(() => {
+    setProductForm({
+      product_name: '',
+      group_name: '',
+      price: '',
+      kitchen_printer_id: '',
+    });
+    setEditingProduct(null);
+  }, []);
+
+  const openCreateForm = useCallback(() => {
+    resetProductForm();
+    setCreateOpen((v) => !v);
+  }, [resetProductForm]);
+
+  const openEditForm = useCallback((product: PriceItem) => {
+    setEditingProduct(product);
+    setProductForm({
+      product_name: product.urun_adi || '',
+      group_name: product.grup2 || '',
+      price:
+        typeof product.fiyat === 'number'
+          ? String(product.fiyat)
+          : product.fiyat === null
+            ? ''
+            : String(product.fiyat),
+      kitchen_printer_id: product.kitchen_printer_id ? String(product.kitchen_printer_id) : '',
+    });
+    setCreateOpen(true);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  const saveProductForm = useCallback(async () => {
     if (!token || !branchId || !canEditPrices) return;
     const productName = productForm.product_name.trim();
     const groupName = productForm.group_name.trim();
     const price = Number(productForm.price.replace(',', '.'));
-    const kitchenPrinter = productForm.kitchen_printer.trim();
+    const kitchenPrinterId = Number(productForm.kitchen_printer_id);
 
-    if (!productName || !groupName || !kitchenPrinter || !Number.isFinite(price) || price < 0) {
+    if (!productName || !groupName || !Number.isFinite(kitchenPrinterId) || kitchenPrinterId <= 0 || !Number.isFinite(price) || price < 0) {
       alert('Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.');
       return;
     }
 
     try {
       setCreatingProduct(true);
-      await axios.post(
+      const payload = {
+        product_name: productName,
+        group_name: groupName,
+        price,
+        kitchen_printer_id: kitchenPrinterId,
+        ...(editingProduct ? { plu: editingProduct.id } : {}),
+      };
+      await axios[editingProduct ? 'put' : 'post'](
         `${getApiUrl()}/stock/product?branchId=${branchId}`,
-        {
-          product_name: productName,
-          group_name: groupName,
-          price,
-          kitchen_printer: kitchenPrinter,
-        },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      setProductForm({
-        product_name: '',
-        group_name: '',
-        price: '',
-        kitchen_printer: '',
-      });
+      resetProductForm();
       setCreateOpen(false);
       await loadPrices(true);
-      alert('Ürün eklendi.');
+      alert(editingProduct ? 'Ürün güncellendi.' : 'Ürün eklendi.');
     } catch (e: any) {
       const status = e?.response?.status;
       const message = e?.response?.data?.message;
-      alert(status ? `Ürün eklenemedi (${status})${message ? `: ${message}` : ''}` : 'Ürün eklenemedi.');
+      alert(
+        status
+          ? `Ürün kaydedilemedi (${status})${message ? `: ${message}` : ''}`
+          : 'Ürün kaydedilemedi.',
+      );
     } finally {
       setCreatingProduct(false);
     }
-  }, [token, branchId, canEditPrices, productForm, loadPrices]);
+  }, [token, branchId, canEditPrices, productForm, editingProduct, resetProductForm, loadPrices]);
 
   if (!token) return null;
 
@@ -339,7 +399,7 @@ export default function ProductPricesPage() {
             <div className="flex items-center gap-2">
               {canEditPrices && (
                 <button
-                  onClick={() => setCreateOpen((v) => !v)}
+                  onClick={openCreateForm}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white transition-all active:scale-95 font-black text-sm inline-flex items-center gap-2"
                   title="Ürün ekle"
                 >
@@ -374,12 +434,17 @@ export default function ProductPricesPage() {
           <div className="bg-white rounded-2xl p-4 shadow-lg border border-emerald-100">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-black text-gray-900">Yeni Ürün</h2>
+                <h2 className="text-lg font-black text-gray-900">
+                  {editingProduct ? 'Ürünü Düzenle' : 'Yeni Ürün'}
+                </h2>
                 <p className="text-xs text-gray-500 mt-0.5">Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setCreateOpen(false)}
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetProductForm();
+                }}
                 className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600"
               >
                 <X className="w-4 h-4" />
@@ -415,17 +480,23 @@ export default function ProductPricesPage() {
                   setProductForm((p) => ({ ...p, price: normalized }));
                 }}
               />
-              <input
+              <select
                 className="border border-gray-200 rounded-xl px-3 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none"
-                placeholder="Mutfak yazıcısı"
-                value={productForm.kitchen_printer}
-                onChange={(e) => setProductForm((p) => ({ ...p, kitchen_printer: e.target.value }))}
-              />
+                value={productForm.kitchen_printer_id}
+                onChange={(e) => setProductForm((p) => ({ ...p, kitchen_printer_id: e.target.value }))}
+              >
+                <option value="">Mutfak yazıcısı seç</option>
+                {kitchenPrinters.map((printer) => (
+                  <option key={printer.id} value={printer.id}>
+                    {printer.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
-                onClick={createProduct}
+                onClick={saveProductForm}
                 disabled={creatingProduct}
                 className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm inline-flex items-center gap-2 disabled:opacity-60"
               >
@@ -434,7 +505,7 @@ export default function ProductPricesPage() {
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                Ürünü Kaydet
+                {editingProduct ? 'Ürünü Güncelle' : 'Ürünü Kaydet'}
               </button>
             </div>
           </div>
@@ -506,6 +577,15 @@ export default function ProductPricesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(p)}
+                          disabled={!canEditPrices || saving}
+                          className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-50"
+                          title="Ürünü düzenle"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                         <input
                           ref={(el) => {
                             inputRefs.current[String(p.id)] = el;

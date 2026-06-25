@@ -33,6 +33,22 @@ export class StockController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('kitchen-printers')
+  async getKitchenPrinters(@Request() req, @Query('branchId') branchId: string) {
+    try {
+      return await this.stockService.getKitchenPrinters(req.user, branchId);
+    } catch (error: any) {
+      console.error('Get kitchen printers error:', error);
+      const message =
+        error?.message || 'Mutfak yazıcıları alınırken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        { message, code: error?.code || null },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('product')
   async createProduct(
     @Request() req,
@@ -45,6 +61,26 @@ export class StockController {
       console.error('Create product error:', error);
       const message =
         error?.message || 'Ürün eklenirken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        { message, code: error?.code || null },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('product')
+  async updateProduct(
+    @Request() req,
+    @Query('branchId') branchId: string,
+    @Body() body: any,
+  ) {
+    try {
+      return await this.stockService.updateProduct(req.user, branchId, body);
+    } catch (error: any) {
+      console.error('Update product error:', error);
+      const message =
+        error?.message || 'Ürün güncellenirken beklenmeyen bir hata oluştu.';
       throw new HttpException(
         { message, code: error?.code || null },
         error?.status || HttpStatus.INTERNAL_SERVER_ERROR,

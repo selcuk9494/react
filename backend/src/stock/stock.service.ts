@@ -245,6 +245,39 @@ export class StockService {
     return columns.find((c) => wanted.includes(c.lower));
   }
 
+  private getProductColumnMap(columns: any[]) {
+    return {
+      pluCol: this.pickColumn(columns, ['plu', 'pluid', 'urun_id']),
+      idCol: this.pickColumn(columns, ['id']),
+      nameCol: this.pickColumn(columns, [
+        'product_name',
+        'urun_adi',
+        'urunadi',
+        'adi',
+        'name',
+      ]),
+      groupCol: this.pickColumn(columns, [
+        'tip',
+        'grup',
+        'grup2',
+        'group_id',
+        'grup_id',
+        'product_group_id',
+      ]),
+      priceCol: this.pickColumn(columns, ['fiyat', 'price', 'satisfiyat']),
+      printerCol: this.pickColumn(columns, [
+        'myazici_tip',
+        'mutfak_yazicisi',
+        'mutfak_yazici',
+        'mutfakyazici',
+        'yazici',
+        'yazici_id',
+        'printer',
+        'kitchen_printer',
+      ]),
+    };
+  }
+
   private hasAutoValue(col: any) {
     const def = String(col?.defaultValue || '').toLowerCase();
     return !!col?.identity || def.includes('nextval') || def.includes('uuid');
@@ -326,6 +359,39 @@ export class StockService {
     };
   }
 
+  async getKitchenPrinters(user: any, branchId: string) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+
+    if (this.db.isMockMode()) {
+      return [
+        { id: 1, name: 'Mutfak' },
+        { id: 2, name: 'Bar' },
+      ];
+    }
+
+    const { pool } = await this.getBranchPool(branchId);
+
+    const queries = [
+      `SELECT id, adi as name FROM myazici_group ORDER BY adi ASC`,
+      `SELECT id, name as name FROM myazici_group ORDER BY name ASC`,
+      `SELECT id, yazici_adi as name FROM myazici_group ORDER BY yazici_adi ASC`,
+    ];
+
+    for (const sql of queries) {
+      try {
+        const res = await pool.query(sql);
+        return (res.rows || [])
+          .map((r: any) => ({
+            id: Number(r.id),
+            name: String(r.name || '').trim(),
+          }))
+          .filter((r: any) => Number.isFinite(r.id) && r.name);
+      } catch {}
+    }
+
+    return [];
+  }
+
   async createProduct(
     user: any,
     branchId: string,
@@ -333,6 +399,7 @@ export class StockService {
       product_name?: string;
       group_name?: string;
       price?: number;
+      kitchen_printer_id?: number;
       kitchen_printer?: string | number;
     },
   ) {
@@ -341,17 +408,27 @@ export class StockService {
     const productName = String(payload?.product_name || '').trim();
     const groupName = String(payload?.group_name || '').trim();
     const price = Number(payload?.price);
-    const kitchenPrinter = payload?.kitchen_printer;
+    const kitchenPrinter = Number(payload?.kitchen_printer_id ?? payload?.kitchen_printer);
 
     if (!productName) throw new Error('Ürün adı zorunludur.');
     if (!groupName) throw new Error('Ürün grubu zorunludur.');
     if (!Number.isFinite(price) || price < 0) throw new Error('Geçerli fiyat giriniz.');
-    if (
-      typeof kitchenPrinter === 'undefined' ||
-      kitchenPrinter === null ||
-      String(kitchenPrinter).trim() === ''
-    ) {
+    if (!Number.isFinite(kitchenPrinter) || kitchenPrinter <= 0) {
       throw new Error('Mutfak yazıcısı zorunludur.');
+    }
+
+    if (this.db.isMockMode()) {
+      return {
+        success: true,
+        product: {
+          id: 999,
+          urun_adi: productName,
+          grup2: groupName,
+          fiyat: price,
+          kitchen_printer_id: kitchenPrinter,
+        },
+        mock: true,
+      };
     }
 
     const { pool } = await this.getBranchPool(branchId);
@@ -367,33 +444,8 @@ export class StockService {
       const sampleRes = await client.query('SELECT * FROM product ORDER BY 1 DESC LIMIT 1');
       const sample = sampleRes.rows?.[0] || {};
 
-      const pluCol = this.pickColumn(productColumns, ['plu', 'pluid', 'urun_id']);
-      const idCol = this.pickColumn(productColumns, ['id']);
-      const nameCol = this.pickColumn(productColumns, [
-        'product_name',
-        'urun_adi',
-        'urunadi',
-        'adi',
-        'name',
-      ]);
-      const groupCol = this.pickColumn(productColumns, [
-        'tip',
-        'grup',
-        'grup2',
-        'group_id',
-        'grup_id',
-        'product_group_id',
-      ]);
-      const priceCol = this.pickColumn(productColumns, ['fiyat', 'price', 'satisfiyat']);
-      const printerCol = this.pickColumn(productColumns, [
-        'mutfak_yazicisi',
-        'mutfak_yazici',
-        'mutfakyazici',
-        'yazici',
-        'yazici_id',
-        'printer',
-        'kitchen_printer',
-      ]);
+      const { pluCol, idCol, nameCol, groupCol, priceCol, printerCol } =
+        this.getProductColumnMap(productColumns);
 
       if (!nameCol) throw new Error('Product tablosunda ürün adı kolonu bulunamadı.');
 
@@ -460,6 +512,118 @@ export class StockService {
           urun_adi: inserted.rows?.[0]?.product_name || productName,
           grup2: group.name,
           fiyat: price,
+        },
+      };
+    } catch (e) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateProduct(
+    user: any,
+    branchId: string,
+    payload: {
+      plu?: number;
+      product_name?: string;
+      group_name?: string;
+      price?: number;
+      kitchen_printer_id?: number;
+      kitchen_printer?: string | number;
+    },
+  ) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+
+    const plu = Number(payload?.plu);
+    const productName = String(payload?.product_name || '').trim();
+    const groupName = String(payload?.group_name || '').trim();
+    const price = Number(payload?.price);
+    const kitchenPrinter = Number(payload?.kitchen_printer_id ?? payload?.kitchen_printer);
+
+    if (!Number.isFinite(plu) || plu <= 0) throw new Error('Geçerli ürün seçilmedi.');
+    if (!productName) throw new Error('Ürün adı zorunludur.');
+    if (!groupName) throw new Error('Ürün grubu zorunludur.');
+    if (!Number.isFinite(price) || price < 0) throw new Error('Geçerli fiyat giriniz.');
+    if (!Number.isFinite(kitchenPrinter) || kitchenPrinter <= 0) {
+      throw new Error('Mutfak yazıcısı zorunludur.');
+    }
+
+    if (this.db.isMockMode()) {
+      return {
+        success: true,
+        product: {
+          id: plu,
+          urun_adi: productName,
+          grup2: groupName,
+          fiyat: price,
+          kitchen_printer_id: kitchenPrinter,
+        },
+        mock: true,
+      };
+    }
+
+    const { pool } = await this.getBranchPool(branchId);
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const productColumns = await this.getTableColumns(client, 'product');
+      if (productColumns.length === 0) throw new Error('Product tablosu bulunamadı.');
+      const { pluCol, idCol, nameCol, groupCol, priceCol, printerCol } =
+        this.getProductColumnMap(productColumns);
+      const keyCol = pluCol || idCol;
+      if (!keyCol) throw new Error('Product tablosunda ürün anahtarı bulunamadı.');
+      if (!nameCol) throw new Error('Product tablosunda ürün adı kolonu bulunamadı.');
+
+      const group = await this.getOrCreateProductGroup(client, groupName);
+      const sets: string[] = [];
+      const params: any[] = [];
+      let p = 1;
+
+      sets.push(`${this.quoteIdent(nameCol.name)} = $${p++}`);
+      params.push(productName);
+
+      if (groupCol) {
+        const isTextGroup =
+          groupCol.dataType.includes('char') || groupCol.dataType.includes('text');
+        sets.push(`${this.quoteIdent(groupCol.name)} = $${p++}`);
+        params.push(isTextGroup ? group.name : group.id);
+      }
+      if (priceCol) {
+        sets.push(`${this.quoteIdent(priceCol.name)} = $${p++}`);
+        params.push(price);
+      }
+      if (printerCol) {
+        sets.push(`${this.quoteIdent(printerCol.name)} = $${p++}`);
+        params.push(kitchenPrinter);
+      }
+
+      params.push(plu);
+      const updated = await client.query(
+        `UPDATE product
+         SET ${sets.join(', ')}
+         WHERE ${this.quoteIdent(keyCol.name)} = $${p}
+         RETURNING ${this.quoteIdent(keyCol.name)} as plu, ${this.quoteIdent(nameCol.name)} as product_name`,
+        params,
+      );
+      if (!updated.rows?.[0]) throw new Error('Ürün bulunamadı.');
+
+      await client.query('COMMIT');
+      await this.updateProductPrice(user, branchId, { plu, fiyat: price });
+
+      return {
+        success: true,
+        product: {
+          id: plu,
+          urun_adi: updated.rows[0].product_name || productName,
+          grup2: group.name,
+          fiyat: price,
+          kitchen_printer_id: kitchenPrinter,
         },
       };
     } catch (e) {
@@ -615,6 +779,36 @@ export class StockService {
 
   async getProductPrices(user: any, branchId: string) {
     this.ensureFeatureAllowed(user, 'product_prices');
+
+    if (this.db.isMockMode()) {
+      return [
+        {
+          id: 101,
+          urun_adi: 'Adana Kebap',
+          grup2: 'Kebaplar',
+          kitchen_printer_id: 1,
+          fiyat: 250,
+          onceki_fiyat: 225,
+        },
+        {
+          id: 102,
+          urun_adi: 'Urfa Kebap',
+          grup2: 'Kebaplar',
+          kitchen_printer_id: 1,
+          fiyat: 240,
+          onceki_fiyat: 220,
+        },
+        {
+          id: 201,
+          urun_adi: 'Kola',
+          grup2: 'İçecekler',
+          kitchen_printer_id: 2,
+          fiyat: 50,
+          onceki_fiyat: 45,
+        },
+      ];
+    }
+
     const { pool } = await this.getBranchPool(branchId);
     const date = await this.getCurrentBusinessDate(branchId);
 
@@ -626,10 +820,19 @@ export class StockService {
       .filter((v: number) => Number.isFinite(v) && v > 0);
     if (plus.length === 0) return [];
 
-    const metaByPlu = new Map<number, { urun_adi: string; grup2: string }>();
+    const metaByPlu = new Map<
+      number,
+      { urun_adi: string; grup2: string; kitchen_printer_id?: number | null }
+    >();
 
-    const tryProductQueries: Array<{ sql: string; nameField: string; tipField: string }> =
+    const tryProductQueries: Array<{
+      sql: string;
+      nameField: string;
+      tipField: string;
+      printerField?: string;
+    }> =
       [
+        { sql: 'SELECT plu, product_name as name, tip as tip, myazici_tip as printer_id FROM product', nameField: 'name', tipField: 'tip', printerField: 'printer_id' },
         { sql: 'SELECT plu, product_name as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
         { sql: 'SELECT plu, urun_adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
         { sql: 'SELECT plu, adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
@@ -646,9 +849,14 @@ export class StockService {
           const plu = Number(r.plu);
           const name = String(r[q.nameField] || '').trim();
           const tip = Number(r[q.tipField]);
+          const printerId = q.printerField ? Number(r[q.printerField]) : NaN;
           if (!Number.isFinite(plu) || plu <= 0) continue;
           if (name) {
-            metaByPlu.set(plu, { urun_adi: name, grup2: 'Diğer' });
+            metaByPlu.set(plu, {
+              urun_adi: name,
+              grup2: 'Diğer',
+              kitchen_printer_id: Number.isFinite(printerId) ? printerId : null,
+            });
           }
           if (Number.isFinite(tip)) productTipByPlu.set(plu, tip);
         }
@@ -833,6 +1041,7 @@ export class StockService {
         id: plu,
         urun_adi: meta?.urun_adi || String(plu),
         grup2: meta?.grup2 || 'Diğer',
+        kitchen_printer_id: meta?.kitchen_printer_id ?? null,
         fiyat: prices?.fiyat ?? null,
         onceki_fiyat: prices?.onceki_fiyat ?? null,
       };
