@@ -38,12 +38,13 @@ function OrderDetailContent() {
   const id = searchParams.get('id');
   const type = searchParams.get('type') || 'closed';
   const adtur = searchParams.get('adtur');
+  const date = searchParams.get('date');
 
   useEffect(() => {
     if (id) {
         fetchOrderDetail();
     }
-  }, [id, type, adtur]);
+  }, [id, type, adtur, date]);
 
   // Close share menu when clicking outside
   useEffect(() => {
@@ -65,6 +66,9 @@ function OrderDetailContent() {
       let url = `${getApiUrl()}/reports/order-detail/${id}?order_type=${type}`;
       if (adtur) {
         url += `&adtur=${adtur}`;
+      }
+      if (date) {
+        url += `&date=${date}`;
       }
       
       console.log('📡 Fetching order detail:', url);

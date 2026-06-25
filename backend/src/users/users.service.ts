@@ -10,13 +10,28 @@ export class UsersService {
     // Check if we're in mock mode
     if (this.db.isMockMode()) {
       const cleanEmail = email.trim().toLowerCase();
-      if (cleanEmail === 'admin@example.com') {
+      const mockBranches = [
+        {
+          id: 1,
+          name: 'Demo Şube',
+          db_host: 'mock',
+          db_port: 5432,
+          db_name: 'mock',
+          db_user: 'mock',
+          db_password: 'mock',
+          kasa_no: 1,
+          closing_hour: 6,
+        },
+      ];
+      if (cleanEmail === 'admin@example.com' || cleanEmail === 'demo@micrapor.com') {
         const hash = await bcrypt.hash('123456', 10);
         return {
-          id: 'mock-admin-id',
+          id: cleanEmail === 'admin@example.com' ? 'mock-admin-id' : 'mock-demo-id',
           email: cleanEmail,
           password: hash,
           selected_branch: 0,
+          selected_branch_id: 1,
+          branches: mockBranches,
           is_admin: true,
           allowed_reports: null,
           created_at: new Date().toISOString(),
@@ -29,6 +44,8 @@ export class UsersService {
           email: cleanEmail,
           password: hash,
           selected_branch: 0,
+          selected_branch_id: 1,
+          branches: mockBranches,
           is_admin: true,
           allowed_reports: ['cash_report', 'open_orders'],
           created_at: new Date().toISOString(),
@@ -176,10 +193,24 @@ export class UsersService {
           id: 'mock-id-1',
           email: 'admin@example.com',
           selected_branch: 0,
+          selected_branch_id: 1,
           is_admin: true,
           allowed_reports: null,
           created_at: new Date().toISOString(),
           days_left: 30,
+          branches: [
+            {
+              id: 1,
+              name: 'Demo Şube',
+              db_host: 'mock',
+              db_port: 5432,
+              db_name: 'mock',
+              db_user: 'mock',
+              db_password: 'mock',
+              kasa_no: 1,
+              closing_hour: 6,
+            },
+          ],
         },
         {
           id: 'mock-id-2',

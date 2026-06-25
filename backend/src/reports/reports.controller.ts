@@ -408,6 +408,24 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/product-sales/orders')
+  async getProductSalesOrders(
+    @Request() req,
+    @Query('plu') plu: string,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getProductSalesOrders(
+      req.user,
+      Number(plu),
+      period,
+      startDate,
+      endDate,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/product-groups')
   async getProductGroups(@Request() req) {
     return this.reportsService.getProductGroups(req.user);

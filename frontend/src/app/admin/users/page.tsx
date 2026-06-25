@@ -30,6 +30,7 @@ interface BranchFormState {
 }
 
 const AVAILABLE_REPORTS = [
+  { id: 'dashboard', label: 'Dashboard Satış Özeti' },
   { id: 'open_orders', label: 'Açık Adisyon (Dashboard)' },
   { id: 'closed_orders', label: 'Kapalı Adisyon (Dashboard)' },
   { id: 'stock_entry', label: 'Günlük Stok Girişi' },

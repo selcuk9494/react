@@ -8,7 +8,7 @@ import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 import Link from 'next/link';
-import { ArrowLeft, Search, RefreshCw, Tag, X } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, Tag, X, Plus, Save } from 'lucide-react';
 
 type PriceItem = {
   id: number;
@@ -31,6 +31,14 @@ export default function ProductPricesPage() {
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [productForm, setProductForm] = useState({
+    product_name: '',
+    group_name: '',
+    price: '',
+    kitchen_printer: '',
+  });
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const initialPriceMapRef = useRef<Record<string, string>>({});
 
@@ -264,6 +272,48 @@ export default function ProductPricesPage() {
     }
   }, [token, branchId, canEditPrices, changedItems, loadPrices]);
 
+  const createProduct = useCallback(async () => {
+    if (!token || !branchId || !canEditPrices) return;
+    const productName = productForm.product_name.trim();
+    const groupName = productForm.group_name.trim();
+    const price = Number(productForm.price.replace(',', '.'));
+    const kitchenPrinter = productForm.kitchen_printer.trim();
+
+    if (!productName || !groupName || !kitchenPrinter || !Number.isFinite(price) || price < 0) {
+      alert('Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.');
+      return;
+    }
+
+    try {
+      setCreatingProduct(true);
+      await axios.post(
+        `${getApiUrl()}/stock/product?branchId=${branchId}`,
+        {
+          product_name: productName,
+          group_name: groupName,
+          price,
+          kitchen_printer: kitchenPrinter,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setProductForm({
+        product_name: '',
+        group_name: '',
+        price: '',
+        kitchen_printer: '',
+      });
+      setCreateOpen(false);
+      await loadPrices(true);
+      alert('Ürün eklendi.');
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const message = e?.response?.data?.message;
+      alert(status ? `Ürün eklenemedi (${status})${message ? `: ${message}` : ''}` : 'Ürün eklenemedi.');
+    } finally {
+      setCreatingProduct(false);
+    }
+  }, [token, branchId, canEditPrices, productForm, loadPrices]);
+
   if (!token) return null;
 
   return (
@@ -286,17 +336,29 @@ export default function ProductPricesPage() {
                 <p className="text-xs text-gray-500 mt-0.5">{t('product_prices_desc')}</p>
               </div>
             </div>
-            <button
-              onClick={() => loadPrices(true)}
-              disabled={refreshing}
-              className={clsx(
-                'px-4 py-2.5 hover:bg-emerald-50 rounded-xl text-emerald-700 transition-all active:scale-95 disabled:opacity-50 font-black text-sm inline-flex items-center gap-2',
+            <div className="flex items-center gap-2">
+              {canEditPrices && (
+                <button
+                  onClick={() => setCreateOpen((v) => !v)}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white transition-all active:scale-95 font-black text-sm inline-flex items-center gap-2"
+                  title="Ürün ekle"
+                >
+                  <Plus className="w-4 h-4" />
+                  Ürün Ekle
+                </button>
               )}
-              title="Şubeden ürünleri çek"
-            >
-              <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
-              Şubeden ürünleri çek
-            </button>
+              <button
+                onClick={() => loadPrices(true)}
+                disabled={refreshing}
+                className={clsx(
+                  'px-4 py-2.5 hover:bg-emerald-50 rounded-xl text-emerald-700 transition-all active:scale-95 disabled:opacity-50 font-black text-sm inline-flex items-center gap-2',
+                )}
+                title="Şubeden ürünleri çek"
+              >
+                <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
+                Şubeden ürünleri çek
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -305,6 +367,76 @@ export default function ProductPricesPage() {
         {!canEditPrices && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 font-bold">
             Bu alanı görüntüleme yetkiniz yok. Admin panelden "Ürün Fiyatları" yetkisini açın.
+          </div>
+        )}
+
+        {canEditPrices && createOpen && (
+          <div className="bg-white rounded-2xl p-4 shadow-lg border border-emerald-100">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">Yeni Ürün</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateOpen(false)}
+                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <input
+                className="border border-gray-200 rounded-xl px-3 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Ürün adı"
+                value={productForm.product_name}
+                onChange={(e) => setProductForm((p) => ({ ...p, product_name: e.target.value }))}
+              />
+              <input
+                className="border border-gray-200 rounded-xl px-3 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Grup"
+                list="product-groups"
+                value={productForm.group_name}
+                onChange={(e) => setProductForm((p) => ({ ...p, group_name: e.target.value }))}
+              />
+              <datalist id="product-groups">
+                {groups.filter((g) => g !== 'Tümü').map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
+              <input
+                className="border border-gray-200 rounded-xl px-3 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Fiyat"
+                inputMode="decimal"
+                value={productForm.price}
+                onChange={(e) => {
+                  const normalized = e.target.value.replace(',', '.');
+                  if (normalized !== '' && !/^\d*(\.\d{0,2})?$/.test(normalized)) return;
+                  setProductForm((p) => ({ ...p, price: normalized }));
+                }}
+              />
+              <input
+                className="border border-gray-200 rounded-xl px-3 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Mutfak yazıcısı"
+                value={productForm.kitchen_printer}
+                onChange={(e) => setProductForm((p) => ({ ...p, kitchen_printer: e.target.value }))}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={createProduct}
+                disabled={creatingProduct}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm inline-flex items-center gap-2 disabled:opacity-60"
+              >
+                {creatingProduct ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Ürünü Kaydet
+              </button>
+            </div>
           </div>
         )}
 

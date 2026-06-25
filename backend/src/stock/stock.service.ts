@@ -210,6 +210,268 @@ export class StockService {
     return { pool, branch };
   }
 
+  private quoteIdent(name: string) {
+    return `"${String(name).replace(/"/g, '""')}"`;
+  }
+
+  private async getTableColumns(client: any, tableName: string) {
+    const res = await client.query(
+      `
+      SELECT
+        column_name,
+        lower(data_type) as data_type,
+        is_nullable,
+        column_default,
+        is_identity
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = $1
+      ORDER BY ordinal_position
+    `,
+      [tableName],
+    );
+    return (res.rows || []).map((r: any) => ({
+      name: String(r.column_name),
+      lower: String(r.column_name).toLowerCase(),
+      dataType: String(r.data_type || '').toLowerCase(),
+      nullable: String(r.is_nullable || '').toUpperCase() === 'YES',
+      defaultValue: r.column_default,
+      identity: String(r.is_identity || '').toUpperCase() === 'YES',
+    }));
+  }
+
+  private pickColumn(columns: any[], names: string[]) {
+    const wanted = names.map((n) => n.toLowerCase());
+    return columns.find((c) => wanted.includes(c.lower));
+  }
+
+  private hasAutoValue(col: any) {
+    const def = String(col?.defaultValue || '').toLowerCase();
+    return !!col?.identity || def.includes('nextval') || def.includes('uuid');
+  }
+
+  private defaultValueForColumn(col: any) {
+    const name = String(col?.lower || '');
+    const type = String(col?.dataType || '');
+    if (name.includes('silindi') || name.includes('deleted')) return 0;
+    if (name.includes('aktif') || name.includes('active')) return 1;
+    if (type.includes('bool')) return false;
+    if (
+      type.includes('int') ||
+      type.includes('numeric') ||
+      type.includes('decimal') ||
+      type.includes('double') ||
+      type.includes('real')
+    ) {
+      return 0;
+    }
+    if (type.includes('date') || type.includes('time')) return new Date();
+    if (type.includes('json')) return {};
+    return '';
+  }
+
+  private async getOrCreateProductGroup(client: any, groupName: string) {
+    const cleanName = String(groupName || '').trim();
+    if (!cleanName) throw new Error('Ürün grubu zorunludur.');
+
+    const columns = await this.getTableColumns(client, 'product_group');
+    if (columns.length === 0) return { id: null, name: cleanName };
+
+    const idCol = this.pickColumn(columns, ['id', 'tip', 'grup_id']);
+    const nameCol = this.pickColumn(columns, ['adi', 'name', 'grup_adi', 'group_name']);
+    if (!nameCol) return { id: null, name: cleanName };
+
+    const existing = await client.query(
+      `SELECT ${idCol ? this.quoteIdent(idCol.name) : 'NULL'} as id, ${this.quoteIdent(nameCol.name)} as name
+       FROM product_group
+       WHERE lower(${this.quoteIdent(nameCol.name)}) = lower($1)
+       LIMIT 1`,
+      [cleanName],
+    );
+    if (existing.rows?.[0]) {
+      return { id: existing.rows[0].id ?? null, name: existing.rows[0].name || cleanName };
+    }
+
+    const sampleRes = await client.query('SELECT * FROM product_group LIMIT 1');
+    const sample = sampleRes.rows?.[0] || {};
+    const values: Record<string, any> = {};
+
+    for (const col of columns) {
+      if (this.hasAutoValue(col)) continue;
+      if (col.lower === nameCol.lower) {
+        values[col.name] = cleanName;
+      } else if (idCol && col.lower === idCol.lower) {
+        const next = await client.query(
+          `SELECT COALESCE(MAX(${this.quoteIdent(col.name)}), 0) + 1 as next_id FROM product_group`,
+        );
+        values[col.name] = Number(next.rows?.[0]?.next_id) || 1;
+      } else if (Object.prototype.hasOwnProperty.call(sample, col.name)) {
+        values[col.name] = sample[col.name];
+      } else if (!col.nullable && col.defaultValue === null) {
+        values[col.name] = this.defaultValueForColumn(col);
+      }
+    }
+
+    const keys = Object.keys(values);
+    const params = keys.map((k) => values[k]);
+    const inserted = await client.query(
+      `INSERT INTO product_group (${keys.map((k) => this.quoteIdent(k)).join(', ')})
+       VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')})
+       RETURNING ${idCol ? this.quoteIdent(idCol.name) : 'NULL'} as id, ${this.quoteIdent(nameCol.name)} as name`,
+      params,
+    );
+    return {
+      id: inserted.rows?.[0]?.id ?? values[idCol?.name] ?? null,
+      name: inserted.rows?.[0]?.name || cleanName,
+    };
+  }
+
+  async createProduct(
+    user: any,
+    branchId: string,
+    payload: {
+      product_name?: string;
+      group_name?: string;
+      price?: number;
+      kitchen_printer?: string | number;
+    },
+  ) {
+    this.ensureFeatureAllowed(user, 'product_prices');
+
+    const productName = String(payload?.product_name || '').trim();
+    const groupName = String(payload?.group_name || '').trim();
+    const price = Number(payload?.price);
+    const kitchenPrinter = payload?.kitchen_printer;
+
+    if (!productName) throw new Error('Ürün adı zorunludur.');
+    if (!groupName) throw new Error('Ürün grubu zorunludur.');
+    if (!Number.isFinite(price) || price < 0) throw new Error('Geçerli fiyat giriniz.');
+    if (
+      typeof kitchenPrinter === 'undefined' ||
+      kitchenPrinter === null ||
+      String(kitchenPrinter).trim() === ''
+    ) {
+      throw new Error('Mutfak yazıcısı zorunludur.');
+    }
+
+    const { pool } = await this.getBranchPool(branchId);
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const productColumns = await this.getTableColumns(client, 'product');
+      if (productColumns.length === 0) throw new Error('Product tablosu bulunamadı.');
+
+      const group = await this.getOrCreateProductGroup(client, groupName);
+      const sampleRes = await client.query('SELECT * FROM product ORDER BY 1 DESC LIMIT 1');
+      const sample = sampleRes.rows?.[0] || {};
+
+      const pluCol = this.pickColumn(productColumns, ['plu', 'pluid', 'urun_id']);
+      const idCol = this.pickColumn(productColumns, ['id']);
+      const nameCol = this.pickColumn(productColumns, [
+        'product_name',
+        'urun_adi',
+        'urunadi',
+        'adi',
+        'name',
+      ]);
+      const groupCol = this.pickColumn(productColumns, [
+        'tip',
+        'grup',
+        'grup2',
+        'group_id',
+        'grup_id',
+        'product_group_id',
+      ]);
+      const priceCol = this.pickColumn(productColumns, ['fiyat', 'price', 'satisfiyat']);
+      const printerCol = this.pickColumn(productColumns, [
+        'mutfak_yazicisi',
+        'mutfak_yazici',
+        'mutfakyazici',
+        'yazici',
+        'yazici_id',
+        'printer',
+        'kitchen_printer',
+      ]);
+
+      if (!nameCol) throw new Error('Product tablosunda ürün adı kolonu bulunamadı.');
+
+      const nextProductNumber = async (col: any) => {
+        const res = await client.query(
+          `SELECT COALESCE(MAX(${this.quoteIdent(col.name)}), 0) + 1 as next_id FROM product`,
+        );
+        return Number(res.rows?.[0]?.next_id) || 1;
+      };
+
+      const values: Record<string, any> = {};
+      for (const col of productColumns) {
+        if (this.hasAutoValue(col)) continue;
+        if (!pluCol && idCol && col.lower === idCol.lower) {
+          values[col.name] = await nextProductNumber(col);
+        } else if (Object.prototype.hasOwnProperty.call(sample, col.name)) {
+          values[col.name] = sample[col.name];
+        } else if (!col.nullable && col.defaultValue === null) {
+          values[col.name] = this.defaultValueForColumn(col);
+        }
+      }
+
+      values[nameCol.name] = productName;
+      if (pluCol) values[pluCol.name] = await nextProductNumber(pluCol);
+      if (groupCol) {
+        const isTextGroup =
+          groupCol.dataType.includes('char') || groupCol.dataType.includes('text');
+        values[groupCol.name] = isTextGroup ? group.name : group.id;
+      }
+      if (priceCol) values[priceCol.name] = price;
+      if (printerCol) values[printerCol.name] = kitchenPrinter;
+      for (const col of productColumns) {
+        if (col.lower.includes('silindi') || col.lower.includes('deleted')) values[col.name] = 0;
+        if (col.lower.includes('aktif') || col.lower.includes('active')) values[col.name] = 1;
+      }
+
+      const keys = Object.keys(values).filter((k) =>
+        productColumns.some((c) => c.name === k),
+      );
+      const params = keys.map((k) => values[k]);
+      const returningPlu = pluCol
+        ? this.quoteIdent(pluCol.name)
+        : idCol
+          ? this.quoteIdent(idCol.name)
+          : 'NULL';
+      const inserted = await client.query(
+        `INSERT INTO product (${keys.map((k) => this.quoteIdent(k)).join(', ')})
+         VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')})
+         RETURNING ${returningPlu} as plu, ${this.quoteIdent(nameCol.name)} as product_name`,
+        params,
+      );
+      const plu = Number(inserted.rows?.[0]?.plu || values[pluCol?.name] || values[idCol?.name]);
+
+      await client.query('COMMIT');
+
+      if (Number.isFinite(plu) && plu > 0) {
+        await this.updateProductPrice(user, branchId, { plu, fiyat: price });
+      }
+
+      return {
+        success: true,
+        product: {
+          id: plu,
+          urun_adi: inserted.rows?.[0]?.product_name || productName,
+          grup2: group.name,
+          fiyat: price,
+        },
+      };
+    } catch (e) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async entryStock(
     branchId: string,
     items: { productName: string; quantity: number }[],

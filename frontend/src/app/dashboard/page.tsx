@@ -189,6 +189,7 @@ export default function Dashboard() {
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
     return user.allowed_reports.includes(reportId);
   };
+  const canViewDashboard = isReportAllowed('dashboard');
 
   // Initial fetch
   // Track previous values to detect changes
@@ -202,6 +203,12 @@ export default function Dashboard() {
       return;
     }
     if (!token) return;
+    if (!canViewDashboard) {
+      setData(null);
+      setLoading(false);
+      setIsDataLoading(false);
+      return;
+    }
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     
     // Cancel previous request if exists
@@ -316,7 +323,7 @@ export default function Dashboard() {
         abortControllerRef.current.abort();
       }
     };
-  }, [token, period, customStartDate, customEndDate, user?.selected_branch]);
+  }, [token, period, customStartDate, customEndDate, user?.selected_branch, canViewDashboard]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
@@ -371,7 +378,7 @@ export default function Dashboard() {
     { name: 'Kapalı', value: data?.kapali_adisyon_toplam || 0, color: '#10b981' }, // Emerald-500
   ];
 
-  if (loading && !data) {
+  if (canViewDashboard && loading && !data) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 pb-24">
         {/* Header Skeleton */}
@@ -554,6 +561,7 @@ export default function Dashboard() {
         </div>
 
         {/* Date Filter Row - Improved */}
+        {canViewDashboard && (
         <div className="px-4 pb-3">
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {[
@@ -638,9 +646,10 @@ export default function Dashboard() {
                 })()}
             </div>
         </div>
+        )}
       </div>
 
-      <main className="px-4 py-4 space-y-5 overflow-hidden max-w-full" style={{ paddingTop: user?.days_left !== undefined ? '230px' : '195px' }}>
+      <main className="px-4 py-4 space-y-5 overflow-hidden max-w-full" style={{ paddingTop: canViewDashboard ? (user?.days_left !== undefined ? '230px' : '195px') : (user?.days_left !== undefined ? '150px' : '115px') }}>
         {/* Connection Error Banner */}
         {isOffline && !loading && (
           <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
@@ -661,6 +670,7 @@ export default function Dashboard() {
         )}
 
         {/* Main Summary Card - Premium Design */}
+        {canViewDashboard && (
         <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-[28px] p-6 text-white shadow-2xl shadow-emerald-500/40 text-center relative overflow-hidden group">
           {/* Animated Background Elements */}
           <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
@@ -710,8 +720,10 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
 
         {/* Stats Cards Section */}
+        {canViewDashboard && (
         <div className="flex flex-col space-y-4">
             {/* Açık Adisyon (Only visible if period is today) - Modern Card */}
             {period === 'today' && isReportAllowed('open_orders') && (
@@ -995,6 +1007,7 @@ export default function Dashboard() {
             </div>
             )}
         </div>
+        )}
 
         {/* Stock Management Section */}
         {(isReportAllowed('stock_entry') || isReportAllowed('live_stock')) && (

@@ -2033,6 +2033,107 @@ export class ReportsService {
     return rows;
   }
 
+  async getProductSalesOrders(
+    user: any,
+    plu: number,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    if (!Number.isFinite(plu) || plu <= 0) {
+      throw new Error('Geçerli ürün seçilmedi.');
+    }
+
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
+
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      const biz = this.getBusinessDayDate(closingHour, 'today');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    } else if (period === 'yesterday') {
+      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
+      startDateOnly = biz;
+      endDateOnly = biz;
+    }
+
+    const closedQuery = `
+      SELECT
+        'closed' as status,
+        a.adsno,
+        COALESCE(a.adtur, 0) as adtur,
+        MIN(a.kaptar)::date as tarih,
+        MIN(a.kapsaat) as saat,
+        MAX(a.masano) as masano,
+        COALESCE(SUM(a.miktar), 0) as quantity,
+        COALESCE(SUM(a.tutar), 0) as total,
+        COALESCE(MAX(p.product_name), CAST(a.pluid AS VARCHAR)) as product_name
+      FROM ads_adisyon a
+      LEFT JOIN product p ON a.pluid = p.plu
+      WHERE a.raptar >= $1::date
+        AND a.raptar <= $2::date
+        AND a.kasa = ANY($3)
+        AND a.pluid = $4
+      GROUP BY a.adsno, COALESCE(a.adtur, 0), a.pluid
+    `;
+
+    const params: any[] = [startDateOnly, endDateOnly, kasa_nos, plu];
+    let query = closedQuery;
+
+    if (period === 'today') {
+      query = `
+        WITH product_orders AS (
+          ${closedQuery}
+          UNION ALL
+          SELECT
+            'open' as status,
+            a.adsno,
+            COALESCE(a.adtur, 0) as adtur,
+            MIN(a.actar)::date as tarih,
+            MIN(a.acsaat) as saat,
+            MAX(a.masano) as masano,
+            COALESCE(SUM(a.miktar), 0) as quantity,
+            COALESCE(SUM(a.tutar), 0) as total,
+            COALESCE(MAX(p.product_name), CAST(a.pluid AS VARCHAR)) as product_name
+          FROM ads_acik a
+          LEFT JOIN product p ON a.pluid = p.plu
+          WHERE a.actar = $1::date
+            AND a.kasa = ANY($3)
+            AND a.pluid = $4
+          GROUP BY a.adsno, COALESCE(a.adtur, 0), a.pluid
+        )
+        SELECT * FROM product_orders
+        ORDER BY tarih DESC, adsno DESC
+      `;
+    } else {
+      query = `
+        WITH product_orders AS (${closedQuery})
+        SELECT * FROM product_orders
+        ORDER BY tarih DESC, adsno DESC
+      `;
+    }
+
+    const rows = await this.db.executeQuery(pool, query, params);
+    return rows.map((r: any) => ({
+      status: r.status,
+      adsno: r.adsno,
+      adtur: typeof r.adtur === 'number' ? r.adtur : Number(r.adtur || 0),
+      tarih: r.tarih ? format(r.tarih, 'yyyy-MM-dd') : null,
+      saat: r.saat || null,
+      masano: r.masano,
+      quantity: parseFloat(r.quantity || 0),
+      total: parseFloat(r.total || 0),
+      product_name: r.product_name,
+    }));
+  }
+
   async getProductGroups(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branchId = user.branches[branchIndex]?.id;

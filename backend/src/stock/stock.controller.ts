@@ -33,6 +33,26 @@ export class StockController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('product')
+  async createProduct(
+    @Request() req,
+    @Query('branchId') branchId: string,
+    @Body() body: any,
+  ) {
+    try {
+      return await this.stockService.createProduct(req.user, branchId, body);
+    } catch (error: any) {
+      console.error('Create product error:', error);
+      const message =
+        error?.message || 'Ürün eklenirken beklenmeyen bir hata oluştu.';
+      throw new HttpException(
+        { message, code: error?.code || null },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('product-prices')
   async getProductPrices(@Request() req, @Query('branchId') branchId: string) {
     try {

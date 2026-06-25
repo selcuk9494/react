@@ -3,8 +3,8 @@
 import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { useSearchParams } from 'next/navigation';
-import { Package, Layers, Download, ArrowUpDown } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Package, Layers, Download, ArrowUpDown, ReceiptText, ChevronRight, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
@@ -15,6 +15,7 @@ import { getApiUrl } from '@/utils/api';
 function ProductSalesContent() {
   const { token } = useAuth();
   const { t } = useI18n();
+  const router = useRouter();
   const searchParams = useSearchParams();
   
   const [groups, setGroups] = useState<any[]>([]);
@@ -24,6 +25,9 @@ function ProductSalesContent() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [selectedPlu, setSelectedPlu] = useState<number | null>(null);
+  const [selectedProductName, setSelectedProductName] = useState('');
+  const [productOrders, setProductOrders] = useState<any[]>([]);
+  const [productOrdersLoading, setProductOrdersLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'groups'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
@@ -71,8 +75,58 @@ function ProductSalesContent() {
       }
   }, [searchParams]);
 
+  useEffect(() => {
+    const fetchProductOrders = async () => {
+      if (!token || selectedPlu === null) {
+        setProductOrders([]);
+        return;
+      }
+      setProductOrdersLoading(true);
+      try {
+        const params = new URLSearchParams({
+          plu: String(selectedPlu),
+          period,
+        });
+        if (period === 'custom') {
+          if (customStartDate) params.set('start_date', customStartDate);
+          if (customEndDate) params.set('end_date', customEndDate);
+        }
+        const res = await axios.get(
+          `${getApiUrl()}/reports/product-sales/orders?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        setProductOrders(res.data || []);
+      } catch (e) {
+        console.error(e);
+        setProductOrders([]);
+      } finally {
+        setProductOrdersLoading(false);
+      }
+    };
+    fetchProductOrders();
+  }, [token, selectedPlu, period, customStartDate, customEndDate]);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
+  };
+
+  const asNumber = (value: any) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const openOrderDetail = (order: any) => {
+    const params = new URLSearchParams({
+      id: String(order.adsno),
+      type: order.status || 'closed',
+    });
+    if (typeof order.adtur !== 'undefined' && order.adtur !== null) {
+      params.set('adtur', String(order.adtur));
+    }
+    if (order.tarih) {
+      params.set('date', String(order.tarih));
+    }
+    router.push(`/reports/orders/detail?${params.toString()}`);
   };
 
   const filteredData = (data || []).filter((item: any) => {
@@ -81,21 +135,25 @@ function ProductSalesContent() {
   });
 
   const sortedData = [...filteredData].sort((a, b) => {
-    const aVal = sortBy === 'total' ? a.total : sortBy === 'quantity' ? a.quantity : sortBy === 'pct_total' ? (totalSales > 0 ? a.total / totalSales : 0) : (totalQty > 0 ? a.quantity / totalQty : 0);
-    const bVal = sortBy === 'total' ? b.total : sortBy === 'quantity' ? b.quantity : sortBy === 'pct_total' ? (totalSales > 0 ? b.total / totalSales : 0) : (totalQty > 0 ? b.quantity / totalQty : 0);
+    const aTotal = asNumber(a.total);
+    const bTotal = asNumber(b.total);
+    const aQty = asNumber(a.quantity);
+    const bQty = asNumber(b.quantity);
+    const aVal = sortBy === 'total' ? aTotal : sortBy === 'quantity' ? aQty : sortBy === 'pct_total' ? (totalSales > 0 ? aTotal / totalSales : 0) : (totalQty > 0 ? aQty / totalQty : 0);
+    const bVal = sortBy === 'total' ? bTotal : sortBy === 'quantity' ? bQty : sortBy === 'pct_total' ? (totalSales > 0 ? bTotal / totalSales : 0) : (totalQty > 0 ? bQty / totalQty : 0);
     return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
   });
 
-  const totalSales = filteredData.reduce((acc: number, curr: any) => acc + curr.total, 0);
-  const totalQty = filteredData.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+  const totalSales = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.total), 0);
+  const totalQty = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.quantity), 0);
   const groupAgg = useMemo(() => {
     const m = new Map<number, { name: string; total: number; qty: number }>();
     filteredData.forEach((it: any) => {
       const gid = it.group_id ?? -1;
       const name = it.group_name ?? 'Diğer';
       const prev = m.get(gid) || { name, total: 0, qty: 0 };
-      prev.total += it.total || 0;
-      prev.qty += it.quantity || 0;
+      prev.total += asNumber(it.total);
+      prev.qty += asNumber(it.quantity);
       m.set(gid, prev);
     });
     const arr = Array.from(m.entries()).map(([id, v]) => ({ id, ...v }));
@@ -110,10 +168,10 @@ function ProductSalesContent() {
         it.product_name,
         it.group_name ?? '',
         it.plu ?? '',
-        it.quantity ?? 0,
-        it.total ?? 0,
-        totalSales > 0 ? ((it.total / totalSales) * 100).toFixed(2) : '0',
-        totalQty > 0 ? ((it.quantity / totalQty) * 100).toFixed(2) : '0',
+        asNumber(it.quantity),
+        asNumber(it.total),
+        totalSales > 0 ? ((asNumber(it.total) / totalSales) * 100).toFixed(2) : '0',
+        totalQty > 0 ? ((asNumber(it.quantity) / totalQty) * 100).toFixed(2) : '0',
       ])
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
@@ -202,7 +260,11 @@ function ProductSalesContent() {
               </button>
               {selectedPlu !== null && (
                 <button
-                  onClick={() => setSelectedPlu(null)}
+                  onClick={() => {
+                    setSelectedPlu(null);
+                    setSelectedProductName('');
+                    setProductOrders([]);
+                  }}
                   className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
                 >
                   Ürün filtresini temizle (PLU {selectedPlu})
@@ -272,6 +334,75 @@ function ProductSalesContent() {
               />
             </div>
 
+            {selectedPlu !== null && (
+              <div className="bg-white rounded-3xl p-5 shadow-lg border border-indigo-100">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-indigo-700 font-black">
+                      <ReceiptText className="w-5 h-5" />
+                      Satıldığı Adisyonlar
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {selectedProductName || `PLU ${selectedPlu}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlu(null);
+                      setSelectedProductName('');
+                      setProductOrders([]);
+                    }}
+                    className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600"
+                    title="Kapat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {productOrdersLoading ? (
+                  <div className="py-8 text-center text-gray-500 font-semibold">
+                    Adisyonlar yükleniyor...
+                  </div>
+                ) : productOrders.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500 font-semibold">
+                    Bu ürün için adisyon bulunamadı.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {productOrders.map((order, idx) => (
+                      <button
+                        key={`${order.status}-${order.adsno}-${order.adtur}-${idx}`}
+                        type="button"
+                        onClick={() => openOrderDetail(order)}
+                        className="w-full py-3 flex items-center gap-3 text-left hover:bg-indigo-50/60 rounded-2xl px-2 transition"
+                      >
+                        <div className={clsx(
+                          "w-10 h-10 rounded-xl flex items-center justify-center font-black text-white",
+                          order.status === 'open' ? "bg-orange-500" : "bg-emerald-600",
+                        )}>
+                          #{order.adsno}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-gray-900 truncate">
+                            {order.masano ? `Masa ${order.masano}` : 'Adisyon'} · {order.status === 'open' ? 'Açık' : 'Kapalı'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {order.tarih || '-'} {order.saat ? `· ${String(order.saat).slice(0, 5)}` : ''} · {order.quantity} adet
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-black text-gray-900">{formatCurrency(Number(order.total || 0))}</div>
+                          <div className="text-xs text-indigo-600 font-bold">Detay</div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="bg-white rounded-3xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-3">
@@ -303,23 +434,26 @@ function ProductSalesContent() {
                     <div className="flex-1">
                       <h3
                         className="font-bold text-gray-900 cursor-pointer hover:text-indigo-700"
-                        onClick={() => setSelectedPlu(item.plu ?? null)}
-                        title={item.plu ? `PLU ${item.plu} ile filtrele` : undefined}
+                        onClick={() => {
+                          setSelectedPlu(item.plu ?? null);
+                          setSelectedProductName(item.product_name || '');
+                        }}
+                        title={item.plu ? `PLU ${item.plu} adisyonlarını listele` : undefined}
                       >
                         {item.product_name}
                       </h3>
                       <p className="text-sm text-gray-500">
-                        {item.quantity} {t('pieces')} • Tutar % {(totalSales > 0 ? ((item.total / totalSales) * 100) : 0).toFixed(1)} • Adet % {(totalQty > 0 ? ((item.quantity / totalQty) * 100) : 0).toFixed(1)}
+                        {asNumber(item.quantity)} {t('pieces')} • Tutar % {(totalSales > 0 ? ((asNumber(item.total) / totalSales) * 100) : 0).toFixed(1)} • Adet % {(totalQty > 0 ? ((asNumber(item.quantity) / totalQty) * 100) : 0).toFixed(1)}
                       </p>
                       <div className="mt-2 h-2 bg-gray-200 rounded">
                         <div
                           className="h-2 bg-indigo-600 rounded"
-                          style={{ width: `${totalSales > 0 ? Math.min(100, (item.total / totalSales) * 100) : 0}%` }}
+                          style={{ width: `${totalSales > 0 ? Math.min(100, (asNumber(item.total) / totalSales) * 100) : 0}%` }}
                         />
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total)}</p>
+                      <p className="text-lg font-bold text-gray-900">{formatCurrency(asNumber(item.total))}</p>
                     </div>
                   </div>
                 </div>

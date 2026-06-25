@@ -512,7 +512,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // 14. Performance - Products
     if (
       lowerText.includes('from ads_adisyon') &&
-      lowerText.includes('group by p.product_name')
+      lowerText.includes('group by p.product_name') &&
+      !lowerText.includes('combined_sales') &&
+      !lowerText.includes('a.pluid as plu')
     ) {
       return {
         rows: [
@@ -525,7 +527,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // 15. Performance - Groups
     if (
       lowerText.includes('from ads_adisyon') &&
-      lowerText.includes('group_name')
+      lowerText.includes('group_name') &&
+      !lowerText.includes('combined_sales') &&
+      !lowerText.includes('a.pluid as plu')
     ) {
       return {
         rows: [
@@ -535,12 +539,56 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
+    // Product Sales - Orders for selected product
+    if (lowerText.includes('with product_orders')) {
+      return {
+        rows: [
+          {
+            status: 'closed',
+            adsno: 1003,
+            adtur: 0,
+            tarih: new Date().toISOString().split('T')[0],
+            saat: '14:30:00',
+            masano: 12,
+            quantity: '2',
+            total: '500.00',
+            product_name: 'Adana Kebap',
+          },
+          {
+            status: 'open',
+            adsno: 1008,
+            adtur: 1,
+            tarih: new Date().toISOString().split('T')[0],
+            saat: '15:10:00',
+            masano: 99999,
+            quantity: '1',
+            total: '250.00',
+            product_name: 'Adana Kebap',
+          },
+        ],
+      };
+    }
+
     // 16. Product Sales
     if (lowerText.includes('combined_sales')) {
       return {
         rows: [
-          { product_name: 'Adana Kebap', quantity: 55, total: '13750.00' },
-          { product_name: 'Urfa Kebap', quantity: 40, total: '10000.00' },
+          {
+            product_name: 'Adana Kebap',
+            plu: 101,
+            group_id: 1,
+            group_name: 'Kebaplar',
+            quantity: 55,
+            total: '13750.00',
+          },
+          {
+            product_name: 'Urfa Kebap',
+            plu: 102,
+            group_id: 1,
+            group_name: 'Kebaplar',
+            quantity: 40,
+            total: '10000.00',
+          },
         ],
       };
     }
@@ -551,8 +599,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     ) {
       return {
         rows: [
-          { product_name: 'Adana Kebap', quantity: 50, total: '12500.00' },
-          { product_name: 'Urfa Kebap', quantity: 38, total: '9500.00' },
+          {
+            product_name: 'Adana Kebap',
+            plu: 101,
+            group_id: 1,
+            group_name: 'Kebaplar',
+            quantity: 50,
+            total: '12500.00',
+          },
+          {
+            product_name: 'Urfa Kebap',
+            plu: 102,
+            group_id: 1,
+            group_name: 'Kebaplar',
+            quantity: 38,
+            total: '9500.00',
+          },
         ],
       };
     }
