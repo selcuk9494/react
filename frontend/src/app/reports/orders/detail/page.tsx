@@ -152,7 +152,8 @@ function OrderDetailContent() {
       const sturu = Number(item.sturu ?? 0);
       if ([1, 2, 4].includes(sturu)) return sum;
       const itemTotal = item.total || item.toplam || 0;
-      return sum + Number(itemTotal);
+      const itemDiscount = item.discount || item.iskonto || 0;
+      return sum + Number(itemTotal) + Number(itemDiscount);
     }, 0);
   };
 
@@ -223,6 +224,7 @@ function OrderDetailContent() {
         adtur: orderData.adtur,
         mode,
         value,
+        base_total: getItemsSubtotal(),
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });

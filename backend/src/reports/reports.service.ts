@@ -610,6 +610,8 @@ export class ReportsService {
                             'birim_fiyat', COALESCE(a.bfiyat, 0),
                             'total', COALESCE(a.tutar, 0),
                             'toplam', COALESCE(a.tutar, 0),
+                            'discount', COALESCE(a.iskonto, 0),
+                            'iskonto', COALESCE(a.iskonto, 0),
                             'ack1', a.ack1,
                             'ack2', a.ack2,
                             'ack3', a.ack3,
@@ -692,6 +694,8 @@ export class ReportsService {
                             'birim_fiyat', COALESCE(a.bfiyat, 0),
                             'total', COALESCE(a.tutar, 0),
                             'toplam', COALESCE(a.tutar, 0),
+                            'discount', COALESCE(a.iskonto, 0),
+                            'iskonto', COALESCE(a.iskonto, 0),
                             'ack1', a.ack1,
                             'ack2', a.ack2,
                             'ack3', a.ack3,
@@ -1078,25 +1082,69 @@ export class ReportsService {
         throw new NotFoundException('Adisyon bulunamadı');
       }
 
-      const grossTotal = rows.rows.reduce(
+      const currentTotal = rows.rows.reduce(
         (sum: number, row: any) => sum + Number(row.tutar || 0),
         0,
       );
+      const requestedBaseTotal = Number(body?.base_total);
+      const grossTotal =
+        Number.isFinite(requestedBaseTotal) && requestedBaseTotal > 0
+          ? requestedBaseTotal
+          : currentTotal;
       const discount =
         mode === 'percent' ? (grossTotal * Math.min(value, 100)) / 100 : value;
       const boundedDiscount = Math.min(Math.max(discount, 0), grossTotal);
-      const discountRowId =
-        rows.rows.find((row: any) => Number(row.tutar || 0) > 0)?.row_id ||
-        rows.rows[0].row_id;
+      const targetNetTotal = grossTotal - boundedDiscount;
+      const positiveRows = rows.rows.filter(
+        (row: any) => Number(row.tutar || 0) > 0,
+      );
+      const weightedRows = positiveRows.length > 0 ? positiveRows : rows.rows;
+      const weightTotal = weightedRows.reduce(
+        (sum: number, row: any) => sum + Math.max(Number(row.tutar || 0), 0),
+        0,
+      );
 
-      const updateParams: any[] = [
-        boundedDiscount,
-        discountRowId,
-        kasa_nos,
-        adsno,
-      ];
+      let allocatedNet = 0;
+      let allocatedDiscount = 0;
+      const allocations = weightedRows.map((row: any, index: number) => {
+        const isLast = index === weightedRows.length - 1;
+        const weight =
+          weightTotal > 0
+            ? Math.max(Number(row.tutar || 0), 0) / weightTotal
+            : 1 / weightedRows.length;
+        const net = isLast
+          ? targetNetTotal - allocatedNet
+          : Math.round(targetNetTotal * weight * 100) / 100;
+        const rowDiscount = isLast
+          ? boundedDiscount - allocatedDiscount
+          : Math.round(boundedDiscount * weight * 100) / 100;
+        allocatedNet += net;
+        allocatedDiscount += rowDiscount;
+        return {
+          rowId: row.row_id,
+          net: Math.max(net, 0),
+          discount: Math.max(rowDiscount, 0),
+        };
+      });
+
+      const tutarCase = allocations
+        .map((_, index) => `WHEN ctid = $${index * 3 + 1}::tid THEN $${index * 3 + 2}`)
+        .join(' ');
+      const iskontoCase = allocations
+        .map((_, index) => `WHEN ctid = $${index * 3 + 1}::tid THEN $${index * 3 + 3}`)
+        .join(' ');
+      const updateParams: any[] = allocations.flatMap((allocation) => [
+        allocation.rowId,
+        allocation.net,
+        allocation.discount,
+      ]);
+      const kasaParamIndex = updateParams.length + 1;
+      const adsnoParamIndex = updateParams.length + 2;
+      updateParams.push(kasa_nos, adsno);
       const updateAdturFilter =
-        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $5` : '';
+        typeof adtur !== 'undefined'
+          ? `AND COALESCE(adtur, 0) = $${updateParams.length + 1}`
+          : '';
       if (typeof adtur !== 'undefined') {
         updateParams.push(adtur);
       }
@@ -1104,9 +1152,11 @@ export class ReportsService {
       const updateRes = await client.query(
         `
           UPDATE ads_acik
-          SET iskonto = CASE WHEN ctid = $2::tid THEN $1 ELSE 0 END
-          WHERE kasa = ANY($3)
-            AND adsno = $4
+          SET
+            tutar = CASE ${tutarCase} ELSE tutar END,
+            iskonto = CASE ${iskontoCase} ELSE 0 END
+          WHERE kasa = ANY($${kasaParamIndex})
+            AND adsno = $${adsnoParamIndex}
             ${updateAdturFilter}
           RETURNING ctid::text
         `,
