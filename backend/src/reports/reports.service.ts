@@ -185,40 +185,47 @@ export class ReportsService {
   }
 
   private async getCustomerExtraSelects(pool: any, alias = 'm') {
-    const [phoneCol, addressCol] = await Promise.all([
-      this.pickExistingColumn(pool, 'ads_musteri', [
-        'telefon',
-        'tel',
-        'phone',
-        'gsm',
-        'cep',
-        'ceptel',
-        'cep_tel',
-        'mobile',
-        'telefon1',
-        'tel1',
-      ]),
-      this.pickExistingColumn(pool, 'ads_musteri', [
-        'adres',
-        'address',
-        'adres1',
-        'adres_1',
-        'adr1',
-        'acik_adres',
-        'musteri_adres',
-        'full_address',
-      ]),
-    ]);
+    try {
+      const [phoneCol, addressCol] = await Promise.all([
+        this.pickExistingColumn(pool, 'ads_musteri', [
+          'telefon',
+          'tel',
+          'phone',
+          'gsm',
+          'cep',
+          'ceptel',
+          'cep_tel',
+          'mobile',
+          'telefon1',
+          'tel1',
+        ]),
+        this.pickExistingColumn(pool, 'ads_musteri', [
+          'adres',
+          'address',
+          'adres1',
+          'adres_1',
+          'adr1',
+          'acik_adres',
+          'musteri_adres',
+          'full_address',
+        ]),
+      ]);
 
-    const textExpr = (column: string | null) =>
-      column
-        ? `NULLIF(TRIM(CAST(${alias}.${this.quoteIdent(column)} AS text)), '')`
-        : 'NULL::text';
+      const textExpr = (column: string | null) =>
+        column
+          ? `NULLIF(TRIM(CAST(${alias}.${this.quoteIdent(column)} AS text)), '')`
+          : 'NULL::text';
 
-    return {
-      phone: textExpr(phoneCol),
-      address: textExpr(addressCol),
-    };
+      return {
+        phone: textExpr(phoneCol),
+        address: textExpr(addressCol),
+      };
+    } catch {
+      return {
+        phone: 'NULL::text',
+        address: 'NULL::text',
+      };
+    }
   }
 
   private async getBranchPool(user: any) {
@@ -291,7 +298,6 @@ export class ReportsService {
     type?: 'adisyon' | 'paket',
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
-    const customerExtra = await this.getCustomerExtraSelects(pool);
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -345,9 +351,7 @@ export class ReportsService {
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 MAX(a.kasa) as kasano,
                 MAX(a.mustid) as mustid,
-                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name,
-                MAX(${customerExtra.phone}) as customer_phone,
-                MAX(${customerExtra.address}) as customer_address
+                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
             FROM ads_acik a
             LEFT JOIN ads_musteri m ON a.mustid = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
@@ -389,9 +393,7 @@ export class ReportsService {
                     MAX(a.acsaat) as acilis_saati,
                     MAX(a.actar) as tarih,
                     MAX(COALESCE(a.adtur, 0)) as adtur,
-                    MAX(a.kasa) as kasano,
-                    NULL::text as customer_phone,
-                    NULL::text as customer_address
+                    MAX(a.kasa) as kasano
                 FROM ads_acik a
                 WHERE a.kasa = ANY($1)
                 GROUP BY a.adsno
@@ -409,9 +411,7 @@ export class ReportsService {
                         MAX(a.acsaat) as acilis_saati,
                         MAX(a.actar) as tarih,
                         MAX(COALESCE(a.adtur, 0)) as adtur,
-                        MAX(a.kasa) as kasano,
-                        NULL::text as customer_phone,
-                        NULL::text as customer_address
+                        MAX(a.kasa) as kasano
                     FROM ads_acik a
                     WHERE a.kasa = ANY($1)
                     GROUP BY a.adsno
@@ -516,9 +516,7 @@ export class ReportsService {
                 per.adi as garson_adi,
                 COALESCE(p.payment_mustid, a.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
-                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name,
-                ${customerExtra.phone} as customer_phone,
-                ${customerExtra.address} as customer_address
+                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name
             FROM adisyon_agg a
             LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
             LEFT JOIN personel per ON a.garsonno = per.id
