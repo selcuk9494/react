@@ -264,6 +264,24 @@ export default function OrderDetailScreen({ navigation, route }) {
                         </View>
                     </View>
                 )}
+                {orderData?.customer_phone && (
+                    <View style={styles.gridItem}>
+                        <Feather name="phone" size={16} color="#818cf8" />
+                        <View style={styles.gridTextContainer}>
+                            <Text style={styles.gridLabel}>Telefon</Text>
+                            <Text style={styles.gridValue}>{orderData.customer_phone}</Text>
+                        </View>
+                    </View>
+                )}
+                {orderData?.customer_address && (
+                    <View style={styles.gridItemFull}>
+                        <Feather name="map-pin" size={16} color="#818cf8" />
+                        <View style={styles.gridTextContainer}>
+                            <Text style={styles.gridLabel}>Adres</Text>
+                            <Text style={styles.gridValueWrap}>{orderData.customer_address}</Text>
+                        </View>
+                    </View>
+                )}
             </View>
         </View>
 
@@ -471,8 +489,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  gridItemFull: {
+    width: '100%',
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   gridTextContainer: {
     marginLeft: 8,
+    flex: 1,
   },
   gridLabel: {
     color: '#c7d2fe',
@@ -482,6 +507,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  gridValueWrap: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 17,
   },
   productsSection: {
     marginBottom: 20,

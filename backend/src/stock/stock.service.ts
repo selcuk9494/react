@@ -275,6 +275,7 @@ export class StockService {
         'printer',
         'kitchen_printer',
       ]),
+      cashRegistersCol: this.pickColumn(columns, ['kasalar']),
     };
   }
 
@@ -401,6 +402,7 @@ export class StockService {
       price?: number;
       kitchen_printer_id?: number;
       kitchen_printer?: string | number;
+      kasalar?: number;
     },
   ) {
     this.ensureFeatureAllowed(user, 'product_prices');
@@ -444,7 +446,7 @@ export class StockService {
       const sampleRes = await client.query('SELECT * FROM product ORDER BY 1 DESC LIMIT 1');
       const sample = sampleRes.rows?.[0] || {};
 
-      const { pluCol, idCol, nameCol, groupCol, priceCol, printerCol } =
+      const { pluCol, idCol, nameCol, groupCol, priceCol, printerCol, cashRegistersCol } =
         this.getProductColumnMap(productColumns);
 
       if (!nameCol) throw new Error('Product tablosunda ürün adı kolonu bulunamadı.');
@@ -477,6 +479,7 @@ export class StockService {
       }
       if (priceCol) values[priceCol.name] = price;
       if (printerCol) values[printerCol.name] = kitchenPrinter;
+      if (cashRegistersCol) values[cashRegistersCol.name] = Number(payload?.kasalar) || 255;
       for (const col of productColumns) {
         if (col.lower.includes('silindi') || col.lower.includes('deleted')) values[col.name] = 0;
         if (col.lower.includes('aktif') || col.lower.includes('active')) values[col.name] = 1;

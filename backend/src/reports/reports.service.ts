@@ -163,6 +163,64 @@ export class ReportsService {
     return encrypted;
   }
 
+  private quoteIdent(name: string) {
+    return `"${String(name).replace(/"/g, '""')}"`;
+  }
+
+  private async pickExistingColumn(pool: any, table: string, columns: string[]) {
+    const rows = await this.db.executeQuery(
+      pool,
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = $1
+        AND lower(column_name) = ANY($2::text[])
+      ORDER BY array_position($2::text[], lower(column_name))
+      LIMIT 1
+    `,
+      [table, columns.map((c) => c.toLowerCase())],
+    );
+    return rows?.[0]?.column_name ? String(rows[0].column_name) : null;
+  }
+
+  private async getCustomerExtraSelects(pool: any, alias = 'm') {
+    const [phoneCol, addressCol] = await Promise.all([
+      this.pickExistingColumn(pool, 'ads_musteri', [
+        'telefon',
+        'tel',
+        'phone',
+        'gsm',
+        'cep',
+        'ceptel',
+        'cep_tel',
+        'mobile',
+        'telefon1',
+        'tel1',
+      ]),
+      this.pickExistingColumn(pool, 'ads_musteri', [
+        'adres',
+        'address',
+        'adres1',
+        'adres_1',
+        'adr1',
+        'acik_adres',
+        'musteri_adres',
+        'full_address',
+      ]),
+    ]);
+
+    const textExpr = (column: string | null) =>
+      column
+        ? `NULLIF(TRIM(CAST(${alias}.${this.quoteIdent(column)} AS text)), '')`
+        : 'NULL::text';
+
+    return {
+      phone: textExpr(phoneCol),
+      address: textExpr(addressCol),
+    };
+  }
+
   private async getBranchPool(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branch =
@@ -233,6 +291,7 @@ export class ReportsService {
     type?: 'adisyon' | 'paket',
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const customerExtra = await this.getCustomerExtraSelects(pool);
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -286,7 +345,9 @@ export class ReportsService {
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 MAX(a.kasa) as kasano,
                 MAX(a.mustid) as mustid,
-                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
+                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name,
+                MAX(${customerExtra.phone}) as customer_phone,
+                MAX(${customerExtra.address}) as customer_address
             FROM ads_acik a
             LEFT JOIN ads_musteri m ON a.mustid = m.mustid
             WHERE a.kasa = ANY($1) ${typeCondition}
@@ -328,7 +389,9 @@ export class ReportsService {
                     MAX(a.acsaat) as acilis_saati,
                     MAX(a.actar) as tarih,
                     MAX(COALESCE(a.adtur, 0)) as adtur,
-                    MAX(a.kasa) as kasano
+                    MAX(a.kasa) as kasano,
+                    NULL::text as customer_phone,
+                    NULL::text as customer_address
                 FROM ads_acik a
                 WHERE a.kasa = ANY($1)
                 GROUP BY a.adsno
@@ -346,7 +409,9 @@ export class ReportsService {
                         MAX(a.acsaat) as acilis_saati,
                         MAX(a.actar) as tarih,
                         MAX(COALESCE(a.adtur, 0)) as adtur,
-                        MAX(a.kasa) as kasano
+                        MAX(a.kasa) as kasano,
+                        NULL::text as customer_phone,
+                        NULL::text as customer_address
                     FROM ads_acik a
                     WHERE a.kasa = ANY($1)
                     GROUP BY a.adsno
@@ -451,7 +516,9 @@ export class ReportsService {
                 per.adi as garson_adi,
                 COALESCE(p.payment_mustid, a.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
-                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name
+                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name,
+                ${customerExtra.phone} as customer_phone,
+                ${customerExtra.address} as customer_address
             FROM adisyon_agg a
             LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
             LEFT JOIN personel per ON a.garsonno = per.id
@@ -472,6 +539,7 @@ export class ReportsService {
     adtur?: number,
   ) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
+    const customerExtra = await this.getCustomerExtraSelects(pool);
     let resolvedAdtur = typeof adtur !== 'undefined' ? adtur : undefined;
     if (typeof resolvedAdtur === 'undefined') {
       try {
@@ -566,6 +634,8 @@ export class ReportsService {
                 END as sipyer_name,
                 p.adi as garson,
                 m.adi as customer_name,
+                ${customerExtra.phone} as customer_phone,
+                ${customerExtra.address} as customer_address,
                 oi.mustid,
                 oi.tarih,
                 oi.acilis_saati,
@@ -654,6 +724,8 @@ export class ReportsService {
                 END as sipyer_name,
                 p.adi as garson,
                 m.adi as customer_name,
+                ${customerExtra.phone} as customer_phone,
+                ${customerExtra.address} as customer_address,
                 COALESCE(oi.mustid, pi.payment_mustid) as mustid,
                 COALESCE(pi.tarih, CURRENT_DATE) as tarih,
                 oi.acilis_saati,
@@ -663,9 +735,9 @@ export class ReportsService {
                 od.odmname as payment_name,
                 COALESCE(items.items, '[]'::json) as items
             FROM order_info oi
-            LEFT JOIN personel p ON oi.garsonno = p.id
-            LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, 0) = m.mustid
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
+            LEFT JOIN personel p ON oi.garsonno = p.id
+            LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, pi.payment_mustid, 0) = m.mustid
             LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno

@@ -6,6 +6,7 @@ import {
   InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { API_URL } from '../config';
 
 const getAuthContext = async () => {
@@ -51,9 +53,20 @@ export default function ProductPricesScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [items, setItems] = useState([]);
+  const [kitchenPrinters, setKitchenPrinters] = useState([]);
+  const [productGroups, setProductGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
   const [priceMap, setPriceMap] = useState({});
+  const [productModalVisible, setProductModalVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productSaving, setProductSaving] = useState(false);
+  const [productForm, setProductForm] = useState({
+    product_name: '',
+    group_name: '',
+    price: '',
+    kitchen_printer_id: '',
+  });
   const initialPriceMapRef = useRef({});
   const inputRefs = useRef({});
   const listRef = useRef(null);
@@ -114,12 +127,22 @@ export default function ProductPricesScreen({ navigation }) {
         return;
       }
 
-      const response = await axios.get(`${API_URL}/stock/product-prices?branchId=${branchId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [response, printerResponse, groupResponse] = await Promise.all([
+        axios.get(`${API_URL}/stock/product-prices?branchId=${branchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${API_URL}/stock/kitchen-printers?branchId=${branchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/reports/product-groups`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => ({ data: [] })),
+      ]);
 
       const list = Array.isArray(response.data) ? response.data : [];
       setItems(list);
+      setKitchenPrinters(Array.isArray(printerResponse.data) ? printerResponse.data : []);
+      setProductGroups(Array.isArray(groupResponse.data) ? groupResponse.data : []);
 
       const nextMap = {};
       for (const p of list) {
@@ -183,9 +206,17 @@ export default function ProductPricesScreen({ navigation }) {
   }, []);
 
   const groups = useMemo(() => {
-    const uniqueGroups = [...new Set(items.map((p) => p.grup2 || 'Diğer').filter(Boolean))];
+    const groupNames = productGroups
+      .map((g) => g?.name || g?.adi || g?.grup_adi)
+      .filter(Boolean);
+    const uniqueGroups = [
+      ...new Set([
+        ...groupNames,
+        ...items.map((p) => p.grup2 || 'Diğer').filter(Boolean),
+      ]),
+    ];
     return ['Tümü', ...uniqueGroups.sort((a, b) => String(a).localeCompare(String(b), 'tr'))];
-  }, [items]);
+  }, [items, productGroups]);
 
   const filteredItems = useMemo(() => {
     let filtered = items;
@@ -283,6 +314,109 @@ export default function ProductPricesScreen({ navigation }) {
     }
   }, [canEditPrices, getDraftKey, priceMap]);
 
+  const resetProductForm = useCallback(() => {
+    Keyboard.dismiss();
+    setEditingProduct(null);
+    setProductForm({
+      product_name: '',
+      group_name: selectedGroup !== 'Tümü' ? selectedGroup : '',
+      price: '',
+      kitchen_printer_id: kitchenPrinters[0]?.id ? String(kitchenPrinters[0].id) : '',
+    });
+  }, [kitchenPrinters, selectedGroup]);
+
+  const openCreateForm = useCallback(() => {
+    Keyboard.dismiss();
+    setEditingProduct(null);
+    setProductForm({
+      product_name: '',
+      group_name: selectedGroup !== 'Tümü' ? selectedGroup : '',
+      price: '',
+      kitchen_printer_id: kitchenPrinters[0]?.id ? String(kitchenPrinters[0].id) : '',
+    });
+    setProductModalVisible(true);
+  }, [kitchenPrinters, selectedGroup]);
+
+  const openEditForm = useCallback((product) => {
+    Keyboard.dismiss();
+    setEditingProduct(product);
+    setProductForm({
+      product_name: product.urun_adi || '',
+      group_name: product.grup2 || '',
+      price: typeof product.fiyat === 'number' ? String(product.fiyat) : product.fiyat === null ? '' : String(product.fiyat || ''),
+      kitchen_printer_id: product.kitchen_printer_id ? String(product.kitchen_printer_id) : (kitchenPrinters[0]?.id ? String(kitchenPrinters[0].id) : ''),
+    });
+    setProductModalVisible(true);
+  }, [kitchenPrinters]);
+
+  const updateProductForm = useCallback((key, value) => {
+    setProductForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleProductPriceChange = useCallback((text) => {
+    const normalized = String(text || '').replace(',', '.');
+    if (normalized !== '' && !/^\d*(\.\d{0,2})?$/.test(normalized)) return;
+    updateProductForm('price', normalized);
+  }, [updateProductForm]);
+
+  const saveProduct = useCallback(async () => {
+    Keyboard.dismiss();
+    const productName = productForm.product_name.trim();
+    const groupName = productForm.group_name.trim();
+    const price = Number(String(productForm.price || '').replace(',', '.'));
+    const kitchenPrinterId = Number(productForm.kitchen_printer_id);
+
+    if (!productName || !groupName || !Number.isFinite(price) || price < 0 || !Number.isFinite(kitchenPrinterId) || kitchenPrinterId <= 0) {
+      Alert.alert('Hata', 'Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.');
+      return;
+    }
+
+    setProductSaving(true);
+    try {
+      const { token, user } = await getAuthContext();
+      if (!token || !user) {
+        Alert.alert('Hata', 'Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+      if (!canEditPrices(user)) {
+        Alert.alert('Hata', 'Bu işlem için yetkiniz yok.');
+        return;
+      }
+
+      const branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
+      if (!branchId) {
+        Alert.alert('Hata', 'Lütfen önce bir şube seçin.');
+        return;
+      }
+
+      const payload = {
+        product_name: productName,
+        group_name: groupName,
+        price,
+        kitchen_printer_id: kitchenPrinterId,
+        ...(editingProduct ? {} : { kasalar: 255 }),
+        ...(editingProduct ? { plu: Number(editingProduct.id) } : {}),
+      };
+
+      const method = editingProduct ? 'put' : 'post';
+      await axios[method](`${API_URL}/stock/product?branchId=${branchId}`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      Keyboard.dismiss();
+      setProductModalVisible(false);
+      resetProductForm();
+      await fetchPrices(true);
+      Alert.alert('Bilgi', editingProduct ? 'Ürün güncellendi.' : 'Ürün eklendi.');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Hata', error?.response?.data?.message || 'Ürün kaydedilemedi.');
+    } finally {
+      setProductSaving(false);
+    }
+  }, [canEditPrices, editingProduct, fetchPrices, navigation, productForm, resetProductForm]);
+
   const sendPrices = useCallback(async () => {
     if (changedItems.length === 0) return;
     setSaving(true);
@@ -334,6 +468,10 @@ export default function ProductPricesScreen({ navigation }) {
           {typeof p.onceki_fiyat === 'number' ? (
             <Text style={styles.prevPrice}>Önceki: {p.onceki_fiyat}</Text>
           ) : null}
+          <TouchableOpacity style={styles.editProductButton} onPress={() => openEditForm(p)}>
+            <Feather name="edit-2" size={12} color="#0f766e" />
+            <Text style={styles.editProductText}>Ürünü düzenle</Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity
           style={styles.priceBox}
@@ -364,7 +502,7 @@ export default function ProductPricesScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     );
-  }, [focusNextInput, handlePriceChange, keyboardVisible, priceMap]);
+  }, [focusNextInput, handlePriceChange, keyboardVisible, openEditForm, priceMap]);
 
   const renderListRow = useCallback(({ item }) => {
     if (item.type === 'header') {
@@ -397,6 +535,12 @@ export default function ProductPricesScreen({ navigation }) {
         >
           <Feather name="refresh-cw" size={16} color="#065f46" />
           <Text style={styles.fetchBtnText}>Şubeden çek</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={openCreateForm}
+        >
+          <Feather name="plus" size={16} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -461,7 +605,146 @@ export default function ProductPricesScreen({ navigation }) {
             </View>
           }
         />
-      )}
+        )}
+
+      <Modal
+        visible={productModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setProductModalVisible(false);
+          resetProductForm();
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>{editingProduct ? 'Ürünü Düzenle' : 'Yeni Ürün'}</Text>
+                <Text style={styles.modalSub}>Ürün adı, grubu, fiyatı ve mutfak yazıcısı zorunludur.</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setProductModalVisible(false);
+                  resetProductForm();
+                }}
+              >
+                <Feather name="x" size={18} color="#475569" />
+              </TouchableOpacity>
+            </View>
+
+            {keyboardVisible ? (
+              <TouchableOpacity style={styles.keyboardDoneButton} onPress={Keyboard.dismiss}>
+                <Text style={styles.keyboardDoneText}>Klavyeyi kapat</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <Text style={styles.fieldLabel}>Ürün adı</Text>
+              <TextInput
+                style={styles.formInput}
+                value={productForm.product_name}
+                onChangeText={(text) => updateProductForm('product_name', text)}
+                placeholder="Ürün adı"
+                placeholderTextColor="#94a3b8"
+                returnKeyType="next"
+              />
+
+              <Text style={styles.fieldLabel}>Grup</Text>
+              <ScrollView
+                horizontal
+                keyboardShouldPersistTaps="handled"
+                showsHorizontalScrollIndicator={false}
+                style={styles.modalGroupScroll}
+                contentContainerStyle={styles.modalGroupScrollContent}
+              >
+                {groups.filter((g) => g !== 'Tümü').map((g) => {
+                  const active = productForm.group_name === g;
+                  return (
+                    <TouchableOpacity
+                      key={g}
+                      style={[styles.modalGroupChip, active && styles.modalGroupChipActive]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        updateProductForm('group_name', g);
+                      }}
+                    >
+                      <Text style={[styles.modalGroupChipText, active && styles.modalGroupChipTextActive]}>{g}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TextInput
+                style={styles.formInput}
+                value={productForm.group_name}
+                onChangeText={(text) => updateProductForm('group_name', text)}
+                placeholder="Yeni grup yaz veya yukarıdan seç"
+                placeholderTextColor="#94a3b8"
+                returnKeyType="next"
+              />
+
+              <Text style={styles.fieldLabel}>Fiyat</Text>
+              <TextInput
+                style={styles.formInput}
+                value={productForm.price}
+                onChangeText={handleProductPriceChange}
+                placeholder="0.00"
+                placeholderTextColor="#94a3b8"
+                keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
+                returnKeyType="done"
+                blurOnSubmit={true}
+                onSubmitEditing={Keyboard.dismiss}
+              />
+
+              <Text style={styles.fieldLabel}>Mutfak yazıcısı</Text>
+              <TouchableOpacity activeOpacity={1} onPress={Keyboard.dismiss}>
+                <View style={styles.pickerBox}>
+                  <Picker
+                    selectedValue={productForm.kitchen_printer_id}
+                    onValueChange={(value) => {
+                      Keyboard.dismiss();
+                      updateProductForm('kitchen_printer_id', String(value || ''));
+                    }}
+                  >
+                    <Picker.Item label="Mutfak yazıcısı seç" value="" />
+                    {kitchenPrinters.map((printer) => (
+                      <Picker.Item key={printer.id} label={printer.name} value={String(printer.id)} />
+                    ))}
+                  </Picker>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.saveProductBtn, productSaving && styles.btnDisabled]}
+                onPress={saveProduct}
+                disabled={productSaving}
+              >
+                <LinearGradient colors={['#10b981', '#0ea5e9']} style={styles.saveProductGradient}>
+                  {productSaving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="save" size={16} color="#fff" />
+                      <Text style={styles.saveProductText}>{editingProduct ? 'Ürünü Güncelle' : 'Ürünü Kaydet'}</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
     </View>
   );
@@ -576,6 +859,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#065f46',
     marginLeft: 6,
+  },
+  addBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   searchBox: {
     flexDirection: 'row',
@@ -719,6 +1011,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748b',
   },
+  editProductButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: '#ccfbf1',
+  },
+  editProductText: {
+    marginLeft: 5,
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0f766e',
+  },
   priceBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -849,5 +1157,132 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 92,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 18,
+    maxHeight: '88%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  modalSub: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    maxWidth: 260,
+  },
+  modalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyboardDoneButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#e0f2fe',
+    marginBottom: 4,
+  },
+  keyboardDoneText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0369a1',
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#334155',
+    marginBottom: 6,
+    marginTop: 10,
+  },
+  modalGroupScroll: {
+    marginBottom: 8,
+  },
+  modalGroupScrollContent: {
+    paddingRight: 12,
+  },
+  modalGroupChip: {
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  modalGroupChipActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  modalGroupChipText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#475569',
+  },
+  modalGroupChipTextActive: {
+    color: '#fff',
+  },
+  formInput: {
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  pickerBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    overflow: 'hidden',
+  },
+  saveProductBtn: {
+    marginTop: 18,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  saveProductGradient: {
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  saveProductText: {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#fff',
   },
 });

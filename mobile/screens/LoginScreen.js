@@ -67,9 +67,13 @@ export default function LoginScreen({ navigation }) {
         <TextInput
           style={styles.input}
           placeholder="ornek@email.com"
+          placeholderTextColor="#9ca3af"
+          selectionColor="#007AFF"
+          cursorColor="#007AFF"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
         />
       </View>
@@ -79,8 +83,13 @@ export default function LoginScreen({ navigation }) {
         <TextInput
           style={styles.input}
           placeholder="********"
+          placeholderTextColor="#9ca3af"
+          selectionColor="#007AFF"
+          cursorColor="#007AFF"
           value={password}
           onChangeText={setPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
           secureTextEntry
         />
       </View>
@@ -154,6 +163,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     fontSize: 16,
+    color: '#111827',
     backgroundColor: '#fafafa',
   },
   rememberMeContainer: {

@@ -366,6 +366,23 @@ export default function OrdersScreen({ navigation, route }) {
             )}
         </View>
 
+        {(item.customer_phone || item.customer_address) && (
+             <View style={styles.detailsRowWrap}>
+                {item.customer_phone && (
+                    <View style={styles.detailItem}>
+                        <Feather name="phone" size={14} color="#94a3b8" />
+                        <Text style={styles.detailText}>{item.customer_phone}</Text>
+                    </View>
+                )}
+                {item.customer_address && (
+                    <View style={styles.detailItemFull}>
+                        <Feather name="map-pin" size={14} color="#94a3b8" />
+                        <Text style={styles.detailTextWrap} numberOfLines={2}>{item.customer_address}</Text>
+                    </View>
+                )}
+            </View>
+        )}
+
         {(item.acilis_saati) && (
              <View style={styles.detailsRow}>
                 <View style={styles.detailItem}>
@@ -675,15 +692,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 6,
   },
+  detailsRowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
   },
+  detailItemFull: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 4,
+    width: '100%',
+  },
   detailText: {
     fontSize: 12,
     color: '#64748b',
     marginLeft: 6,
+  },
+  detailTextWrap: {
+    flex: 1,
+    fontSize: 12,
+    color: '#64748b',
+    marginLeft: 6,
+    lineHeight: 16,
   },
   emptyContainer: {
     alignItems: 'center',

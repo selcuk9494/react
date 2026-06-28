@@ -13,7 +13,6 @@ import {
   CreditCard,
   Timer,
   CheckCircle,
-  Users,
   ShoppingBasket,
   Tag,
   Share2,
@@ -33,7 +32,6 @@ function OrderDetailContent() {
   const [orderData, setOrderData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [customerName, setCustomerName] = useState('');
 
   const id = searchParams.get('id');
   const type = searchParams.get('type') || 'closed';
@@ -87,27 +85,6 @@ function OrderDetailContent() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const fetchCustomer = async () => {
-      try {
-        if (!token) return;
-        if (!orderData?.mustid) return;
-        if (orderData?.customer_name) {
-          setCustomerName(orderData.customer_name);
-          return;
-        }
-        const res = await axios.get(`${getApiUrl()}/reports/customer?id=${orderData.mustid}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const full = res.data?.full_name || res.data?.first_name || '';
-        if (full) setCustomerName(full);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchCustomer();
-  }, [orderData?.mustid]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat(lang === 'tr' ? 'tr-TR' : 'en-US', { style: 'currency', currency: 'TRY' }).format(val);
@@ -192,8 +169,12 @@ function OrderDetailContent() {
       text += `👤 Garson: ${orderData.garson}\n`;
     }
     
-    if (orderData.customer_name) {
-      text += `👥 Müşteri: ${orderData.customer_name}\n`;
+    if (orderData.customer_phone) {
+      text += `☎️ Telefon: ${orderData.customer_phone}\n`;
+    }
+
+    if (orderData.customer_address) {
+      text += `📍 Adres: ${orderData.customer_address}\n`;
     }
     
     if (orderData.acilis_saati) {
@@ -437,14 +418,26 @@ function OrderDetailContent() {
                         </div>
                     )}
 
-                     {(orderData?.customer_name || orderData?.mustid) && (
+                     {orderData?.customer_phone && (
                          <div className="flex items-center space-x-2 col-span-2">
                              <div className="p-1.5 bg-indigo-500/30 rounded-lg">
-                                <Users className="w-4 h-4 text-indigo-200" />
+                                <User className="w-4 h-4 text-indigo-200" />
                             </div>
                             <div>
-                                <p className="text-xs text-indigo-200">{t('customer')}</p>
-                                <p className="text-sm font-semibold">{orderData.customer_name || orderData.mustid}</p>
+                                <p className="text-xs text-indigo-200">Telefon</p>
+                                <p className="text-sm font-semibold">{orderData.customer_phone}</p>
+                            </div>
+                        </div>
+                    )}
+
+                     {orderData?.customer_address && (
+                         <div className="flex items-start space-x-2 col-span-2">
+                             <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                <MapPin className="w-4 h-4 text-indigo-200" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-indigo-200">Adres</p>
+                                <p className="text-sm font-semibold">{orderData.customer_address}</p>
                             </div>
                         </div>
                     )}
