@@ -292,13 +292,17 @@ export default function OrderDetailScreen({ navigation, route }) {
   const getItemsSubtotal = () => {
     if (!orderData || !orderData.items || !Array.isArray(orderData.items)) return 0;
     return orderData.items.reduce((sum, item) => {
+      const sturu = Number(item.sturu ?? 0);
+      if ([1, 2, 4].includes(sturu)) return sum;
       const itemTotal = item.total || item.toplam || 0;
       return sum + Number(itemTotal);
     }, 0);
   };
 
   const getTotalPaid = () => {
-    const total = Number(orderData?.toplam_tutar || 0);
+    const total = orderData?.order_type === 'open'
+      ? getItemsSubtotal()
+      : Number(orderData?.toplam_tutar || 0);
     const discount = Number(orderData?.toplam_iskonto || 0);
     return Math.max(total - discount, 0);
   };

@@ -347,7 +347,7 @@ export class ReportsService {
       let query = `
             SELECT 
                 a.adsno,
-                SUM(COALESCE(a.tutar, 0)) as tutar,
+                SUM(CASE WHEN COALESCE(a.sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(a.tutar, 0) END) as tutar,
                 SUM(COALESCE(a.iskonto, 0)) as iskonto,
                 MAX(COALESCE(a.masano, 0)) as masano,
                 MAX(COALESCE(a.masano, 0)) as masa_no,
@@ -392,7 +392,7 @@ export class ReportsService {
         const fbQuery = `
                 SELECT 
                     a.adsno,
-                    SUM(COALESCE(a.tutar, 0)) as tutar,
+                    SUM(CASE WHEN COALESCE(a.sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(a.tutar, 0) END) as tutar,
                     MAX(COALESCE(a.masano, 0)) as masano,
                     MAX(COALESCE(a.masano, 0)) as masa_no,
                     MAX(a.acsaat) as acilis_saati,
@@ -410,7 +410,7 @@ export class ReportsService {
           const fbSingleQuery = `
                     SELECT 
                         a.adsno,
-                        SUM(COALESCE(a.tutar, 0)) as tutar,
+                        SUM(CASE WHEN COALESCE(a.sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(a.tutar, 0) END) as tutar,
                         MAX(COALESCE(a.masano, 0)) as masano,
                         MAX(COALESCE(a.masano, 0)) as masa_no,
                         MAX(a.acsaat) as acilis_saati,
@@ -591,7 +591,7 @@ export class ReportsService {
                     MAX(actar) as tarih,
                     MAX(acsaat) as acilis_saati,
                     COALESCE(SUM(iskonto), 0) as toplam_iskonto,
-                    COALESCE(SUM(tutar), 0) as toplam_tutar
+                    COALESCE(SUM(CASE WHEN COALESCE(sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(tutar, 0) END), 0) as toplam_tutar
                 FROM ads_acik
                 WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
                 GROUP BY adsno
@@ -1061,7 +1061,9 @@ export class ReportsService {
 
       const rows = await client.query(
         `
-          SELECT ctid::text as row_id, COALESCE(tutar, 0) as tutar
+          SELECT
+            ctid::text as row_id,
+            CASE WHEN COALESCE(sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(tutar, 0) END as tutar
           FROM ads_acik
           WHERE kasa = ANY($1)
             AND adsno = $2
@@ -1360,7 +1362,7 @@ export class ReportsService {
               WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
               ELSE 'adisyon'
             END as type,
-            COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as tutar
+            COALESCE(SUM(CASE WHEN COALESCE(a.sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(a.tutar, 0) END), 0) as tutar
           FROM ads_acik a
           WHERE a.kasa = ANY($1) ${openFilter}
           GROUP BY a.adsno, type
