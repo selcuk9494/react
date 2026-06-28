@@ -168,6 +168,10 @@ function OrderDetailContent() {
     if (orderData.garson) {
       text += `👤 Garson: ${orderData.garson}\n`;
     }
+
+    if (orderData.customer_name) {
+      text += `👥 Müşteri: ${orderData.customer_name}\n`;
+    }
     
     if (orderData.customer_phone) {
       text += `☎️ Telefon: ${orderData.customer_phone}\n`;
@@ -426,6 +430,18 @@ function OrderDetailContent() {
                             <div>
                                 <p className="text-xs text-indigo-200">Telefon</p>
                                 <p className="text-sm font-semibold">{orderData.customer_phone}</p>
+                            </div>
+                        </div>
+                    )}
+
+                     {orderData?.customer_name && (
+                         <div className="flex items-center space-x-2 col-span-2">
+                             <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                <User className="w-4 h-4 text-indigo-200" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-indigo-200">{t('customer')}</p>
+                                <p className="text-sm font-semibold">{orderData.customer_name}</p>
                             </div>
                         </div>
                     )}

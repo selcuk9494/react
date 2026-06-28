@@ -366,8 +366,14 @@ export default function OrdersScreen({ navigation, route }) {
             )}
         </View>
 
-        {(item.customer_phone || item.customer_address) && (
+        {(item.customer_name || item.customer_phone || item.customer_address) && (
              <View style={styles.detailsRowWrap}>
+                {item.customer_name && (
+                    <View style={styles.detailItem}>
+                        <Feather name="user" size={14} color="#94a3b8" />
+                        <Text style={styles.detailText}>{item.customer_name}</Text>
+                    </View>
+                )}
                 {item.customer_phone && (
                     <View style={styles.detailItem}>
                         <Feather name="phone" size={14} color="#94a3b8" />

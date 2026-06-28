@@ -384,6 +384,12 @@ function OpenOrdersContent() {
                                     <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
                                 </div>
                             )}
+                            {order.customer_name && (
+                                <div className="flex items-center">
+                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600 truncate">Müşteri: {order.customer_name}</span>
+                                </div>
+                            )}
                             {order.customer_phone && (
                                 <div className="flex items-center">
                                     <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />

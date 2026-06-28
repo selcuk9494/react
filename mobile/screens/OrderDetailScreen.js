@@ -273,6 +273,15 @@ export default function OrderDetailScreen({ navigation, route }) {
                         </View>
                     </View>
                 )}
+                {orderData?.customer_name && (
+                    <View style={styles.gridItem}>
+                        <Feather name="user" size={16} color="#818cf8" />
+                        <View style={styles.gridTextContainer}>
+                            <Text style={styles.gridLabel}>Müşteri</Text>
+                            <Text style={styles.gridValue}>{orderData.customer_name}</Text>
+                        </View>
+                    </View>
+                )}
                 {orderData?.customer_address && (
                     <View style={styles.gridItemFull}>
                         <Feather name="map-pin" size={16} color="#818cf8" />
