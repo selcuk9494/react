@@ -1085,35 +1085,37 @@ export class ReportsService {
       const discount =
         mode === 'percent' ? (grossTotal * Math.min(value, 100)) / 100 : value;
       const boundedDiscount = Math.min(Math.max(discount, 0), grossTotal);
-      const firstRowId = rows.rows[0].row_id;
+      const discountRowId =
+        rows.rows.find((row: any) => Number(row.tutar || 0) > 0)?.row_id ||
+        rows.rows[0].row_id;
 
-      const resetParams: any[] = [kasa_nos, adsno];
-      const resetAdturFilter =
-        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $3` : '';
+      const updateParams: any[] = [
+        boundedDiscount,
+        discountRowId,
+        kasa_nos,
+        adsno,
+      ];
+      const updateAdturFilter =
+        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $5` : '';
       if (typeof adtur !== 'undefined') {
-        resetParams.push(adtur);
+        updateParams.push(adtur);
       }
 
-      await client.query(
+      const updateRes = await client.query(
         `
           UPDATE ads_acik
-          SET iskonto = 0
-          WHERE kasa = ANY($1)
-            AND adsno = $2
-            ${resetAdturFilter}
-        `,
-        resetParams,
-      );
-
-      await client.query(
-        `
-          UPDATE ads_acik
-          SET iskonto = $1
-          WHERE ctid = $2::tid
+          SET iskonto = CASE WHEN ctid = $2::tid THEN $1 ELSE 0 END
+          WHERE kasa = ANY($3)
+            AND adsno = $4
+            ${updateAdturFilter}
           RETURNING ctid::text
         `,
-        [boundedDiscount, firstRowId],
+        updateParams,
       );
+
+      if (updateRes.rowCount === 0) {
+        throw new NotFoundException('Adisyon bulunamadı');
+      }
 
       await client.query('COMMIT');
 
