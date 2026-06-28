@@ -837,6 +837,16 @@ export class ReportsService {
       throw new BadRequestException('Geçersiz adisyon tipi');
     }
 
+    const requestedQuantity = Number(body?.quantity ?? 1);
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+      throw new BadRequestException('Geçersiz adet');
+    }
+
+    const note =
+      action === 'iptal' || action === 'ikram'
+        ? String(body?.note || '').trim().slice(0, 250)
+        : '';
+
     if (action === 'normal') {
       try {
         this.ensureReportAllowed(user, 'open_order_item_cancel');
@@ -851,42 +861,273 @@ export class ReportsService {
     }
 
     const { pool, kasa_nos } = await this.getBranchPool(user);
-    const params: any[] = [statusByAction[action], kasa_nos, adsno, rowId];
-    const adturFilter =
-      typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $5` : '';
-    if (typeof adtur !== 'undefined') {
-      params.push(adtur);
-    }
+    const status = statusByAction[action];
+    const client = await pool.connect();
+    let updatedItem: any = null;
 
-    const rows = await this.db.executeQuery(
-      pool,
-      `
-        UPDATE ads_acik
-        SET sturu = $1
-        WHERE kasa = ANY($2)
-          AND adsno = $3
-          AND ctid = $4::tid
-          ${adturFilter}
-          AND pluid IS NOT NULL
-        RETURNING
-          adsno,
-          COALESCE(adtur, 0) as adtur,
-          pluid,
-          miktar,
-          bfiyat,
-          tutar,
-          COALESCE(sturu, 0) as sturu,
-          ctid::text as row_id
-      `,
-      params,
-    );
+    try {
+      await client.query('BEGIN');
 
-    if (!rows || rows.length === 0) {
-      throw new NotFoundException('Ürün bulunamadı');
+      const columnRes = await client.query(
+        `
+          SELECT c.column_name
+          FROM information_schema.columns c
+          WHERE c.table_schema = current_schema()
+            AND c.table_name = 'ads_acik'
+            AND c.is_generated = 'NEVER'
+            AND c.identity_generation IS NULL
+            AND c.column_name NOT IN (
+              SELECT kcu.column_name
+              FROM information_schema.table_constraints tc
+              JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+               AND tc.table_schema = kcu.table_schema
+              WHERE tc.table_schema = current_schema()
+                AND tc.table_name = 'ads_acik'
+                AND tc.constraint_type = 'PRIMARY KEY'
+            )
+          ORDER BY c.ordinal_position
+        `,
+      );
+      const columns = columnRes.rows.map((row: any) => String(row.column_name));
+      const hasAck1 = columns.some((column) => column.toLowerCase() === 'ack1');
+
+      const selectParams: any[] = [kasa_nos, adsno, rowId];
+      const adturFilter =
+        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $4` : '';
+      if (typeof adtur !== 'undefined') {
+        selectParams.push(adtur);
+      }
+
+      const currentRes = await client.query(
+        `
+          SELECT *, ctid::text as row_id
+          FROM ads_acik
+          WHERE kasa = ANY($1)
+            AND adsno = $2
+            AND ctid = $3::tid
+            ${adturFilter}
+            AND pluid IS NOT NULL
+          FOR UPDATE
+        `,
+        selectParams,
+      );
+
+      if (currentRes.rows.length === 0) {
+        throw new NotFoundException('Ürün bulunamadı');
+      }
+
+      const current = currentRes.rows[0];
+      const currentQuantity = Number(current.miktar ?? 1);
+      if (!Number.isFinite(currentQuantity) || currentQuantity <= 0) {
+        throw new BadRequestException('Ürün adedi geçersiz');
+      }
+
+      const quantity = Math.min(requestedQuantity, currentQuantity);
+      const currentTotal = Number(current.tutar ?? 0);
+      const selectedTotal =
+        currentQuantity > 0 ? (currentTotal * quantity) / currentQuantity : 0;
+      const remainingQuantity = currentQuantity - quantity;
+      const remainingTotal = currentTotal - selectedTotal;
+
+      if (remainingQuantity > 0 && quantity < currentQuantity) {
+        if (columns.length === 0) {
+          throw new BadRequestException('ads_acik kolonları okunamadı');
+        }
+
+        const insertColumns = columns.map((column) => this.quoteIdent(column));
+        const insertValues = columns.map((column) => {
+          const lower = column.toLowerCase();
+          if (lower === 'miktar') return '$1';
+          if (lower === 'tutar') return '$2';
+          if (lower === 'sturu') return '$3';
+          if (lower === 'ack1' && note) return '$4';
+          return this.quoteIdent(column);
+        });
+
+        const insertRes = await client.query(
+          `
+            INSERT INTO ads_acik (${insertColumns.join(', ')})
+            SELECT ${insertValues.join(', ')}
+            FROM ads_acik
+            WHERE ctid = $5::tid
+            RETURNING
+              adsno,
+              COALESCE(adtur, 0) as adtur,
+              pluid,
+              miktar,
+              bfiyat,
+              tutar,
+              COALESCE(sturu, 0) as sturu,
+              ctid::text as row_id
+          `,
+          [quantity, selectedTotal, status, note, rowId],
+        );
+
+        const updateSet = [
+          'miktar = $1',
+          'tutar = $2',
+        ];
+        const updateParams: any[] = [remainingQuantity, remainingTotal, rowId];
+        await client.query(
+          `
+            UPDATE ads_acik
+            SET ${updateSet.join(', ')}
+            WHERE ctid = $3::tid
+          `,
+          updateParams,
+        );
+
+        updatedItem = insertRes.rows[0];
+      } else {
+        const updateSet = ['sturu = $1'];
+        const updateParams: any[] = [status, rowId];
+        if (hasAck1 && note) {
+          updateSet.push(`ack1 = $${updateParams.length + 1}`);
+          updateParams.push(note);
+        }
+
+        const updateRes = await client.query(
+          `
+            UPDATE ads_acik
+            SET ${updateSet.join(', ')}
+            WHERE ctid = $2::tid
+            RETURNING
+              adsno,
+              COALESCE(adtur, 0) as adtur,
+              pluid,
+              miktar,
+              bfiyat,
+              tutar,
+              COALESCE(sturu, 0) as sturu,
+              ctid::text as row_id
+          `,
+          updateParams,
+        );
+
+        updatedItem = updateRes.rows[0];
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
 
     await this.cache.delPattern(`dashboard_v2:${user.id}:*`);
-    return { success: true, item: rows[0] };
+    return { success: true, item: updatedItem };
+  }
+
+  async updateOpenOrderDiscount(user: any, body: any) {
+    this.ensureReportAllowed(user, 'open_order_discount');
+
+    const adsno = String(body?.adsno || '').trim();
+    if (!adsno) {
+      throw new BadRequestException('Adisyon numarası gerekli');
+    }
+
+    const mode = String(body?.mode || '').trim();
+    if (mode !== 'amount' && mode !== 'percent') {
+      throw new BadRequestException('Geçersiz indirim tipi');
+    }
+
+    const value = Number(body?.value);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new BadRequestException('Geçersiz indirim değeri');
+    }
+
+    const adtur =
+      typeof body?.adtur !== 'undefined' && body?.adtur !== null
+        ? Number(body.adtur)
+        : undefined;
+    if (typeof adtur !== 'undefined' && !Number.isFinite(adtur)) {
+      throw new BadRequestException('Geçersiz adisyon tipi');
+    }
+
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const params: any[] = [kasa_nos, adsno];
+      const adturFilter =
+        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $3` : '';
+      if (typeof adtur !== 'undefined') {
+        params.push(adtur);
+      }
+
+      const rows = await client.query(
+        `
+          SELECT ctid::text as row_id, COALESCE(tutar, 0) as tutar
+          FROM ads_acik
+          WHERE kasa = ANY($1)
+            AND adsno = $2
+            ${adturFilter}
+            AND pluid IS NOT NULL
+          ORDER BY actar, acsaat, ctid
+          FOR UPDATE
+        `,
+        params,
+      );
+
+      if (rows.rows.length === 0) {
+        throw new NotFoundException('Adisyon bulunamadı');
+      }
+
+      const grossTotal = rows.rows.reduce(
+        (sum: number, row: any) => sum + Number(row.tutar || 0),
+        0,
+      );
+      const discount =
+        mode === 'percent' ? (grossTotal * Math.min(value, 100)) / 100 : value;
+      const boundedDiscount = Math.min(Math.max(discount, 0), grossTotal);
+      const firstRowId = rows.rows[0].row_id;
+
+      const resetParams: any[] = [kasa_nos, adsno];
+      const resetAdturFilter =
+        typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $3` : '';
+      if (typeof adtur !== 'undefined') {
+        resetParams.push(adtur);
+      }
+
+      await client.query(
+        `
+          UPDATE ads_acik
+          SET iskonto = 0
+          WHERE kasa = ANY($1)
+            AND adsno = $2
+            ${resetAdturFilter}
+        `,
+        resetParams,
+      );
+
+      await client.query(
+        `
+          UPDATE ads_acik
+          SET iskonto = $1
+          WHERE ctid = $2::tid
+        `,
+        [boundedDiscount, firstRowId],
+      );
+
+      await client.query('COMMIT');
+
+      await this.cache.delPattern(`dashboard_v2:${user.id}:*`);
+      return {
+        success: true,
+        discount: boundedDiscount,
+        gross_total: grossTotal,
+        net_total: grossTotal - boundedDiscount,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getCustomerById(user: any, id: number) {

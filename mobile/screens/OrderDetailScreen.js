@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Platform, Linking } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Platform, Linking, Modal, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
@@ -11,10 +11,41 @@ export default function OrderDetailScreen({ navigation, route }) {
   const { id, type = 'closed', adtur, fromCancels = false } = route.params;
   const [loading, setLoading] = useState(true);
   const [orderData, setOrderData] = useState(null);
+  const [user, setUser] = useState(null);
+  const [updatingItemId, setUpdatingItemId] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [actionQuantity, setActionQuantity] = useState('1');
+  const [actionNote, setActionNote] = useState('');
+  const [discountModalVisible, setDiscountModalVisible] = useState(false);
+  const [discountMode, setDiscountMode] = useState('amount');
+  const [discountValue, setDiscountValue] = useState('');
 
   useEffect(() => {
     fetchOrderDetail();
-  }, [id, type]);
+    loadUser();
+  }, [id, type, adtur]);
+
+  const loadUser = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        const response = await axios.get(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.data) {
+          setUser(response.data);
+          await AsyncStorage.setItem('user', JSON.stringify(response.data));
+          return;
+        }
+      }
+      const storedUser = await AsyncStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (error) {
+      console.log('User parse failed:', error.message);
+    }
+  };
 
   const fetchOrderDetail = async () => {
     try {
@@ -33,6 +64,9 @@ export default function OrderDetailScreen({ navigation, route }) {
       });
       
       let data = response.data;
+      if (data) {
+        data.order_type = type;
+      }
       
       // Eğer iptal listesinden geliyorsa ve items boş veya undefined ise, diğer type'ı dene
       if (fromCancels && (!data?.items || data.items.length === 0)) {
@@ -46,6 +80,7 @@ export default function OrderDetailScreen({ navigation, route }) {
           });
           if (altResponse.data?.items && altResponse.data.items.length > 0) {
             data = altResponse.data;
+            data.order_type = alternativeType;
           }
         } catch (altError) {
           console.log('Alternative type failed:', altError.message);
@@ -58,6 +93,98 @@ export default function OrderDetailScreen({ navigation, route }) {
       Alert.alert('Hata', 'Adisyon detayları alınamadı.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const isReportAllowed = (reportId) => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
+    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes(reportId);
+  };
+
+  const openActionPrompt = (item, action) => {
+    if (!orderData?.adsno || !item?.row_id) return;
+    setPendingAction({ item, action });
+    setActionQuantity('1');
+    setActionNote('');
+  };
+
+  const closeActionPrompt = () => {
+    setPendingAction(null);
+    setActionQuantity('1');
+    setActionNote('');
+  };
+
+  const confirmOpenItemStatus = async () => {
+    if (!pendingAction || !orderData?.adsno) return;
+
+    const { item, action } = pendingAction;
+    const maxQuantity = Number((item.quantity ?? item.miktar) || 1);
+    const quantity = Number(String(actionQuantity || '1').replace(',', '.'));
+
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maxQuantity) {
+      Alert.alert('Hata', `Lütfen 1 ile ${maxQuantity} arasında geçerli bir adet girin.`);
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      setUpdatingItemId(item.row_id);
+      await axios.patch(`${API_URL}/reports/open-order-items`, {
+        adsno: orderData.adsno,
+        adtur: orderData.adtur,
+        row_id: item.row_id,
+        action,
+        quantity,
+        note: action === 'iptal' || action === 'ikram' ? actionNote.trim() : '',
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      closeActionPrompt();
+      await fetchOrderDetail();
+    } catch (error) {
+      console.error('Open item action error:', error);
+      Alert.alert('Hata', error.response?.data?.message || 'İşlem yapılamadı.');
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
+  const openDiscountModal = (mode) => {
+    setDiscountMode(mode);
+    setDiscountValue(mode === 'percent' ? '10' : '');
+    setDiscountModalVisible(true);
+  };
+
+  const closeDiscountModal = () => {
+    setDiscountModalVisible(false);
+    setDiscountValue('');
+  };
+
+  const confirmOpenOrderDiscount = async () => {
+    if (!orderData?.adsno) return;
+    const value = Number(String(discountValue || '0').replace(',', '.'));
+    if (!Number.isFinite(value) || value < 0) {
+      Alert.alert('Hata', 'Geçerli bir indirim değeri girin.');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      await axios.patch(`${API_URL}/reports/open-order-discount`, {
+        adsno: orderData.adsno,
+        adtur: orderData.adtur,
+        mode: discountMode,
+        value,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      closeDiscountModal();
+      await fetchOrderDetail();
+    } catch (error) {
+      console.error('Open order discount error:', error);
+      Alert.alert('Hata', error.response?.data?.message || 'İndirim yapılamadı.');
     }
   };
 
@@ -309,6 +436,10 @@ export default function OrderDetailScreen({ navigation, route }) {
                 const isIptal = sturu === 4;
                 const isIkram = sturu === 1;
                 const isIade = sturu === 2;
+                const canCancelItem = orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel');
+                const canGiftItem = orderData?.order_type === 'open' && isReportAllowed('open_order_item_gift');
+                const canResetItem = orderData?.order_type === 'open' && (canCancelItem || canGiftItem) && (isIptal || isIkram);
+                const isUpdating = updatingItemId === item.row_id;
 
                 let statusStyle = {};
                 let statusText = null;
@@ -351,6 +482,41 @@ export default function OrderDetailScreen({ navigation, route }) {
                             </Text>
                         </View>
 
+                        {(canCancelItem || canGiftItem || canResetItem) && item.row_id && (
+                            <View style={styles.itemActions}>
+                                {canCancelItem && !isIptal && !isIkram && (
+                                    <TouchableOpacity
+                                        style={[styles.itemActionButton, styles.cancelActionButton, isUpdating && styles.disabledButton]}
+                                        disabled={isUpdating}
+                                        onPress={() => openActionPrompt(item, 'iptal')}
+                                    >
+                                        <Feather name="slash" size={14} color="#b91c1c" />
+                                        <Text style={[styles.itemActionText, styles.cancelActionText]}>İptal Et</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {canGiftItem && !isIptal && !isIkram && (
+                                    <TouchableOpacity
+                                        style={[styles.itemActionButton, styles.giftActionButton, isUpdating && styles.disabledButton]}
+                                        disabled={isUpdating}
+                                        onPress={() => openActionPrompt(item, 'ikram')}
+                                    >
+                                        <Feather name="gift" size={14} color="#1d4ed8" />
+                                        <Text style={[styles.itemActionText, styles.giftActionText]}>İkram Et</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {canResetItem && (
+                                    <TouchableOpacity
+                                        style={[styles.itemActionButton, styles.resetActionButton, isUpdating && styles.disabledButton]}
+                                        disabled={isUpdating}
+                                        onPress={() => openActionPrompt(item, 'normal')}
+                                    >
+                                        <Feather name="rotate-ccw" size={14} color="#475569" />
+                                        <Text style={[styles.itemActionText, styles.resetActionText]}>Normale Al</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+
                         {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (
                             <View style={styles.notesContainer}>
                                 <Text style={styles.notesTitle}>Notlar:</Text>
@@ -373,6 +539,25 @@ export default function OrderDetailScreen({ navigation, route }) {
                 <Text style={styles.summaryLabel}>Ara Toplam</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(getItemsSubtotal())}</Text>
             </View>
+
+            {orderData?.order_type === 'open' && isReportAllowed('open_order_discount') && (
+                <View style={styles.discountActions}>
+                    <TouchableOpacity
+                        style={[styles.discountActionButton, styles.discountAmountButton]}
+                        onPress={() => openDiscountModal('amount')}
+                    >
+                        <Feather name="tag" size={14} color="#047857" />
+                        <Text style={[styles.discountActionText, { color: '#047857' }]}>Tutar İndirimi</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.discountActionButton, styles.discountPercentButton]}
+                        onPress={() => openDiscountModal('percent')}
+                    >
+                        <Feather name="percent" size={14} color="#4338ca" />
+                        <Text style={[styles.discountActionText, { color: '#4338ca' }]}>% İndirim</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
             
             {orderData?.toplam_iskonto > 0 && (
                 <View style={[styles.summaryRow, styles.discountRow]}>
@@ -391,6 +576,111 @@ export default function OrderDetailScreen({ navigation, route }) {
         
         <View style={{height: 40}} />
       </ScrollView>
+
+      <Modal
+        visible={!!pendingAction}
+        transparent
+        animationType="fade"
+        onRequestClose={closeActionPrompt}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.actionModal}>
+            <Text style={styles.modalTitle}>
+              {pendingAction?.action === 'iptal'
+                ? 'Ürün İptal'
+                : pendingAction?.action === 'ikram'
+                  ? 'Ürün İkram'
+                  : 'Normale Al'}
+            </Text>
+            <Text style={styles.modalProductName}>
+              {pendingAction?.item?.product_name || pendingAction?.item?.urun_adi || 'Ürün'}
+            </Text>
+
+            {Number((pendingAction?.item?.quantity ?? pendingAction?.item?.miktar) || 1) > 1 && (
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>
+                  Adet (en fazla {Number((pendingAction?.item?.quantity ?? pendingAction?.item?.miktar) || 1)})
+                </Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={actionQuantity}
+                  onChangeText={setActionQuantity}
+                  keyboardType="decimal-pad"
+                  placeholder="1"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+            )}
+
+            {(pendingAction?.action === 'iptal' || pendingAction?.action === 'ikram') && (
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>Açıklama (isteğe bağlı)</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTextArea]}
+                  value={actionNote}
+                  onChangeText={setActionNote}
+                  placeholder="Açıklama yazın"
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  maxLength={250}
+                />
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={closeActionPrompt}>
+                <Text style={styles.modalCancelText}>Vazgeç</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmButton, updatingItemId && styles.disabledButton]}
+                disabled={!!updatingItemId}
+                onPress={confirmOpenItemStatus}
+              >
+                <Text style={styles.modalConfirmText}>Uygula</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={discountModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDiscountModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.actionModal}>
+            <Text style={styles.modalTitle}>
+              {discountMode === 'percent' ? '% İndirim' : 'Tutar İndirimi'}
+            </Text>
+            <Text style={styles.modalProductName}>Dip toplam indirimi</Text>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>
+                {discountMode === 'percent' ? 'Yüzde' : 'Tutar'}
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={discountValue}
+                onChangeText={setDiscountValue}
+                keyboardType="decimal-pad"
+                placeholder={discountMode === 'percent' ? '10' : '0'}
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={closeDiscountModal}>
+                <Text style={styles.modalCancelText}>Vazgeç</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmButton} onPress={confirmOpenOrderDiscount}>
+                <Text style={styles.modalConfirmText}>Uygula</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -627,6 +917,53 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1e293b',
   },
+  itemActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  itemActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  cancelActionButton: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  giftActionButton: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+  },
+  resetActionButton: {
+    backgroundColor: '#fff',
+    borderColor: '#e2e8f0',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  itemActionText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  cancelActionText: {
+    color: '#b91c1c',
+  },
+  giftActionText: {
+    color: '#1d4ed8',
+  },
+  resetActionText: {
+    color: '#475569',
+  },
   notesContainer: {
     marginTop: 12,
     backgroundColor: '#fffbeb',
@@ -686,6 +1023,34 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#059669',
   },
+  discountActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  discountActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  discountAmountButton: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+  },
+  discountPercentButton: {
+    backgroundColor: '#eef2ff',
+    borderColor: '#c7d2fe',
+  },
+  discountActionText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
   divider: {
     height: 1,
     backgroundColor: '#e2e8f0',
@@ -714,5 +1079,73 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '900',
     color: '#fff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  actionModal: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  modalProductName: {
+    fontSize: 14,
+    color: '#475569',
+    marginBottom: 14,
+  },
+  modalField: {
+    marginBottom: 12,
+  },
+  modalLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#0f172a',
+    backgroundColor: '#fff',
+  },
+  modalTextArea: {
+    minHeight: 76,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 6,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginRight: 8,
+  },
+  modalCancelText: {
+    color: '#64748b',
+    fontWeight: 'bold',
+  },
+  modalConfirmButton: {
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

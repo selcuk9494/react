@@ -162,6 +162,26 @@ function OrderDetailContent() {
 
   const updateOpenItemStatus = async (item: any, action: 'ikram' | 'iptal' | 'normal') => {
     if (!token || !orderData?.adsno || !item?.row_id) return;
+    const maxQuantity = Number((item.quantity ?? item.miktar) || 1);
+    let quantity = 1;
+    let note = '';
+
+    if (maxQuantity > 1) {
+      const quantityText = window.prompt(`Kaç adet işlem yapılacak? (1-${maxQuantity})`, '1');
+      if (quantityText === null) return;
+      quantity = Number(quantityText.replace(',', '.'));
+      if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maxQuantity) {
+        alert(`Lütfen 1 ile ${maxQuantity} arasında geçerli bir adet girin.`);
+        return;
+      }
+    }
+
+    if (action === 'iptal' || action === 'ikram') {
+      const noteText = window.prompt('Açıklama eklemek ister misiniz? (İsteğe bağlı)', '');
+      if (noteText === null) return;
+      note = noteText.trim();
+    }
+
     try {
       setUpdatingItemId(item.row_id);
       await axios.patch(`${getApiUrl()}/reports/open-order-items`, {
@@ -169,6 +189,8 @@ function OrderDetailContent() {
         adtur: orderData.adtur,
         row_id: item.row_id,
         action,
+        quantity,
+        note,
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -178,6 +200,36 @@ function OrderDetailContent() {
       alert(error.response?.data?.message || 'İşlem yapılamadı');
     } finally {
       setUpdatingItemId(null);
+    }
+  };
+
+  const updateOpenOrderDiscount = async (mode: 'amount' | 'percent') => {
+    if (!token || !orderData?.adsno) return;
+    const label = mode === 'percent' ? 'İndirim yüzdesi' : 'İndirim tutarı';
+    const valueText = window.prompt(`${label} girin`, mode === 'percent' ? '10' : '0');
+    if (valueText === null) return;
+    const value = Number(valueText.replace(',', '.'));
+    if (!Number.isFinite(value) || value < 0) {
+      alert('Geçerli bir indirim değeri girin.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await axios.patch(`${getApiUrl()}/reports/open-order-discount`, {
+        adsno: orderData.adsno,
+        adtur: orderData.adtur,
+        mode,
+        value,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchOrderDetail();
+    } catch (error: any) {
+      console.error('❌ Update open order discount error:', error);
+      alert(error.response?.data?.message || 'İndirim yapılamadı');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -695,6 +747,26 @@ function OrderDetailContent() {
                     </span>
                     <span className="text-lg font-bold text-gray-900">{formatCurrency(getItemsSubtotal())}</span>
                 </div>
+                {orderData?.order_type === 'open' && isReportAllowed('open_order_discount') && (
+                    <div className="flex flex-wrap gap-2 pb-3 no-print">
+                        <button
+                            type="button"
+                            onClick={() => updateOpenOrderDiscount('amount')}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                            <Tag className="h-4 w-4" />
+                            Tutar İndirimi
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => updateOpenOrderDiscount('percent')}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+                        >
+                            <Tag className="h-4 w-4" />
+                            % İndirim
+                        </button>
+                    </div>
+                )}
                 {orderData?.toplam_iskonto > 0 && (
                     <div className="flex justify-between items-center pb-3 bg-emerald-50 -mx-6 px-6 py-3 rounded-xl border-l-4 border-emerald-500">
                         <span className="font-semibold flex items-center gap-2 text-emerald-700">

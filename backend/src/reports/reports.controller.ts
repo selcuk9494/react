@@ -202,6 +202,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch('reports/open-order-discount')
+  async updateOpenOrderDiscount(@Request() req, @Body() body: any) {
+    return this.reportsService.updateOpenOrderDiscount(req.user, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/customer')
   async getCustomer(@Request() req, @Query('id') id: number) {
     return this.reportsService.getCustomerById(req.user, id);
