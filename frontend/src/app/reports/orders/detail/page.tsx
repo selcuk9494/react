@@ -234,7 +234,9 @@ function OrderDetailContent() {
   };
   
   const getTotalPaid = () => {
-    return Number(orderData?.toplam_tutar || 0);
+    const total = Number(orderData?.toplam_tutar || 0);
+    const discount = Number(orderData?.toplam_iskonto || 0);
+    return Math.max(total - discount, 0);
   };
 
   const generateShareText = () => {

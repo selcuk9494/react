@@ -1067,7 +1067,6 @@ export class ReportsService {
             AND adsno = $2
             ${adturFilter}
             AND pluid IS NOT NULL
-          ORDER BY actar, acsaat, ctid
           FOR UPDATE
         `,
         params,
@@ -1109,6 +1108,7 @@ export class ReportsService {
           UPDATE ads_acik
           SET iskonto = $1
           WHERE ctid = $2::tid
+          RETURNING ctid::text
         `,
         [boundedDiscount, firstRowId],
       );
