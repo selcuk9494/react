@@ -1,6 +1,8 @@
 import {
   Controller,
+  Body,
   Get,
+  Patch,
   Query,
   Request,
   UseGuards,
@@ -191,6 +193,12 @@ export class ReportsController {
       date,
       adtur,
     );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('reports/open-order-items')
+  async updateOpenOrderItemStatus(@Request() req, @Body() body: any) {
+    return this.reportsService.updateOpenOrderItemStatus(req.user, body);
   }
 
   @UseGuards(JwtAuthGuard)

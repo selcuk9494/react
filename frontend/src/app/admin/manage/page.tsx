@@ -20,6 +20,8 @@ export default function AdminManagePage() {
 
   const AVAILABLE_REPORTS = [
     { id: 'open_orders', label: 'Açık Adisyon (Dashboard)' },
+    { id: 'open_order_item_cancel', label: 'Açık Adisyon Ürün İptal' },
+    { id: 'open_order_item_gift', label: 'Açık Adisyon Ürün İkram' },
     { id: 'closed_orders', label: 'Kapalı Adisyon (Dashboard)' },
     { id: 'stock_entry', label: 'Günlük Stok Girişi' },
     { id: 'live_stock', label: 'Canlı Stok Takip' },

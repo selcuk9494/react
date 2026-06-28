@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
 import { format } from 'date-fns';
@@ -609,7 +614,10 @@ export class ReportsService {
                             'ack2', a.ack2,
                             'ack3', a.ack3,
                             'sturu', COALESCE(a.sturu, 0),
-                            'pluid', a.pluid
+                            'pluid', a.pluid,
+                            'row_id', a.ctid::text,
+                            'kasa', a.kasa,
+                            'adtur', COALESCE(a.adtur, 0)
                         )
                         ORDER BY a.actar, a.acsaat
                     ) as items
@@ -798,6 +806,87 @@ export class ReportsService {
         sample_items: closedItems,
       },
     };
+  }
+
+  async updateOpenOrderItemStatus(user: any, body: any) {
+    const action = String(body?.action || '').trim();
+    const statusByAction: Record<string, number> = {
+      ikram: 1,
+      iptal: 4,
+      normal: 0,
+    };
+    if (!(action in statusByAction)) {
+      throw new BadRequestException('Geçersiz işlem');
+    }
+
+    const rowId = String(body?.row_id || '').trim();
+    if (!/^\(\d+,\d+\)$/.test(rowId)) {
+      throw new BadRequestException('Geçersiz ürün kimliği');
+    }
+
+    const adsno = String(body?.adsno || '').trim();
+    if (!adsno) {
+      throw new BadRequestException('Adisyon numarası gerekli');
+    }
+
+    const adtur =
+      typeof body?.adtur !== 'undefined' && body?.adtur !== null
+        ? Number(body.adtur)
+        : undefined;
+    if (typeof adtur !== 'undefined' && !Number.isFinite(adtur)) {
+      throw new BadRequestException('Geçersiz adisyon tipi');
+    }
+
+    if (action === 'normal') {
+      try {
+        this.ensureReportAllowed(user, 'open_order_item_cancel');
+      } catch {
+        this.ensureReportAllowed(user, 'open_order_item_gift');
+      }
+    } else {
+      this.ensureReportAllowed(
+        user,
+        action === 'ikram' ? 'open_order_item_gift' : 'open_order_item_cancel',
+      );
+    }
+
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    const params: any[] = [statusByAction[action], kasa_nos, adsno, rowId];
+    const adturFilter =
+      typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $5` : '';
+    if (typeof adtur !== 'undefined') {
+      params.push(adtur);
+    }
+
+    const rows = await this.db.executeQuery(
+      pool,
+      `
+        UPDATE ads_acik
+        SET sturu = $1
+        WHERE kasa = ANY($2)
+          AND adsno = $3
+          AND ctid = $4::tid
+          ${adturFilter}
+          AND pluid IS NOT NULL
+        RETURNING
+          adsno,
+          COALESCE(adtur, 0) as adtur,
+          pluid,
+          miktar,
+          bfiyat,
+          tutar,
+          COALESCE(sturu, 0) as sturu,
+          ctid::text as row_id
+      `,
+      params,
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+
+    await this.cache.delPattern(`dashboard_v2:${user.id}:*`);
+    return { success: true, item: rows[0] };
   }
 
   async getCustomerById(user: any, id: number) {

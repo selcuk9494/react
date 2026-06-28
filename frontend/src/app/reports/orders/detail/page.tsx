@@ -17,14 +17,17 @@ import {
   Tag,
   Share2,
   FileText,
-  MessageCircle
+  MessageCircle,
+  Gift,
+  Ban,
+  RotateCcw
 } from 'lucide-react';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 
 function OrderDetailContent() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, lang } = useI18n();
@@ -32,6 +35,7 @@ function OrderDetailContent() {
   const [orderData, setOrderData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
 
   const id = searchParams.get('id');
   const type = searchParams.get('type') || 'closed';
@@ -148,6 +152,33 @@ function OrderDetailContent() {
       const itemTotal = item.total || item.toplam || 0;
       return sum + Number(itemTotal);
     }, 0);
+  };
+
+  const isReportAllowed = (reportId: string) => {
+    if (user?.is_admin) return true;
+    if (user?.allowed_reports === null || typeof user?.allowed_reports === 'undefined') return true;
+    return Array.isArray(user.allowed_reports) && user.allowed_reports.includes(reportId);
+  };
+
+  const updateOpenItemStatus = async (item: any, action: 'ikram' | 'iptal' | 'normal') => {
+    if (!token || !orderData?.adsno || !item?.row_id) return;
+    try {
+      setUpdatingItemId(item.row_id);
+      await axios.patch(`${getApiUrl()}/reports/open-order-items`, {
+        adsno: orderData.adsno,
+        adtur: orderData.adtur,
+        row_id: item.row_id,
+        action,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchOrderDetail();
+    } catch (error: any) {
+      console.error('❌ Update open item status error:', error);
+      alert(error.response?.data?.message || 'İşlem yapılamadı');
+    } finally {
+      setUpdatingItemId(null);
+    }
   };
   
   const getTotalPaid = () => {
@@ -507,6 +538,10 @@ function OrderDetailContent() {
                     const isIptal = sturu === 4; // İptal
                     const isIkram = sturu === 1; // İkram
                     const isIade = sturu === 2; // İade
+                    const canCancelItem = orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel');
+                    const canGiftItem = orderData?.order_type === 'open' && isReportAllowed('open_order_item_gift');
+                    const canResetItem = orderData?.order_type === 'open' && (canCancelItem || canGiftItem) && (isIptal || isIkram);
+                    const isUpdating = updatingItemId === item.row_id;
                     
                     const borderColor = isIptal ? 'border-red-300 bg-red-50' : 
                                        isIkram ? 'border-blue-300 bg-blue-50' : 
@@ -582,6 +617,44 @@ function OrderDetailContent() {
                                     {formatCurrency((item.total ?? item.toplam) || 0)}
                                 </span>
                             </div>
+
+                            {(canCancelItem || canGiftItem || canResetItem) && item.row_id && (
+                                <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2 no-print">
+                                    {canCancelItem && !isIptal && !isIkram && (
+                                        <button
+                                            type="button"
+                                            disabled={isUpdating}
+                                            onClick={() => updateOpenItemStatus(item, 'iptal')}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                                        >
+                                            <Ban className="h-4 w-4" />
+                                            İptal Et
+                                        </button>
+                                    )}
+                                    {canGiftItem && !isIptal && !isIkram && (
+                                        <button
+                                            type="button"
+                                            disabled={isUpdating}
+                                            onClick={() => updateOpenItemStatus(item, 'ikram')}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                                        >
+                                            <Gift className="h-4 w-4" />
+                                            İkram Et
+                                        </button>
+                                    )}
+                                    {canResetItem && (
+                                        <button
+                                            type="button"
+                                            disabled={isUpdating}
+                                            onClick={() => updateOpenItemStatus(item, 'normal')}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <RotateCcw className="h-4 w-4" />
+                                            Normale Al
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             
                             {(item.ack1 || item.ack2 || item.ack3 || (item.notes && item.notes.length > 0)) && (
                                 <div className="mt-4 pt-4 border-t border-gray-200 bg-amber-50/50 -mx-5 -mb-5 px-5 py-3 rounded-b-2xl">

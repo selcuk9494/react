@@ -18,6 +18,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 const AVAILABLE_REPORTS = [
   { id: 'open_orders', label: 'Açık Adisyon' },
+  { id: 'open_order_item_cancel', label: 'Açık Adisyon Ürün İptal' },
+  { id: 'open_order_item_gift', label: 'Açık Adisyon Ürün İkram' },
   { id: 'closed_orders', label: 'Kapalı Adisyon' },
   { id: 'stock_entry', label: 'Günlük Stok Girişi' },
   { id: 'live_stock', label: 'Canlı Stok' },
