@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
 import { Calendar, BarChart2 } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface UnsoldCancelItem {
@@ -101,6 +102,20 @@ export default function UnsoldCancelsPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title="Satılmadan İptal Edilenler"
+            rows={filteredItems}
+            columns={[
+              { key: 'urun_adi', label: 'Ürün' },
+              { key: 'personel_adi', label: 'Personel' },
+              { key: 'tarih', label: 'Tarih' },
+              { key: 'saat', label: 'Saat' },
+              { key: 'miktar', label: 'Miktar' },
+              { key: 'tutar', label: 'Tutar', format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

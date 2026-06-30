@@ -8,6 +8,7 @@ import ReportHeader from '@/components/ReportHeader';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useReportData } from '@/utils/useReportData';
 import { useRouter } from 'next/navigation';
+import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
 export default function PaymentTypesPage() {
   const { token, user } = useAuth();
@@ -103,6 +104,20 @@ export default function PaymentTypesPage() {
   const orders = (ordersResponse as any)?.data || [];
   const ordersTotalPages = Number((ordersResponse as any)?.total_pages) || 1;
   const ordersTotal = Number((ordersResponse as any)?.total) || 0;
+  const paymentColumns: ExportColumn[] = [
+    { key: 'payment_name', label: 'Ödeme Tipi' },
+    { key: 'count', label: 'Adisyon' },
+    { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+  ];
+  const orderColumns: ExportColumn[] = [
+    { key: 'adsno', label: 'Adisyon No' },
+    { key: 'masa_no', label: 'Masa' },
+    { key: 'garson_adi', label: 'Garson' },
+    { key: 'item_count', label: 'Ürün' },
+    { key: 'tarih', label: 'Tarih', format: (value) => (value ? new Date(value).toLocaleString('tr-TR') : '') },
+    { key: 'order_total', label: 'Toplam', format: (_value, row) => formatCurrency(Number(row.order_total ?? row.tutar ?? 0)) },
+    { key: 'iskonto', label: 'İndirim', format: (value) => formatCurrency(Number(value || 0)) },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
@@ -114,6 +129,24 @@ export default function PaymentTypesPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => exportRowsAsExcel('Ödeme Tipleri', paymentColumns, Array.isArray(data) ? data : [])}
+              className="px-3 py-2 rounded-xl text-sm font-bold whitespace-nowrap bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
+            >
+              Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => exportRowsAsPdf('Ödeme Tipleri', paymentColumns, Array.isArray(data) ? data : [])}
+              className="px-3 py-2 rounded-xl text-sm font-bold whitespace-nowrap bg-white text-red-700 border border-red-200 hover:bg-red-50"
+            >
+              PDF
+            </button>
+          </>
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
@@ -298,6 +331,20 @@ export default function PaymentTypesPage() {
                         />
                         Sadece çok ürünlü adisyonlar
                       </label>
+                      <button
+                        type="button"
+                        className="ml-auto px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-sm font-bold text-emerald-700"
+                        onClick={() => exportRowsAsExcel(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
+                      >
+                        Excel
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-sm font-bold text-red-700"
+                        onClick={() => exportRowsAsPdf(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
+                      >
+                        PDF
+                      </button>
                     </div>
 
                     <div className="mt-4">

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -490,6 +491,21 @@ export default function OrdersScreen({ navigation, route }) {
             ))}
         </View>
       </View>
+      <ReportExportActions
+        title={paymentName || (isClosed ? T.closedOrders : T.openOrders)}
+        rows={filteredOrders}
+        columns={[
+          { key: 'adsno', label: 'Adisyon' },
+          { key: 'masa_no', label: T.table, format: (value, row) => value ?? row.masano ?? '' },
+          { key: 'garson_adi', label: T.waiter, format: (value, row) => value || row.garson || '' },
+          { key: 'tarih', label: T.date },
+          { key: 'acilis_saati', label: 'Açılış' },
+          { key: 'kapanis_saati', label: 'Kapanış' },
+          { key: 'item_count', label: 'Ürün' },
+          { key: 'order_total', label: 'Toplam', format: (value, row) => formatCurrency(Number(value ?? row.tutar ?? 0)) },
+          { key: 'iskonto', label: 'İndirim', format: (value) => formatCurrency(Number(value || 0)) },
+        ]}
+      />
 
       {loading && !refreshing && page === 1 ? (
         <ActivityIndicator size="large" color={isClosed ? '#10b981' : '#f97316'} style={{marginTop: 50}} />

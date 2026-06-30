@@ -110,12 +110,16 @@ export class ReportsController {
     @Query('period') period: string = 'today',
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
+    @Query('start_time') startTime?: string,
+    @Query('end_time') endTime?: string,
   ) {
     return this.reportsService.getDiscountOrders(
       req.user,
       period,
       startDate,
       endDate,
+      startTime,
+      endTime,
     );
   }
 

@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 export default function CashReportScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -180,6 +181,16 @@ export default function CashReportScreen({ navigation }) {
           onApplyCustomDate={handleApplyCustomDate}
         />
       </View>
+      <ReportExportActions
+        title={T.title}
+        rows={data?.rows || []}
+        columns={[
+          { key: 'tarih', label: 'Tarih' },
+          { key: 'kasa', label: 'Kasa' },
+          { key: 'tc', label: 'İşlem' },
+          { key: 'tutar', label: T.total, format: (value) => formatCurrency(Number(value || 0)) },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#0f766e" style={{ marginTop: 40 }} />

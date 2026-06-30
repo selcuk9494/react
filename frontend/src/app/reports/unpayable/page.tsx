@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
 import { Calendar, BarChart2 } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface UnpayableItem {
@@ -110,6 +111,21 @@ export default function UnpayablePage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title="Ödenmez Raporu"
+            rows={filteredItems}
+            columns={[
+              { key: 'adsno', label: 'Adisyon' },
+              { key: 'product_name', label: 'Ürün' },
+              { key: 'musteri_fullname', label: 'Müşteri' },
+              { key: 'tarih', label: 'Tarih' },
+              { key: 'saat', label: 'Saat' },
+              { key: 'miktar', label: 'Miktar' },
+              { key: 'tutar', label: 'Tutar', format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

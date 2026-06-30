@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import { Tag } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
+import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
 export default function DiscountPage() {
   const { token } = useAuth();
@@ -15,6 +16,12 @@ export default function DiscountPage() {
   const [period, setPeriod] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const additionalParams = useMemo(() => ({
+    ...(startTime ? { start_time: startTime } : {}),
+    ...(endTime ? { end_time: endTime } : {}),
+  }), [startTime, endTime]);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/discount',
@@ -22,6 +29,7 @@ export default function DiscountPage() {
     period,
     customStartDate,
     customEndDate,
+    additionalParams,
   });
 
   // Debug log
@@ -49,6 +57,15 @@ export default function DiscountPage() {
           return acc + discount;
         }, 0)
       : 0;
+  const exportColumns: ExportColumn[] = [
+    { key: 'adsno', label: 'Adisyon No' },
+    { key: 'customer_name', label: 'Müşteri' },
+    { key: 'tarih', label: 'Tarih' },
+    { key: 'acilis_saati', label: 'Açılış' },
+    { key: 'kapanis_saati', label: 'Kapanış' },
+    { key: 'tutar', label: 'Tutar', format: (value) => formatCurrency(Number(value || 0)) },
+    { key: 'iskonto', label: 'İndirim', format: (value) => formatCurrency(Number(value || 0)) },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
@@ -60,9 +77,59 @@ export default function DiscountPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => exportRowsAsExcel(t('discount_title'), exportColumns, Array.isArray(data) ? data : [])}
+              className="px-3 py-2 rounded-xl text-sm font-bold whitespace-nowrap bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
+            >
+              Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => exportRowsAsPdf(t('discount_title'), exportColumns, Array.isArray(data) ? data : [])}
+              className="px-3 py-2 rounded-xl text-sm font-bold whitespace-nowrap bg-white text-red-700 border border-red-200 hover:bg-red-50"
+            >
+              PDF
+            </button>
+          </>
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-wrap items-end gap-3">
+          <label className="text-xs font-bold text-gray-600">
+            Başlangıç Saati
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
+          <label className="text-xs font-bold text-gray-600">
+            Bitiş Saati
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
+          {(startTime || endTime) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartTime('');
+                setEndTime('');
+              }}
+              className="rounded-xl bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-200"
+            >
+              Temizle
+            </button>
+          )}
+        </div>
         {isLoading ? (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-8 animate-pulse">

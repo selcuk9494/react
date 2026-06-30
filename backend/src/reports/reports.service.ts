@@ -593,7 +593,7 @@ export class ReportsService {
                     COALESCE(SUM(iskonto), 0) as toplam_iskonto,
                     COALESCE(SUM(CASE WHEN COALESCE(sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(tutar, 0) END), 0) as toplam_tutar
                 FROM ads_acik
-                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(adtur, 0) = $3' : ''}
                 GROUP BY adsno
             ),
             order_items AS (
@@ -625,7 +625,7 @@ export class ReportsService {
                     ) as items
                 FROM ads_acik a
                 LEFT JOIN product pr ON a.pluid = pr.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(a.adtur, 0) = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             )
             SELECT
@@ -655,7 +655,7 @@ export class ReportsService {
             FROM order_info oi
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON oi.mustid = m.mustid
-            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
         `;
@@ -678,7 +678,7 @@ export class ReportsService {
                     MAX(acsaat) as acilis_saati,
                     MAX(kapsaat) as kapanis_saati
                 FROM ads_adisyon
-                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(adtur, 0) = $3' : ''}
                 GROUP BY adsno
             ),
             order_items AS (
@@ -706,7 +706,7 @@ export class ReportsService {
                     ) as items
                 FROM ads_adisyon a
                 LEFT JOIN product pr ON a.pluid = pr.plu
-                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND a.adtur = $3' : ''} AND a.pluid IS NOT NULL
+                WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(a.adtur, 0) = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             ),
             payment_info AS (
@@ -717,7 +717,7 @@ export class ReportsService {
                     COALESCE(SUM(otutar), 0) as toplam_tutar,
                     MAX(mustid) as payment_mustid
                 FROM ads_odeme
-                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND adtur = $3' : ''}
+                WHERE kasa = ANY($1) AND adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(adtur, 0) = $3' : ''}
                 GROUP BY adsno
             )
             SELECT
@@ -748,7 +748,7 @@ export class ReportsService {
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, pi.payment_mustid, 0) = m.mustid
-            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND o.adtur = $3' : ''}
+            LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
             LIMIT 1
@@ -824,7 +824,8 @@ export class ReportsService {
     }
 
     const rowId = String(body?.row_id || '').trim();
-    if (!/^\(\d+,\d+\)$/.test(rowId)) {
+    const updateAll = body?.all === true || body?.all === 'true' || body?.all === 1;
+    if (!updateAll && !/^\(\d+,\d+\)$/.test(rowId)) {
       throw new BadRequestException('Geçersiz ürün kimliği');
     }
 
@@ -896,6 +897,49 @@ export class ReportsService {
       const columns = columnRes.rows.map((row: any) => String(row.column_name));
       const hasAck1 = columns.some((column) => column.toLowerCase() === 'ack1');
 
+      if (updateAll) {
+        const updateParams: any[] = [status, kasa_nos, adsno];
+        const adturFilter =
+          typeof adtur !== 'undefined'
+            ? `AND COALESCE(adtur, 0) = $${updateParams.length + 1}`
+            : '';
+        if (typeof adtur !== 'undefined') {
+          updateParams.push(adtur);
+        }
+        const updateSet = ['sturu = $1'];
+        if (hasAck1 && note) {
+          updateSet.push(`ack1 = $${updateParams.length + 1}`);
+          updateParams.push(note);
+        }
+
+        const updateRes = await client.query(
+          `
+            UPDATE ads_acik
+            SET ${updateSet.join(', ')}
+            WHERE kasa = ANY($2)
+              AND adsno = $3
+              ${adturFilter}
+              AND pluid IS NOT NULL
+              AND COALESCE(sturu, 0) <> $1
+            RETURNING
+              adsno,
+              COALESCE(adtur, 0) as adtur,
+              pluid,
+              miktar,
+              bfiyat,
+              tutar,
+              COALESCE(sturu, 0) as sturu,
+              ctid::text as row_id
+          `,
+          updateParams,
+        );
+
+        updatedItem = updateRes.rows;
+        await client.query('COMMIT');
+        await this.cache.delPattern(`dashboard_v2:${user.id}:*`);
+        return { success: true, items: updatedItem, count: updateRes.rowCount };
+      }
+
       const selectParams: any[] = [kasa_nos, adsno, rowId];
       const adturFilter =
         typeof adtur !== 'undefined' ? `AND COALESCE(adtur, 0) = $4` : '';
@@ -903,7 +947,7 @@ export class ReportsService {
         selectParams.push(adtur);
       }
 
-      const currentRes = await client.query(
+      let currentRes = await client.query(
         `
           SELECT *, ctid::text as row_id
           FROM ads_acik
@@ -916,6 +960,39 @@ export class ReportsService {
         `,
         selectParams,
       );
+
+      if (currentRes.rows.length === 0) {
+        const fallbackPluid = Number(body?.pluid);
+        if (Number.isFinite(fallbackPluid)) {
+          const fallbackParams: any[] = [kasa_nos, adsno, fallbackPluid];
+          const fallbackAdturFilter =
+            typeof adtur !== 'undefined'
+              ? `AND COALESCE(adtur, 0) = $${fallbackParams.length + 1}`
+              : '';
+          if (typeof adtur !== 'undefined') {
+            fallbackParams.push(adtur);
+          }
+          currentRes = await client.query(
+            `
+              SELECT *, ctid::text as row_id
+              FROM ads_acik
+              WHERE kasa = ANY($1)
+                AND adsno = $2
+                AND pluid = $3
+                ${fallbackAdturFilter}
+                AND pluid IS NOT NULL
+              ORDER BY
+                CASE WHEN COALESCE(sturu, 0) = $${fallbackParams.length + 1} THEN 1 ELSE 0 END,
+                actar,
+                acsaat,
+                ctid
+              LIMIT 1
+              FOR UPDATE
+            `,
+            [...fallbackParams, status],
+          );
+        }
+      }
 
       if (currentRes.rows.length === 0) {
         throw new NotFoundException('Ürün bulunamadı');
@@ -2793,6 +2870,8 @@ export class ReportsService {
     period: string,
     startDate?: string,
     endDate?: string,
+    startTime?: string,
+    endTime?: string,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(
@@ -2813,6 +2892,19 @@ export class ReportsService {
       dEnd = biz;
     }
 
+    const params: any[] = [kasa_nos, dStart, dEnd];
+    const isValidTime = (value?: string) =>
+      typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+    const timeFilters: string[] = [];
+    if (isValidTime(startTime)) {
+      params.push(`${startTime}:00`);
+      timeFilters.push(`COALESCE(o.raptar::time, '00:00:00'::time) >= $${params.length}::time`);
+    }
+    if (isValidTime(endTime)) {
+      params.push(`${endTime}:00`);
+      timeFilters.push(`COALESCE(o.raptar::time, '23:59:59'::time) <= $${params.length}::time`);
+    }
+
     const query = `
       WITH payments AS (
         SELECT 
@@ -2826,6 +2918,7 @@ export class ReportsService {
         WHERE o.kasa = ANY($1)
           AND DATE(o.raptar) BETWEEN $2 AND $3
           AND o.iskonto > 0
+          ${timeFilters.length ? `AND ${timeFilters.join(' AND ')}` : ''}
         GROUP BY o.adsno, DATE(o.raptar)
       ),
       adisyon_agg AS (
@@ -2858,11 +2951,7 @@ export class ReportsService {
       ORDER BY p.raptar DESC, p.adsno DESC
     `;
 
-    const rows = await this.db.executeQuery(pool, query, [
-      kasa_nos,
-      dStart,
-      dEnd,
-    ]);
+    const rows = await this.db.executeQuery(pool, query, params);
     return rows;
   }
 

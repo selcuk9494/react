@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { Users } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 import AutoFitText from '@/components/AutoFitText';
 
@@ -53,6 +54,17 @@ export default function PerformancePage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title={t('performance_title')}
+            rows={performanceData}
+            columns={[
+              { key: 'waiter_name', label: 'Personel', format: (value, row) => value || row.name || row.personnel_name || 'N/A' },
+              { key: 'order_count', label: 'Adisyon', format: (value, row) => value || row.count || 0 },
+              { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

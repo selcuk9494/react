@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -308,6 +309,18 @@ export default function CourierScreen({ navigation }) {
           onApplyCustomDate={handleApplyCustomDate}
         />
       </View>
+      <ReportExportActions
+        title={T.title}
+        rows={filteredData}
+        columns={[
+          { key: 'adsno', label: 'Adisyon' },
+          { key: 'kurye', label: 'Kurye' },
+          { key: 'tarih', label: 'Tarih' },
+          { key: 'cikis', label: 'Çıkış' },
+          { key: 'donus', label: 'Dönüş' },
+          { key: 'status', label: 'Durum' },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#3b82f6" style={{marginTop: 50}} />

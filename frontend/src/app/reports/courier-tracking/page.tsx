@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Bike } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { getApiUrl } from '@/utils/api';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as RC2, PieChart, Pie, Cell, Legend, ResponsiveContainer } from 'recharts';
 
@@ -152,6 +153,20 @@ export default function CourierTrackingReport() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title={t('courier_tracking_report')}
+            rows={filteredData}
+            columns={[
+              { key: 'adsno', label: 'Adisyon' },
+              { key: 'kurye', label: 'Kurye' },
+              { key: 'tarih', label: 'Tarih' },
+              { key: 'cikis', label: 'Çıkış' },
+              { key: 'donus', label: 'Dönüş' },
+              { key: 'status', label: 'Durum' },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pt-[140px]">

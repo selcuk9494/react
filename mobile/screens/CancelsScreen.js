@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -263,6 +264,18 @@ export default function CancelsScreen({ navigation }) {
             />
         </View>
       </View>
+      <ReportExportActions
+        title={translations.title || 'İptal, İade ve İkram'}
+        rows={filteredData}
+        columns={[
+          { key: 'product_name', label: 'Ürün' },
+          { key: 'type', label: 'Tip' },
+          { key: 'quantity', label: 'Miktar' },
+          { key: 'total', label: 'Tutar' },
+          { key: 'order_id', label: 'Adisyon' },
+          { key: 'date', label: 'Tarih' },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#EF4444" style={{marginTop: 50}} />

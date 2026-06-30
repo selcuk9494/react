@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -32,10 +33,12 @@ export default function DiscountScreen({ navigation }) {
   // Custom Date States
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
   useEffect(() => {
     fetchData();
-  }, [period]);
+  }, [period, startTime, endTime]);
 
   useEffect(() => {
     (async () => {
@@ -76,6 +79,12 @@ export default function DiscountScreen({ navigation }) {
         const endStr = endDate.toISOString().split('T')[0];
         url = `${API_URL}/reports/discount?period=custom&start_date=${startStr}&end_date=${endStr}`;
       }
+      if (startTime) {
+        url += `&start_time=${encodeURIComponent(startTime)}`;
+      }
+      if (endTime) {
+        url += `&end_time=${encodeURIComponent(endTime)}`;
+      }
 
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -112,6 +121,13 @@ export default function DiscountScreen({ navigation }) {
     const discount = curr.iskonto || curr.total_discount || curr.discount || 0;
     return acc + (parseFloat(discount) || 0);
   }, 0);
+  const exportColumns = [
+    { key: 'adsno', label: 'Adisyon No' },
+    { key: 'customer_name', label: T.customer },
+    { key: 'tarih', label: 'Tarih' },
+    { key: 'tutar', label: T.amount, format: (value) => formatCurrency(Number(value || 0)) },
+    { key: 'iskonto', label: T.discount, format: (value) => formatCurrency(Number(value || 0)) },
+  ];
 
   const renderItem = ({ item, index }) => {
     const discountAmount = item.iskonto || item.discount || 0;
@@ -187,6 +203,38 @@ export default function DiscountScreen({ navigation }) {
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
         />
+      </View>
+      <ReportExportActions title={T.title} columns={exportColumns} rows={data} />
+      <View style={styles.timeFilterContainer}>
+        <View style={styles.timeField}>
+          <Text style={styles.timeLabel}>Başlangıç</Text>
+          <TextInput
+            style={styles.timeInput}
+            value={startTime}
+            onChangeText={setStartTime}
+            placeholder="09:00"
+            placeholderTextColor="#94a3b8"
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
+        </View>
+        <View style={styles.timeField}>
+          <Text style={styles.timeLabel}>Bitiş</Text>
+          <TextInput
+            style={styles.timeInput}
+            value={endTime}
+            onChangeText={setEndTime}
+            placeholder="18:00"
+            placeholderTextColor="#94a3b8"
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
+        </View>
+        {(startTime || endTime) && (
+          <TouchableOpacity style={styles.clearTimeButton} onPress={() => { setStartTime(''); setEndTime(''); }}>
+            <Text style={styles.clearTimeText}>Temizle</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (
@@ -271,6 +319,43 @@ const styles = StyleSheet.create({
   filterContainer: {
     padding: 16,
     paddingBottom: 8,
+  },
+  timeFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  timeField: {
+    flex: 1,
+  },
+  timeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  timeInput: {
+    backgroundColor: '#fff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#1e293b',
+  },
+  clearTimeButton: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  clearTimeText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   periodScroll: {
     flexDirection: 'row',

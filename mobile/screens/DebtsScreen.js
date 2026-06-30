@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -181,6 +182,18 @@ export default function DebtsScreen({ navigation }) {
           onApplyCustomDate={handleApplyCustomDate}
         />
       </View>
+      <ReportExportActions
+        title={T.title}
+        rows={filteredData}
+        columns={[
+          { key: 'adsno', label: 'Adisyon' },
+          { key: 'musteri_fullname', label: T.customerFallback },
+          { key: 'personel_adi', label: T.staff },
+          { key: 'tarih', label: 'Tarih' },
+          { key: 'saat', label: 'Saat' },
+          { key: 'borc', label: T.totalDebt, format: (value) => formatCurrency(Number(value || 0)) },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#f59e0b" style={{marginTop: 50}} />

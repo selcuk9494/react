@@ -14,6 +14,7 @@ interface ReportHeaderProps {
   setCustomStartDate: (date: string) => void;
   customEndDate: string;
   setCustomEndDate: (date: string) => void;
+  actions?: React.ReactNode;
 }
 
 export default function ReportHeader({
@@ -24,6 +25,7 @@ export default function ReportHeader({
   setCustomStartDate,
   customEndDate,
   setCustomEndDate,
+  actions,
 }: ReportHeaderProps) {
   const { t, lang } = useI18n();
   const router = useRouter();
@@ -50,6 +52,11 @@ export default function ReportHeader({
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
           <h1 className="text-base font-bold text-gray-900 truncate flex-1">{title}</h1>
+          {actions && (
+            <div className="flex-shrink-0 flex items-center gap-2">
+              {actions}
+            </div>
+          )}
         </div>
 
         {/* Period Filter Buttons */}

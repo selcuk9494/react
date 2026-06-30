@@ -4,13 +4,14 @@ import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Package, Layers, Download, ArrowUpDown, ReceiptText, ChevronRight, X } from 'lucide-react';
+import { Package, Layers, ArrowUpDown, ReceiptText, ChevronRight, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
 import AutoFitText from '@/components/AutoFitText';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
+import ReportExportButtons from '@/components/ReportExportButtons';
 
 function ProductSalesContent() {
   const { token } = useAuth();
@@ -161,28 +162,15 @@ function ProductSalesContent() {
     return arr;
   }, [filteredData]);
 
-  const exportCSV = () => {
-    const rows = [
-      ['product_name', 'group_name', 'plu', 'quantity', 'total', 'pct_total', 'pct_qty'],
-      ...sortedData.map((it: any) => [
-        it.product_name,
-        it.group_name ?? '',
-        it.plu ?? '',
-        asNumber(it.quantity),
-        asNumber(it.total),
-        totalSales > 0 ? ((asNumber(it.total) / totalSales) * 100).toFixed(2) : '0',
-        totalQty > 0 ? ((asNumber(it.quantity) / totalQty) * 100).toFixed(2) : '0',
-      ])
-    ];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `product-sales-${period}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportColumns = [
+    { key: 'product_name', label: 'Ürün' },
+    { key: 'group_name', label: 'Grup' },
+    { key: 'plu', label: 'PLU' },
+    { key: 'quantity', label: 'Adet', format: (value: any) => asNumber(value) },
+    { key: 'total', label: 'Toplam', format: (value: any) => formatCurrency(asNumber(value)) },
+    { key: 'pct_total', label: 'Tutar %', format: (_value: any, row: any) => totalSales > 0 ? ((asNumber(row.total) / totalSales) * 100).toFixed(2) : '0' },
+    { key: 'pct_qty', label: 'Adet %', format: (_value: any, row: any) => totalQty > 0 ? ((asNumber(row.quantity) / totalQty) * 100).toFixed(2) : '0' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
@@ -194,6 +182,7 @@ function ProductSalesContent() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={<ReportExportButtons title="Ürün Satış Raporu" columns={exportColumns} rows={sortedData} />}
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
@@ -271,13 +260,7 @@ function ProductSalesContent() {
                 </button>
               )}
             </div>
-            <button
-              onClick={exportCSV}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm"
-            >
-              <Download className="w-4 h-4" />
-              Dışa Aktar (CSV)
-            </button>
+            <ReportExportButtons title="Ürün Satış Raporu" columns={exportColumns} rows={sortedData} />
           </div>
         </div>
         {isLoading ? (

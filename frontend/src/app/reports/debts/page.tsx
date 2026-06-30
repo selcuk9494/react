@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
 import { Calendar, BarChart2 } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface DebtItem {
@@ -107,6 +108,20 @@ export default function DebtsPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title="Borca Atılanlar"
+            rows={filteredItems}
+            columns={[
+              { key: 'adsno', label: 'Adisyon' },
+              { key: 'musteri_fullname', label: 'Müşteri' },
+              { key: 'personel_adi', label: 'Personel' },
+              { key: 'tarih', label: 'Tarih' },
+              { key: 'saat', label: 'Saat' },
+              { key: 'borc', label: 'Borç', format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

@@ -105,8 +105,9 @@ export default function OrderDetailScreen({ navigation, route }) {
 
   const openActionPrompt = (item, action) => {
     if (!orderData?.adsno || !item?.row_id) return;
+    const maxQuantity = Number((item.quantity ?? item.miktar) || 1);
     setPendingAction({ item, action });
-    setActionQuantity('1');
+    setActionQuantity(maxQuantity > 0 && maxQuantity < 1 ? String(maxQuantity) : '1');
     setActionNote('');
   };
 
@@ -121,7 +122,8 @@ export default function OrderDetailScreen({ navigation, route }) {
 
     const { item, action } = pendingAction;
     const maxQuantity = Number((item.quantity ?? item.miktar) || 1);
-    const quantity = Number(String(actionQuantity || '1').replace(',', '.'));
+    const defaultQuantity = maxQuantity > 0 && maxQuantity < 1 ? maxQuantity : 1;
+    const quantity = Number(String(actionQuantity || defaultQuantity).replace(',', '.'));
 
     if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maxQuantity) {
       Alert.alert('Hata', `Lütfen 1 ile ${maxQuantity} arasında geçerli bir adet girin.`);
@@ -135,6 +137,7 @@ export default function OrderDetailScreen({ navigation, route }) {
         adsno: orderData.adsno,
         adtur: orderData.adtur,
         row_id: item.row_id,
+        pluid: item.pluid,
         action,
         quantity,
         note: action === 'iptal' || action === 'ikram' ? actionNote.trim() : '',
@@ -149,6 +152,42 @@ export default function OrderDetailScreen({ navigation, route }) {
     } finally {
       setUpdatingItemId(null);
     }
+  };
+
+  const cancelAllOpenItems = () => {
+    if (!orderData?.adsno) return;
+    Alert.alert(
+      'Tümünü İptal Et',
+      'Bu açık adisyondaki tüm ürünler iptal edilsin mi?',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'İptal Et',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              setLoading(true);
+              await axios.patch(`${API_URL}/reports/open-order-items`, {
+                adsno: orderData.adsno,
+                adtur: orderData.adtur,
+                action: 'iptal',
+                all: true,
+                note: '',
+              }, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              await fetchOrderDetail();
+            } catch (error) {
+              console.error('Cancel all open items error:', error);
+              Alert.alert('Hata', error.response?.data?.message || 'Tümünü iptal işlemi yapılamadı.');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const openDiscountModal = (mode) => {
@@ -427,6 +466,16 @@ export default function OrderDetailScreen({ navigation, route }) {
                     </View>
                 )}
             </View>
+            {orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel') && (
+                <TouchableOpacity
+                    style={[styles.topCancelAllButton, loading && styles.disabledButton]}
+                    disabled={loading}
+                    onPress={cancelAllOpenItems}
+                >
+                    <Feather name="slash" size={16} color="#b91c1c" />
+                    <Text style={styles.topCancelAllButtonText}>Toplu İptal</Text>
+                </TouchableOpacity>
+            )}
         </View>
 
         {/* Products List */}
@@ -438,6 +487,16 @@ export default function OrderDetailScreen({ navigation, route }) {
                     <Text style={styles.countText}>{orderData?.items?.length || 0} ürün</Text>
                 </View>
             </View>
+            {orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel') && (
+                <TouchableOpacity
+                    style={[styles.cancelAllButton, loading && styles.disabledButton]}
+                    disabled={loading}
+                    onPress={cancelAllOpenItems}
+                >
+                    <Feather name="slash" size={15} color="#b91c1c" />
+                    <Text style={styles.cancelAllButtonText}>Tümünü İptal Et</Text>
+                </TouchableOpacity>
+            )}
 
             {orderData?.items?.map((item, index) => {
                 const sturu = item.sturu ?? 0;
@@ -821,6 +880,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 17,
   },
+  topCancelAllButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  topCancelAllButtonText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '900',
+    marginLeft: 8,
+  },
   productsSection: {
     marginBottom: 20,
   },
@@ -847,6 +924,24 @@ const styles = StyleSheet.create({
     color: '#4338ca',
     fontSize: 12,
     fontWeight: '600',
+  },
+  cancelAllButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 12,
+  },
+  cancelAllButtonText: {
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 6,
   },
   productCard: {
     backgroundColor: '#fff',

@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -172,6 +173,11 @@ export default function PaymentTypesScreen({ navigation }) {
     legendFontColor: '#7F7F7F',
     legendFontSize: 12,
   }));
+  const exportColumns = [
+    { key: 'payment_name', label: T.title },
+    { key: 'count', label: T.countTransactions },
+    { key: 'total', label: T.totalPayments, format: (value) => formatCurrency(Number(value || 0)) },
+  ];
 
   const renderItem = ({ item, index }) => {
     const color = chartColors[index % chartColors.length];
@@ -277,6 +283,7 @@ export default function PaymentTypesScreen({ navigation }) {
           onApplyCustomDate={handleApplyCustomDate}
         />
       </View>
+      <ReportExportActions title={T.title} columns={exportColumns} rows={data} />
 
       {loading ? (
         <ActivityIndicator size="large" color="#10b981" style={{marginTop: 50}} />

@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
@@ -56,6 +57,18 @@ export default function ProductGroupSalesPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title="Ürün Grup Satışları"
+            rows={groupAgg}
+            columns={[
+              { key: 'name', label: 'Grup' },
+              { key: 'qty', label: 'Adet' },
+              { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+              { key: 'pct', label: 'Pay %', format: (value) => Number(value || 0).toFixed(1) },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

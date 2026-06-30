@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import { BarChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -148,6 +149,14 @@ export default function HourlySalesScreen({ navigation }) {
           onApplyCustomDate={handleApplyCustomDate}
         />
       </View>
+      <ReportExportActions
+        title={T.title}
+        rows={data}
+        columns={[
+          { key: 'date', label: 'Tarih', format: (value, row) => value || row.tarih || '' },
+          { key: 'total', label: T.salesTrend, format: (value, row) => formatCurrency(Number(value ?? row.toplam ?? 0)) },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#ef4444" style={{marginTop: 50}} />

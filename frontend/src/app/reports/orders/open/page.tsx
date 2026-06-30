@@ -22,6 +22,7 @@ import {
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
+import ReportExportButtons from '@/components/ReportExportButtons';
 
 function OpenOrdersContent() {
   const { token } = useAuth();
@@ -202,6 +203,17 @@ function OpenOrdersContent() {
     return Math.floor(diff / 60000);
   };
 
+  const exportColumns = [
+    { key: 'adsno', label: 'Adisyon No' },
+    { key: 'masa_no', label: 'Masa', format: (value: any, row: any) => value ?? row.masano ?? '' },
+    { key: 'adtur', label: 'Tip', format: (value: any) => Number(value) === 1 ? 'Paket' : 'Adisyon' },
+    { key: 'garson_adi', label: 'Garson', format: (value: any, row: any) => value || row.garson || '' },
+    { key: 'customer_name', label: 'Müşteri' },
+    { key: 'tarih', label: 'Tarih', format: (value: any) => value ? formatDate(String(value)) : '' },
+    { key: 'acilis_saati', label: 'Açılış', format: (value: any) => value ? formatTime(String(value)) : '' },
+    { key: 'tutar', label: 'Tutar', format: (value: any) => formatCurrency(Number(value || 0)) },
+  ];
+
   if (loading && !allOrders.length) {
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -223,6 +235,7 @@ function OpenOrdersContent() {
             </button>
             <h1 className="text-xl font-bold text-gray-900">{t('open_orders')}</h1>
         </div>
+        <ReportExportButtons title={t('open_orders')} columns={exportColumns} rows={orders} />
       </div>
 
       <div className="p-4 max-w-3xl mx-auto w-full">

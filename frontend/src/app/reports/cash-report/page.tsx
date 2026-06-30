@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, Banknote, Database } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useReportData } from '@/utils/useReportData';
@@ -42,6 +43,18 @@ export default function CashReportPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title={t('cash_report')}
+            rows={rows}
+            columns={[
+              { key: 'tarih', label: t('date') },
+              { key: 'kasa', label: t('cash_no') },
+              { key: 'tc', label: t('transaction_count') },
+              { key: 'tutar', label: t('amount'), format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

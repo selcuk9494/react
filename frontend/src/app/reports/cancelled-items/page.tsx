@@ -8,6 +8,7 @@ import { AlertCircle, XCircle, Search, Info, Clock, CheckCircle, Tag } from 'luc
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 
@@ -101,6 +102,20 @@ export default function CancelledItemsPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title={t('cancelled_report_title')}
+            rows={filteredData}
+            columns={[
+              { key: 'product_name', label: t('product') },
+              { key: 'type', label: t('type') },
+              { key: 'quantity', label: t('quantity') },
+              { key: 'total', label: t('amount') },
+              { key: 'order_id', label: t('order_no') },
+              { key: 'date', label: t('date') },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[140px]">

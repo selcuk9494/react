@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { BarChart as BarChartIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 
 export default function SalesChartPage() {
@@ -50,6 +51,16 @@ export default function SalesChartPage() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={
+          <ReportExportButtons
+            title={t('sales_chart_title')}
+            rows={chartData}
+            columns={[
+              { key: 'date', label: 'Tarih' },
+              { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+            ]}
+          />
+        }
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

@@ -21,6 +21,7 @@ import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 import ReportHeader from '@/components/ReportHeader';
+import ReportExportButtons from '@/components/ReportExportButtons';
 
 function ClosedOrdersContent() {
   const { token } = useAuth();
@@ -180,6 +181,19 @@ function ClosedOrdersContent() {
     return `${m} dk`;
   };
 
+  const exportColumns = [
+    { key: 'adsno', label: 'Adisyon No' },
+    { key: 'masa_no', label: 'Masa' },
+    { key: 'adtur', label: 'Tip', format: (value: any) => Number(value) === 1 ? 'Paket' : Number(value) === 3 ? 'Hızlı' : 'Adisyon' },
+    { key: 'garson_adi', label: 'Garson' },
+    { key: 'customer_name', label: 'Müşteri' },
+    { key: 'tarih', label: 'Tarih', format: (value: any) => value ? formatDate(String(value)) : '' },
+    { key: 'acilis_saati', label: 'Açılış', format: (value: any) => value ? formatTime(String(value)) : '' },
+    { key: 'kapanis_saati', label: 'Kapanış', format: (value: any) => value ? formatTime(String(value)) : '' },
+    { key: 'iskonto', label: 'İndirim', format: (value: any) => formatCurrency(Number(value || 0)) },
+    { key: 'tutar', label: 'Net Tutar', format: (value: any, row: any) => formatCurrency(Number(value || 0) - Number(row.iskonto || 0)) },
+  ];
+
   if (loading && !allOrders.length) {
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -198,6 +212,7 @@ function ClosedOrdersContent() {
         setCustomStartDate={setCustomStartDate}
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
+        actions={<ReportExportButtons title={t('closed_orders')} columns={exportColumns} rows={orders} />}
       />
 
       <div className="p-4 max-w-3xl mx-auto w-full pt-[140px]">

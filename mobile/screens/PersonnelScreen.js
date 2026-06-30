@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -173,6 +174,15 @@ export default function PersonnelScreen({ navigation }) {
           lang={lang}
         />
       </View>
+      <ReportExportActions
+        title={T.personnelPerformance}
+        rows={data}
+        columns={[
+          { key: 'waiter_name', label: T.personnelPerformance, format: (value, row) => value || row.name || row.personnel_name || '-' },
+          { key: 'order_count', label: 'Adisyon', format: (value, row) => value || row.count || 0 },
+          { key: 'total', label: T.totalSales, format: (value) => formatCurrency(Number(value || 0)) },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#8b5cf6" style={{marginTop: 50}} />

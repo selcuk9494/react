@@ -166,7 +166,7 @@ function OrderDetailContent() {
   const updateOpenItemStatus = async (item: any, action: 'ikram' | 'iptal' | 'normal') => {
     if (!token || !orderData?.adsno || !item?.row_id) return;
     const maxQuantity = Number((item.quantity ?? item.miktar) || 1);
-    let quantity = 1;
+    let quantity = maxQuantity > 0 && maxQuantity < 1 ? maxQuantity : 1;
     let note = '';
 
     if (maxQuantity > 1) {
@@ -191,6 +191,7 @@ function OrderDetailContent() {
         adsno: orderData.adsno,
         adtur: orderData.adtur,
         row_id: item.row_id,
+        pluid: item.pluid,
         action,
         quantity,
         note,
@@ -203,6 +204,33 @@ function OrderDetailContent() {
       alert(error.response?.data?.message || 'İşlem yapılamadı');
     } finally {
       setUpdatingItemId(null);
+    }
+  };
+
+  const cancelAllOpenItems = async () => {
+    if (!token || !orderData?.adsno) return;
+    const ok = window.confirm('Bu açık adisyondaki tüm ürünler iptal edilsin mi?');
+    if (!ok) return;
+    const noteText = window.prompt('Açıklama eklemek ister misiniz? (İsteğe bağlı)', '');
+    if (noteText === null) return;
+
+    try {
+      setLoading(true);
+      await axios.patch(`${getApiUrl()}/reports/open-order-items`, {
+        adsno: orderData.adsno,
+        adtur: orderData.adtur,
+        action: 'iptal',
+        all: true,
+        note: noteText.trim(),
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchOrderDetail();
+    } catch (error: any) {
+      console.error('❌ Cancel all open items error:', error);
+      alert(error.response?.data?.message || 'Tümünü iptal işlemi yapılamadı');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -576,6 +604,19 @@ function OrderDetailContent() {
                             </div>
                         )}
                 </div>
+                {orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel') && (
+                    <div className="mt-5 pt-5 border-t border-white/15 no-print">
+                        <button
+                            type="button"
+                            onClick={cancelAllOpenItems}
+                            disabled={loading}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-700 shadow-lg transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                            <Ban className="h-5 w-5" />
+                            Toplu İptal
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
 
@@ -588,6 +629,17 @@ function OrderDetailContent() {
                     <span className="ml-auto bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full text-sm">
                         {orderData.items.length} ürün
                     </span>
+                )}
+                {orderData?.order_type === 'open' && isReportAllowed('open_order_item_cancel') && (
+                    <button
+                        type="button"
+                        onClick={cancelAllOpenItems}
+                        disabled={loading}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                        <Ban className="h-4 w-4" />
+                        Tümünü İptal Et
+                    </button>
                 )}
             </div>
             

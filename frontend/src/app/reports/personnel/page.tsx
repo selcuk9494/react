@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
+import ReportExportButtons from '@/components/ReportExportButtons';
 
 interface PersonnelData {
   id: number;
@@ -152,6 +153,21 @@ export default function PersonnelReportPage() {
             </div>
             
             <div className="flex items-center gap-2">
+              <ReportExportButtons
+                title="Personel Raporu"
+                rows={sortedPersonnel}
+                columns={[
+                  { key: 'name', label: 'Personel' },
+                  { key: 'order_count', label: 'Adisyon' },
+                  { key: 'closed_order_count', label: 'Kapalı' },
+                  { key: 'open_order_count', label: 'Açık' },
+                  { key: 'total_sales', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+                  { key: 'avg_ticket', label: 'Ortalama', format: (value) => formatCurrency(Number(value || 0)) },
+                  { key: 'ikram_total', label: 'İkram', format: (value) => formatCurrency(Number(value || 0)) },
+                  { key: 'iade_total', label: 'İade', format: (value) => formatCurrency(Number(value || 0)) },
+                  { key: 'iptal_total', label: 'İptal', format: (value) => formatCurrency(Number(value || 0)) },
+                ]}
+              />
               {/* Period Selector */}
               <div className="relative">
                 <button

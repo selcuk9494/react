@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -202,6 +203,19 @@ export default function UnpayableScreen({ navigation }) {
           lang={lang}
         />
       </View>
+      <ReportExportActions
+        title={T.unpayableReport}
+        rows={filteredData}
+        columns={[
+          { key: 'adsno', label: 'Adisyon' },
+          { key: 'product_name', label: 'Ürün' },
+          { key: 'musteri_fullname', label: T.customer },
+          { key: 'tarih', label: 'Tarih' },
+          { key: 'saat', label: 'Saat' },
+          { key: 'miktar', label: T.quantity },
+          { key: 'tutar', label: T.totalAmount, format: (value) => formatCurrency(Number(value || 0)) },
+        ]}
+      />
 
       {loading ? (
         <ActivityIndicator size="large" color="#ef4444" style={{marginTop: 50}} />
