@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -28,18 +28,30 @@ const slugify = (value) => String(value || 'rapor')
 
 export default function ReportExportActions({ title, columns, rows = [] }) {
   const safeRows = Array.isArray(rows) ? rows : [];
+  const safeColumns = Array.isArray(columns) ? columns : [];
 
   const exportCsv = async () => {
     try {
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (!isSharingAvailable) {
+        Alert.alert('Hata', 'Bu cihazda dosya paylaşımı kullanılamıyor.');
+        return;
+      }
+
       const csv = [
-        columns.map((column) => `"${String(column.label).replace(/"/g, '""')}"`).join(','),
+        safeColumns.map((column) => `"${String(column.label).replace(/"/g, '""')}"`).join(','),
         ...safeRows.map((row) =>
-          columns.map((column) => `"${String(getValue(row, column) ?? '').replace(/"/g, '""')}"`).join(','),
+          safeColumns.map((column) => `"${String(getValue(row, column) ?? '').replace(/"/g, '""')}"`).join(','),
         ),
-      ].join('\n');
-      const uri = `${FileSystem.cacheDirectory}${slugify(title)}.csv`;
-      await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: `${title} Excel` });
+      ].join('\r\n');
+      const uri = `${FileSystem.cacheDirectory}${slugify(title)}-${Date.now()}.csv`;
+      const excelCompatibleCsv = `\uFEFF${csv}`;
+      await FileSystem.writeAsStringAsync(uri, excelCompatibleCsv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'text/csv',
+        UTI: 'public.comma-separated-values-text',
+        dialogTitle: `${title} Excel`,
+      });
     } catch (error) {
       console.error('CSV export error:', error);
       Alert.alert('Hata', 'Excel aktarımı oluşturulamadı.');
@@ -48,8 +60,14 @@ export default function ReportExportActions({ title, columns, rows = [] }) {
 
   const exportPdf = async () => {
     try {
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (!isSharingAvailable) {
+        Alert.alert('Hata', 'Bu cihazda dosya paylaşımı kullanılamıyor.');
+        return;
+      }
+
       const body = safeRows.map((row) => `
-        <tr>${columns.map((column) => `<td>${escapeHtml(getValue(row, column))}</td>`).join('')}</tr>
+        <tr>${safeColumns.map((column) => `<td>${escapeHtml(getValue(row, column))}</td>`).join('')}</tr>
       `).join('');
       const html = `
         <html>
@@ -66,7 +84,7 @@ export default function ReportExportActions({ title, columns, rows = [] }) {
           <body>
             <h1>${escapeHtml(title)}</h1>
             <table>
-              <thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead>
+              <thead><tr>${safeColumns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead>
               <tbody>${body}</tbody>
             </table>
           </body>
