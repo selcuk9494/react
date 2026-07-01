@@ -103,6 +103,7 @@ export default function AdminBackupsPage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const hasLoadedOverviewRef = useRef(false);
+  const lastAutoFetchKeyRef = useRef('');
   const [targets, setTargets] = useState<BackupTarget[]>([]);
   const [configs, setConfigs] = useState<BackupConfig[]>([]);
   const [jobs, setJobs] = useState<BackupJob[]>([]);
@@ -192,8 +193,11 @@ export default function AdminBackupsPage() {
       router.push('/dashboard');
       return;
     }
+    const autoFetchKey = `${token}:${user?.is_admin ? 'admin' : 'user'}:${backupPermissionKey}`;
+    if (lastAutoFetchKeyRef.current === autoFetchKey) return;
+    lastAutoFetchKeyRef.current = autoFetchKey;
     fetchOverview();
-  }, [token, authLoading, user?.is_admin, backupPermissionKey, router]);
+  }, [token, authLoading, user?.is_admin, backupPermissionKey]);
 
   const filteredJobs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
