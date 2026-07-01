@@ -142,6 +142,8 @@ export default function AdminManagePage() {
   const [userQuery, setUserQuery] = useState('');
   const [branchQuery, setBranchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [checkedUserIds, setCheckedUserIds] = useState<string[]>([]);
+  const [bulkDays, setBulkDays] = useState(30);
   const [selectedBranchId, setSelectedBranchId] = useState<number | ''>('');
   const [assignBranchId, setAssignBranchId] = useState<number | ''>('');
   const [userForm, setUserForm] = useState({
@@ -214,6 +216,42 @@ export default function AdminManagePage() {
     setSelectedUserId('');
     setUserForm({ email: '', password: '', expiry_days: 30, expiry_date: '', is_admin: false });
     setReportsForm(AVAILABLE_REPORTS.map((report) => report.id));
+  };
+
+  const toggleCheckedUser = (userId: string) => {
+    setCheckedUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((item) => item !== userId)
+        : [...prev, userId],
+    );
+  };
+
+  const extendUsers = async (scope: 'selected' | 'all') => {
+    const targetIds = scope === 'all' ? users.map((item) => item.id) : checkedUserIds;
+    const days = parseInteger(bulkDays, 30);
+    if (!targetIds.length) {
+      showMessage('Süre eklenecek kullanıcı seçin.');
+      return;
+    }
+    if (days <= 0) {
+      showMessage('Geçerli bir gün sayısı girin.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await Promise.all(
+        targetIds.map((userId) =>
+          axios.post(`${getApiUrl()}/admin/users/${userId}/extend`, { days }, authHeaders),
+        ),
+      );
+      setCheckedUserIds([]);
+      await refreshAfterSave(`${targetIds.length} kullanıcıya ${days} gün eklendi.`);
+    } catch (error) {
+      console.error(error);
+      showMessage('Toplu süre eklenemedi.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetBranchForm = () => {
@@ -424,8 +462,8 @@ export default function AdminManagePage() {
         {loading ? (
           <div className="rounded-md border bg-white p-12 text-center font-semibold text-slate-500">Yükleniyor...</div>
         ) : activeTab === 'users' ? (
-          <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-            <section className="rounded-md border bg-white shadow-sm">
+          <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+            <section className="min-h-0 rounded-md border bg-white shadow-sm lg:max-h-[calc(100vh-250px)] lg:overflow-hidden">
               <div className="border-b p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold">Kullanıcılar</h2>
@@ -438,24 +476,64 @@ export default function AdminManagePage() {
                   <Search className="h-4 w-4 text-slate-400" />
                   <input className="w-full outline-none" placeholder="Kullanıcı ara" value={userQuery} onChange={(event) => setUserQuery(event.target.value)} />
                 </div>
+                <div className="mt-3 rounded-md border bg-slate-50 p-3">
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Toplu süre</div>
+                  <div className="grid gap-2">
+                    <input
+                      className="w-full rounded-md border px-3 py-2 text-sm font-semibold"
+                      type="number"
+                      min={1}
+                      value={bulkDays}
+                      onChange={(event) => setBulkDays(parseInteger(event.target.value, 30))}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => extendUsers('selected')}
+                        disabled={saving || checkedUserIds.length === 0}
+                        className="rounded-md bg-indigo-600 px-2 py-2 text-xs font-bold text-white disabled:opacity-40"
+                      >
+                        Seçililere ekle
+                      </button>
+                      <button
+                        onClick={() => extendUsers('all')}
+                        disabled={saving || users.length === 0}
+                        className="rounded-md bg-slate-900 px-2 py-2 text-xs font-bold text-white disabled:opacity-40"
+                      >
+                        Tümüne ekle
+                      </button>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-500">{checkedUserIds.length} kullanıcı seçili</div>
+                  </div>
+                </div>
               </div>
-              <div className="max-h-[650px] overflow-auto p-2">
+              <div className="p-2 lg:max-h-[calc(100vh-365px)] lg:overflow-y-auto">
                 {filteredUsers.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => selectUser(item)}
                     className={`mb-2 w-full rounded-md border p-3 text-left transition ${selectedUserId === item.id ? 'border-indigo-400 bg-indigo-50' : 'bg-white hover:bg-slate-50'}`}
                   >
-                    <div className="truncate font-bold">{item.email || 'E-posta yok'}</div>
-                    <div className="mt-1 text-xs font-medium text-slate-500">
-                      {(item.branches || []).length} şube atanmış {item.is_admin ? '• Admin' : ''}
+                    <div className="flex gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4"
+                        checked={checkedUserIds.includes(item.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleCheckedUser(item.id)}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate font-bold">{item.email || 'E-posta yok'}</div>
+                        <div className="mt-1 text-xs font-medium text-slate-500">
+                          {(item.branches || []).length} şube atanmış {item.is_admin ? '• Admin' : ''}
+                        </div>
+                      </div>
                     </div>
                   </button>
                 ))}
               </div>
             </section>
 
-            <section className="space-y-5">
+            <section className="space-y-5 lg:sticky lg:top-24">
               <div className="rounded-md border bg-white shadow-sm">
                 <div className="border-b p-4">
                   <h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-indigo-600" /> Kullanıcı Bilgileri</h2>
@@ -555,8 +633,8 @@ export default function AdminManagePage() {
             </section>
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
-            <section className="rounded-md border bg-white shadow-sm">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start">
+            <section className="min-h-0 rounded-md border bg-white shadow-sm lg:max-h-[calc(100vh-250px)] lg:overflow-hidden">
               <div className="border-b p-4">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-lg font-bold">Şube Havuzu</h2>
@@ -567,7 +645,7 @@ export default function AdminManagePage() {
                   <input className="w-full outline-none" placeholder="Şube, IP, DB adı ara" value={branchQuery} onChange={(event) => setBranchQuery(event.target.value)} />
                 </div>
               </div>
-              <div className="grid gap-2 p-2">
+              <div className="grid gap-2 p-2 lg:max-h-[calc(100vh-365px)] lg:overflow-y-auto">
                 {filteredBranches.map((item) => (
                   <button
                     key={item.id}
@@ -582,7 +660,7 @@ export default function AdminManagePage() {
               </div>
             </section>
 
-            <aside className="rounded-md border bg-white shadow-sm">
+            <aside className="rounded-md border bg-white shadow-sm lg:sticky lg:top-24">
               <div className="border-b p-4">
                 <h2 className="flex items-center gap-2 text-lg font-bold"><Building className="h-5 w-5 text-teal-600" /> Şube Bilgileri</h2>
               </div>
