@@ -464,10 +464,10 @@ export default function Dashboard() {
       )}
       
       {/* Modern Header Section (Fixed) */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl shadow-sm border-b border-gray-100/50 transition-all duration-300" style={{ top: user?.days_left !== undefined ? '36px' : '0' }}>
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl shadow-sm border-b border-gray-100/50 transition-all duration-300 lg:sticky lg:bg-slate-50/95 lg:shadow-sm" style={{ top: user?.days_left !== undefined ? '36px' : '0' }}>
         {/* Top Part */}
-        <div className="px-4 pt-3 pb-2">
-            <div className="flex justify-between items-center mb-3">
+        <div className="px-4 pt-3 pb-2 lg:mx-auto lg:max-w-[1440px] lg:px-8 lg:pt-5">
+            <div className="flex justify-between items-center mb-3 lg:mb-4">
             <div className="flex items-center space-x-3">
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -476,7 +476,7 @@ export default function Dashboard() {
                 </div>
                 <div className="hidden sm:block">
                   <p className="text-xs text-gray-400 font-medium">{lang === 'tr' ? 'Hoş geldin' : 'Welcome'}</p>
-                  <p className="text-sm font-semibold text-gray-700 truncate max-w-[120px]">{user?.email?.split('@')[0]}</p>
+                  <p className="text-sm font-semibold text-gray-700 truncate max-w-[120px] lg:max-w-none">{user?.email?.split('@')[0]}</p>
                 </div>
             </div>
             <div className="flex items-center space-x-1">
@@ -536,10 +536,10 @@ export default function Dashboard() {
             </div>
 
             {/* Branch & Status Row */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 lg:mb-0">
             <button 
                 onClick={() => setBranchModalOpen(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl px-3 py-2 text-sm font-medium text-gray-700 hover:from-gray-100 hover:to-gray-200 transition-all border border-gray-200/50 shadow-sm"
+                className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl px-3 py-2 text-sm font-medium text-gray-700 hover:from-gray-100 hover:to-gray-200 transition-all border border-gray-200/50 shadow-sm lg:rounded-md lg:bg-white lg:bg-none lg:px-4"
             >
                 <Building className="w-4 h-4 text-emerald-600" />
                 <span className="truncate max-w-[150px]">
@@ -574,8 +574,8 @@ export default function Dashboard() {
 
         {/* Date Filter Row - Improved */}
         {canViewDashboard && (
-        <div className="px-4 pb-3">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="px-4 pb-3 lg:mx-auto lg:max-w-[1440px] lg:px-8 lg:pb-4">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 lg:flex-wrap lg:overflow-visible">
                 {[
                     { id: 'today', label: t('today'), icon: '📅' },
                     { id: 'yesterday', label: t('yesterday'), icon: '⏪' },
@@ -588,7 +588,7 @@ export default function Dashboard() {
                         key={p.id}
                         onClick={() => setPeriod(p.id)}
                         className={clsx(
-                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
+                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 lg:rounded-md lg:px-4",
                             period === p.id 
                                 ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30" 
                                 : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
@@ -602,7 +602,7 @@ export default function Dashboard() {
                 <button
                     onClick={() => setShowCustomDateModal(true)}
                     className={clsx(
-                        "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
+                        "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 lg:rounded-md lg:px-4",
                         period === 'custom' 
                             ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30" 
                             : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
@@ -661,7 +661,18 @@ export default function Dashboard() {
         )}
       </div>
 
-      <main className="px-4 py-4 space-y-5 overflow-hidden max-w-full" style={{ paddingTop: canViewDashboard ? (user?.days_left !== undefined ? '230px' : '195px') : (user?.days_left !== undefined ? '150px' : '115px') }}>
+      <main
+        className={clsx(
+          "px-4 py-4 space-y-5 overflow-hidden max-w-full lg:mx-auto lg:max-w-[1440px] lg:px-8 lg:py-6 lg:pt-6 lg:space-y-6",
+          canViewDashboard
+            ? user?.days_left !== undefined
+              ? "pt-[230px]"
+              : "pt-[195px]"
+            : user?.days_left !== undefined
+              ? "pt-[150px]"
+              : "pt-[115px]",
+        )}
+      >
         {/* Connection Error Banner */}
         {isOffline && !loading && (
           <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white shadow-xl shadow-red-500/30 flex items-center gap-4">
@@ -698,14 +709,15 @@ export default function Dashboard() {
 
         {/* Main Summary Card - Premium Design */}
         {canViewDashboard && (
-        <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-[28px] p-6 text-white shadow-2xl shadow-emerald-500/40 text-center relative overflow-hidden group">
+        <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-[28px] p-6 text-white shadow-2xl shadow-emerald-500/40 text-center relative overflow-hidden group lg:rounded-2xl lg:p-7 lg:text-left lg:shadow-lg lg:shadow-emerald-500/20">
           {/* Animated Background Elements */}
           <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-white opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
           <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-teal-300 opacity-20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-emerald-400/20 to-cyan-400/20 rounded-full blur-3xl"></div>
           
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-1.5 rounded-full mb-3 border border-white/20">
+          <div className="relative z-10 lg:flex lg:items-center lg:justify-between lg:gap-8">
+            <div>
+            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-1.5 rounded-full mb-3 border border-white/20 lg:rounded-md">
               <span className={clsx("w-2 h-2 rounded-full", loading ? "bg-white animate-ping" : "bg-white animate-pulse")}></span>
               <span className="text-white/90 text-xs font-semibold uppercase tracking-wider">
                 {loading ? (lang === 'tr' ? 'Güncelleniyor...' : 'Updating...') : t('range_label_total')}
@@ -724,7 +736,7 @@ export default function Dashboard() {
                     <AutoFitText
                       text={isDataLoading || !data ? '...' : formatCurrency(grand)}
                       className={clsx("font-black mb-2 tracking-tight drop-shadow-lg transition-all", (isDataLoading || !data) && "opacity-50 animate-pulse")}
-                      maxPx={36}
+                      maxPx={42}
                       minPx={22}
                     />
                   </div>
@@ -745,18 +757,26 @@ export default function Dashboard() {
                 {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam)}
               </div>
             )}
+            </div>
+            <div className="mt-5 hidden rounded-xl border border-white/20 bg-white/10 p-4 text-sm font-semibold text-white/90 lg:block">
+              <div>{user?.branches?.[user?.selected_branch || 0]?.name || t('select_branch')}</div>
+              <div className="mt-1 text-white/70">{(() => {
+                const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+                return new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+              })()}</div>
+            </div>
           </div>
         </div>
         )}
 
         {/* Stats Cards Section */}
         {canViewDashboard && (
-        <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
             {/* Açık Adisyon (Only visible if period is today) - Modern Card */}
             {period === 'today' && isReportAllowed('open_orders') && (
             <div 
                 onClick={() => navigateWithOverlay('/reports/orders/open')}
-                className="bg-white p-5 rounded-[24px] border border-orange-100 shadow-lg shadow-orange-100/50 cursor-pointer hover:shadow-xl hover:border-orange-200 transition-all duration-300 relative overflow-hidden group"
+                className="bg-white p-5 rounded-[24px] border border-orange-100 shadow-lg shadow-orange-100/50 cursor-pointer hover:shadow-xl hover:border-orange-200 transition-all duration-300 relative overflow-hidden group lg:rounded-xl lg:border-slate-200 lg:shadow-sm lg:hover:shadow-md"
             >
                 {/* Decorative Background */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-100 to-amber-50 rounded-full -mr-16 -mt-16 opacity-60"></div>
@@ -870,7 +890,7 @@ export default function Dashboard() {
             {isReportAllowed('closed_orders') && (
             <div 
                 onClick={() => navigateWithOverlay('/reports/orders/closed')}
-                className="bg-white p-5 rounded-[24px] border border-emerald-100 shadow-lg shadow-emerald-100/50 cursor-pointer hover:shadow-xl hover:border-emerald-200 transition-all duration-300 relative overflow-hidden group"
+                className="bg-white p-5 rounded-[24px] border border-emerald-100 shadow-lg shadow-emerald-100/50 cursor-pointer hover:shadow-xl hover:border-emerald-200 transition-all duration-300 relative overflow-hidden group lg:rounded-xl lg:border-slate-200 lg:shadow-sm lg:hover:shadow-md"
             >
                 {/* Decorative Background */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-teal-50 rounded-full -mr-16 -mt-16 opacity-60"></div>
@@ -1038,8 +1058,8 @@ export default function Dashboard() {
 
         {/* Stock Management Section */}
         {(isReportAllowed('stock_entry') || isReportAllowed('live_stock')) && (
-        <div className="space-y-4 mt-6">
-            <div className="flex items-center justify-between px-1">
+        <div className="space-y-4 mt-6 lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:p-5 lg:shadow-sm">
+            <div className="flex items-center justify-between px-1 lg:px-0">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
                   <Package className="w-4 h-4 text-white" />
@@ -1048,11 +1068,11 @@ export default function Dashboard() {
               </h3>
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {isReportAllowed('stock_entry') && (
                 <Link 
                     href="/stock/entry"
-                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden lg:rounded-lg lg:border-slate-200 lg:shadow-none lg:hover:shadow-sm"
                 >
                     <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
                     <div className="bg-gradient-to-br from-blue-500 to-cyan-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-blue-500/30">
@@ -1068,7 +1088,7 @@ export default function Dashboard() {
                 {isReportAllowed('live_stock') && (
                 <Link 
                     href="/stock/live"
-                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-cyan-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-cyan-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden lg:rounded-lg lg:border-slate-200 lg:shadow-none lg:hover:shadow-sm"
                 >
                     <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-cyan-100 to-sky-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
                     <div className="bg-gradient-to-br from-cyan-500 to-sky-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-cyan-500/30">
@@ -1085,8 +1105,8 @@ export default function Dashboard() {
         )}
 
         {/* Other Reports Section - Modern Grid */}
-        <div className="space-y-4 mt-6">
-            <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-4 mt-6 lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:p-5 lg:shadow-sm">
+            <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between lg:px-0">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
                   <BarChart2 className="w-4 h-4 text-white" />
@@ -1107,7 +1127,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {/* Product Prices */}
                 {isReportAllowed('product_prices') && (
                 <Link 
