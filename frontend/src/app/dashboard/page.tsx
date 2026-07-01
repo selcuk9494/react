@@ -1060,14 +1060,25 @@ export default function Dashboard() {
 
         {/* Other Reports Section - Modern Grid */}
         <div className="space-y-4 mt-6">
-            <div className="flex items-center justify-between px-1">
+            <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
                   <BarChart2 className="w-4 h-4 text-white" />
                 </div>
                 {t('other_reports')}
               </h3>
-              <span className="text-xs text-gray-400 font-medium">12 {lang === 'tr' ? 'rapor' : 'reports'}</span>
+              <div className="flex items-center gap-2">
+                {user?.is_admin && (
+                  <Link
+                    href="/admin/backups"
+                    className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-700"
+                  >
+                    <DatabaseBackup className="h-4 w-4" />
+                    {lang === 'tr' ? 'Yedekleme' : 'Backups'}
+                  </Link>
+                )}
+                <span className="text-xs text-gray-400 font-medium">12 {lang === 'tr' ? 'rapor' : 'reports'}</span>
+              </div>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
