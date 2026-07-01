@@ -10,7 +10,7 @@ import { getApiUrl } from '@/utils/api';
 type BackupTarget = {
   id: number;
   name: string;
-  kind: 'local' | 'rclone';
+  kind: 'local' | 'rclone' | 'icloud';
   local_path?: string | null;
   rclone_remote?: string | null;
   retention_days: number;
@@ -120,7 +120,7 @@ export default function AdminBackupsPage() {
   });
   const [targetForm, setTargetForm] = useState({
     name: 'Sunucu lokal yedek klasörü',
-    kind: 'local' as 'local' | 'rclone',
+    kind: 'local' as 'local' | 'rclone' | 'icloud',
     local_path: '',
     rclone_remote: '',
     retention_days: 3,
@@ -591,10 +591,21 @@ export default function AdminBackupsPage() {
                   <span>Hedef türü</span>
                   <select
                     value={targetForm.kind}
-                    onChange={(event) => setTargetForm({ ...targetForm, kind: event.target.value as 'local' | 'rclone' })}
+                    onChange={(event) => {
+                      const kind = event.target.value as 'local' | 'rclone' | 'icloud';
+                      setTargetForm({
+                        ...targetForm,
+                        kind,
+                        name:
+                          kind === 'icloud' && targetForm.name === 'Sunucu lokal yedek klasörü'
+                            ? 'iCloud Drive yedekleri'
+                            : targetForm.name,
+                      });
+                    }}
                     className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
                   >
                     <option value="local">Lokal/NAS klasörü</option>
+                    <option value="icloud">iCloud Drive</option>
                     <option value="rclone">rclone remote</option>
                   </select>
                 </label>
@@ -610,13 +621,18 @@ export default function AdminBackupsPage() {
                   </label>
                 ) : (
                   <label className="block space-y-1 text-xs font-medium text-gray-500">
-                    <span>rclone hedefi</span>
+                    <span>{targetForm.kind === 'icloud' ? 'iCloud remote yolu' : 'rclone hedefi'}</span>
                     <input
                       value={targetForm.rclone_remote}
                       onChange={(event) => setTargetForm({ ...targetForm, rclone_remote: event.target.value })}
                       className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                      placeholder="örn. drive:fastrest-backups"
+                      placeholder={targetForm.kind === 'icloud' ? 'örn. icloud:FastRestBackups' : 'örn. drive:fastrest-backups'}
                     />
+                    {targetForm.kind === 'icloud' && (
+                      <span className="block text-[11px] leading-4 text-gray-500">
+                        Sunucuda rclone ile iCloud remote bir kez tanımlanmalı. Örnek remote adı: icloud
+                      </span>
+                    )}
                   </label>
                 )}
                 <label className="block space-y-1 text-xs font-medium text-gray-500">
@@ -648,8 +664,9 @@ export default function AdminBackupsPage() {
                       <div>
                         <div className="font-medium text-gray-950">{target.name}</div>
                         <div className="mt-1 text-xs text-gray-500">
-                          {target.kind === 'rclone' ? target.rclone_remote : target.local_path || 'Varsayılan lokal klasör'}
+                          {target.kind === 'rclone' || target.kind === 'icloud' ? target.rclone_remote : target.local_path || 'Varsayılan lokal klasör'}
                         </div>
+                        {target.kind === 'icloud' && <div className="mt-1 text-xs font-medium text-sky-600">iCloud Drive</div>}
                         <div className="mt-1 text-xs text-gray-500">{target.retention_days} gün saklama</div>
                       </div>
                       <button onClick={() => deleteTarget(target.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Sil">

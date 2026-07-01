@@ -9,7 +9,7 @@ import { DatabaseService } from '../database/database.service';
 type BackupTarget = {
   id: number;
   name: string;
-  kind: 'local' | 'rclone';
+  kind: 'local' | 'rclone' | 'icloud';
   local_path?: string | null;
   rclone_remote?: string | null;
   retention_days: number;
@@ -77,10 +77,11 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   async saveTarget(body: any, targetId?: number) {
     await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
-    const kind = body?.kind === 'rclone' ? 'rclone' : 'local';
+    const kind = body?.kind === 'icloud' ? 'icloud' : body?.kind === 'rclone' ? 'rclone' : 'local';
     const retentionDays = this.clampRetentionDays(body?.retention_days);
     const params = [
-      String(body?.name || '').trim() || (kind === 'rclone' ? 'rclone hedefi' : 'Lokal yedek klasoru'),
+      String(body?.name || '').trim() ||
+        (kind === 'icloud' ? 'iCloud Drive yedekleri' : kind === 'rclone' ? 'rclone hedefi' : 'Lokal yedek klasoru'),
       kind,
       body?.local_path ? String(body.local_path).trim() : null,
       body?.rclone_remote ? String(body.rclone_remote).trim() : null,
@@ -419,7 +420,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
     const relativeDir = path.join(String(job.branch_id || 'unknown'), y, m, d);
     const fileName = path.basename(tempPath);
 
-    if (target.kind === 'rclone') {
+    if (target.kind === 'rclone' || target.kind === 'icloud') {
       if (!target.rclone_remote) throw new Error('rclone hedef yolu bos.');
       const remoteDir = `${target.rclone_remote.replace(/\/+$/, '')}/${relativeDir.split(path.sep).join('/')}`;
       await this.spawnCommand(this.config.get<string>('RCLONE_BIN') || 'rclone', ['mkdir', remoteDir], {
