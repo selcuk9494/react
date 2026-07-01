@@ -93,6 +93,29 @@ export class AdminUsersController {
     return this.branchesService.findAllGlobal();
   }
 
+  @Post('branches')
+  async createBranch(@Request() req, @Body() body: any) {
+    this.assertAdmin(req);
+    return this.branchesService.create(req.user.id, body);
+  }
+
+  @Put('branches/:branchId')
+  async updateGlobalBranch(
+    @Request() req,
+    @Param('branchId') branchId: string,
+    @Body() body: any,
+  ) {
+    this.assertAdmin(req);
+    return this.branchesService.updateGlobal(Number(branchId), body);
+  }
+
+  @Delete('branches/:branchId')
+  async deleteGlobalBranch(@Request() req, @Param('branchId') branchId: string) {
+    this.assertAdmin(req);
+    await this.branchesService.removeGlobal(Number(branchId));
+    return { success: true };
+  }
+
   @Post('users/:id/branches/assign')
   async assignExistingBranch(
     @Request() req,

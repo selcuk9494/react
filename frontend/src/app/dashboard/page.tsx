@@ -1298,42 +1298,16 @@ export default function Dashboard() {
                 {user?.is_admin && (
                   <>
                     <Link 
-                      href="/admin/users"
+                      href="/admin/manage"
                       className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                     >
                       <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-100 to-violet-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
                       <div className="bg-gradient-to-br from-indigo-500 to-violet-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-indigo-500/30">
-                        <Users className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="relative z-10">
-                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-indigo-600 transition-colors">{lang === 'tr' ? 'Admin — Kullanıcılar' : 'Admin — Users'}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Ekle, düzenle, sil' : 'Add, edit, delete'}</p>
-                      </div>
-                    </Link>
-                    <Link 
-                      href="/admin/branches"
-                      className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-teal-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-teal-100 to-cyan-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
-                      <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-teal-500/30">
-                        <Building className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="relative z-10">
-                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-teal-600 transition-colors">{lang === 'tr' ? 'Admin — Şubeler' : 'Admin — Branches'}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Bağlantı bilgileri' : 'Connection info'}</p>
-                      </div>
-                    </Link>
-                    <Link 
-                      href="/admin/manage"
-                      className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-amber-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-100 to-orange-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
-                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-amber-500/30">
                         <Settings className="w-5 h-5 text-white" />
                       </div>
                       <div className="relative z-10">
-                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-amber-600 transition-colors">{lang === 'tr' ? 'Admin — Tek Form' : 'Admin — Quick Form'}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Kullanıcı ve şube' : 'User and branch'}</p>
+                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-indigo-600 transition-colors">{lang === 'tr' ? 'Admin Yönetimi' : 'Admin Management'}</h4>
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Kullanıcı, şube ve atama' : 'Users, branches, assignment'}</p>
                       </div>
                     </Link>
                     {isReportAllowed('database_backups') && (

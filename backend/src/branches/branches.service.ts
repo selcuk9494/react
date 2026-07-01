@@ -273,6 +273,72 @@ export class BranchesService {
     return branch;
   }
 
+  async updateGlobal(id: number, data: any) {
+    const pool = this.db.getMainPool();
+    const duplicate = await this.findDuplicateSource(data, id);
+    if (duplicate) {
+      return duplicate;
+    }
+    const query = `
+      UPDATE branches
+      SET name = $1, db_host = $2, db_port = $3, db_name = $4, db_user = $5, db_password = $6, kasa_no = $7, closing_hour = $8
+      WHERE id = $9
+      RETURNING *
+    `;
+    const closingHour =
+      typeof data.closing_hour === 'number'
+        ? data.closing_hour
+        : typeof data.closing_hour === 'string'
+          ? parseInt(data.closing_hour, 10)
+          : 6;
+    const params = [
+      data.name,
+      data.db_host,
+      data.db_port || 5432,
+      data.db_name,
+      data.db_user,
+      data.db_password,
+      data.kasa_no || 1,
+      Number.isFinite(closingHour) ? closingHour : 6,
+      id,
+    ];
+    const res = await this.db.executeQuery(pool, query, params);
+    const branch = res[0];
+    if (!branch) return null;
+
+    await this.db.executeQuery(
+      pool,
+      'DELETE FROM branch_kasas WHERE branch_id = $1',
+      [id],
+    );
+    for (const kasa of this.normalizeKasalar(data)) {
+      await this.db.executeQuery(
+        pool,
+        `INSERT INTO branch_kasas (branch_id, kasa_no)
+         SELECT $1, $2
+         WHERE NOT EXISTS (
+           SELECT 1 FROM branch_kasas
+           WHERE branch_id = $1 AND kasa_no = $2
+         )`,
+        [id, kasa],
+      );
+    }
+
+    await this.cache.del(this.cache.generateKey('branches', 'id', id));
+    return branch;
+  }
+
+  async removeGlobal(id: number) {
+    const pool = this.db.getMainPool();
+    const res = await this.db.executeQuery(
+      pool,
+      'DELETE FROM branches WHERE id = $1 RETURNING id',
+      [id],
+    );
+    await this.cache.del(this.cache.generateKey('branches', 'id', id));
+    return res[0];
+  }
+
   async remove(userId: string, id: number) {
     const pool = this.db.getMainPool();
     const res = await this.db.executeQuery(
