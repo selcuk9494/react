@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { Clock, DatabaseBackup, HardDrive, Play, RefreshCw, Save, Server, Trash2 } from 'lucide-react';
@@ -102,6 +102,7 @@ const statusLabel = (status?: string | null) => {
 export default function AdminBackupsPage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const hasLoadedOverviewRef = useRef(false);
   const [targets, setTargets] = useState<BackupTarget[]>([]);
   const [configs, setConfigs] = useState<BackupConfig[]>([]);
   const [jobs, setJobs] = useState<BackupJob[]>([]);
@@ -136,7 +137,7 @@ export default function AdminBackupsPage() {
 
   const fetchOverview = async () => {
     if (!token) return;
-    setLoading(true);
+    setLoading(!hasLoadedOverviewRef.current);
     setMessage('');
     try {
       const res = await axios.get(`${getApiUrl()}/admin/backups`, {
@@ -171,9 +172,14 @@ export default function AdminBackupsPage() {
         setMessage(apiMessage || 'Yedekleme bilgileri alınamadı. Backend bağlantısını ve yedek tablolarını kontrol edin.');
       }
     } finally {
+      hasLoadedOverviewRef.current = true;
       setLoading(false);
     }
   };
+
+  const backupPermissionKey = Array.isArray(user?.allowed_reports)
+    ? user.allowed_reports.join('|')
+    : String(user?.allowed_reports ?? 'all');
 
   useEffect(() => {
     if (authLoading) return;
@@ -187,7 +193,7 @@ export default function AdminBackupsPage() {
       return;
     }
     fetchOverview();
-  }, [token, authLoading, user?.is_admin, user?.allowed_reports, router]);
+  }, [token, authLoading, user?.is_admin, backupPermissionKey, router]);
 
   const filteredJobs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
