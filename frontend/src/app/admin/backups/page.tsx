@@ -99,6 +99,21 @@ const statusLabel = (status?: string | null) => {
   return 'Yok';
 };
 
+const readableError = (value?: string | null) => {
+  const message = String(value || '');
+  if (!message) return '';
+  if (message.includes('pg_dump') && message.includes('ENOENT')) {
+    return 'Sunucuda pg_dump bulunamadı. PostgreSQL client tools kurulmalı veya PG_DUMP_BIN ayarlanmalı.';
+  }
+  if (message.includes('rclone') && message.includes('ENOENT')) {
+    return 'Sunucuda rclone bulunamadı. iCloud/rclone hedefi için rclone kurulmalı veya RCLONE_BIN ayarlanmalı.';
+  }
+  if (message.includes('/var/task')) {
+    return 'Serverless ortamda /var/task yazılabilir değildir. Lokal hedef yerine iCloud/rclone hedefi kullanın.';
+  }
+  return message;
+};
+
 export default function AdminBackupsPage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -363,11 +378,11 @@ export default function AdminBackupsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 pt-24 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 pt-24 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-950">Admin Paneli — Veritabanı Yedekleri</h1>
-            <p className="mt-1 text-sm text-gray-500">Şube veritabanlarını pg_dump ile alır, 3 gün saklama ve sorunlu yedek takibi yapar.</p>
+            <h1 className="text-3xl font-bold text-gray-950">Veritabanı Yedekleri</h1>
+            <p className="mt-1 text-sm font-semibold text-gray-500">Şube veritabanlarını yedekle, hedeflerini yönet ve sorunlu işleri takip et.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={fetchOverview} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm">
@@ -385,6 +400,32 @@ export default function AdminBackupsPage() {
             {message}
           </div>
         )}
+
+        <section className="grid gap-4 lg:grid-cols-[1fr_380px]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Sistem Gereksinimi</div>
+                <h2 className="mt-1 text-lg font-bold text-slate-950">Yedek alabilmek için sunucuda `pg_dump` kurulu olmalı</h2>
+                <p className="mt-1 text-sm text-slate-500">iCloud veya rclone hedefi kullanacaksan ayrıca `rclone` kurulu ve remote ayarlı olmalı.</p>
+              </div>
+              <div className="grid gap-2 text-sm font-semibold text-slate-600 sm:grid-cols-2 md:min-w-[360px]">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-slate-400">pg_dump</div>
+                  <div className="mt-1 text-slate-950">PostgreSQL client tools</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-slate-400">iCloud</div>
+                  <div className="mt-1 text-slate-950">rclone remote</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 shadow-sm">
+            <div className="font-bold">Not</div>
+            <p className="mt-1">Vercel/serverless ortamda lokal dosya kalıcı saklama için uygun değildir. Gerçek yedek için iCloud/rclone veya kalıcı diskli sunucu kullanın.</p>
+          </div>
+        </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
           {[
@@ -406,12 +447,13 @@ export default function AdminBackupsPage() {
           })}
         </section>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
-          <div className="rounded-xl border bg-white shadow-sm">
-            <div className="border-b px-4 py-3">
-              <h2 className="font-semibold text-gray-950">Şube Yedek Ayarları</h2>
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b px-5 py-4">
+              <h2 className="text-lg font-bold text-gray-950">Şube Yedek Ayarları</h2>
+              <p className="mt-1 text-sm text-slate-500">Her şube için hedef, saat ve saklama ayarlarını yönetin.</p>
             </div>
-            <div className="border-b bg-gray-50 p-4 space-y-3">
+            <div className="border-b bg-slate-50 p-5 space-y-3">
               <div className="text-sm font-semibold text-gray-900">Toplu şube ataması</div>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[150px_1fr_120px_130px_220px] lg:items-end">
                 <label className="flex items-center gap-2 pb-2 text-sm font-medium text-gray-800">
@@ -475,7 +517,7 @@ export default function AdminBackupsPage() {
                 </div>
               </div>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-slate-100">
               {configs.map((item) => {
                 const form = configForms[item.branch_id] || {
                   is_enabled: false,
@@ -484,8 +526,8 @@ export default function AdminBackupsPage() {
                   retention_days: 3,
                 };
                 return (
-                  <div key={item.branch_id} className="p-4">
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div key={item.branch_id} className="p-5 transition hover:bg-slate-50/60">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="flex min-w-0 gap-3">
                         <input
                           type="checkbox"
@@ -508,11 +550,15 @@ export default function AdminBackupsPage() {
                           <div className="mt-1 text-xs text-gray-500">
                             {item.owner_email} • {item.db_host}:{item.db_port} / {item.db_name} ({item.db_user})
                           </div>
-                          {item.last_error && <div className="mt-2 text-xs text-red-600">{item.last_error}</div>}
+                          {item.last_error && (
+                            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                              {readableError(item.last_error)}
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-[115px_190px_105px_115px_auto_auto] md:items-end">
+                      <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-[110px_190px_92px_112px_auto_auto] md:items-end xl:w-auto">
                         <label className="flex items-center gap-2 pb-2 text-sm text-gray-700">
                           <input
                             type="checkbox"
@@ -573,10 +619,10 @@ export default function AdminBackupsPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
-                      <span>Son: {formatDate(item.last_backup_at)}</span>
-                      <span>Sıradaki: {formatDate(item.next_run_at)}</span>
-                      <span>Son boyut: {formatBytes(item.last_size_bytes)}</span>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-1">Son: {formatDate(item.last_backup_at)}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1">Sıradaki: {formatDate(item.next_run_at)}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1">Son boyut: {formatBytes(item.last_size_bytes)}</span>
                     </div>
                   </div>
                 );
@@ -588,10 +634,10 @@ export default function AdminBackupsPage() {
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
                 <Server className="h-5 w-5 text-indigo-500" />
-                <h2 className="font-semibold text-gray-950">Yedekleme Hedefi</h2>
+                <h2 className="text-lg font-bold text-gray-950">Yedekleme Hedefi</h2>
               </div>
               <div className="mt-4 space-y-3">
                 <label className="block space-y-1 text-xs font-medium text-gray-500">
@@ -669,21 +715,25 @@ export default function AdminBackupsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border bg-white shadow-sm">
-              <div className="border-b px-4 py-3">
-                <h2 className="font-semibold text-gray-950">Kayıtlı Hedefler</h2>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b px-5 py-4">
+                <h2 className="text-lg font-bold text-gray-950">Kayıtlı Hedefler</h2>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-slate-100">
                 {targets.map((target) => (
-                  <div key={target.id} className="p-4">
+                  <div key={target.id} className="p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-medium text-gray-950">{target.name}</div>
+                        <div className="font-bold text-gray-950">{target.name}</div>
                         <div className="mt-1 text-xs text-gray-500">
                           {target.kind === 'rclone' || target.kind === 'icloud' ? target.rclone_remote : target.local_path || 'Varsayılan lokal klasör'}
                         </div>
-                        {target.kind === 'icloud' && <div className="mt-1 text-xs font-medium text-sky-600">iCloud Drive</div>}
-                        <div className="mt-1 text-xs text-gray-500">{target.retention_days} gün saklama</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                            {target.kind === 'icloud' ? 'iCloud Drive' : target.kind === 'rclone' ? 'rclone' : 'Lokal'}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{target.retention_days} gün</span>
+                        </div>
                       </div>
                       <button onClick={() => deleteTarget(target.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Sil">
                         <Trash2 className="h-4 w-4" />
@@ -696,7 +746,7 @@ export default function AdminBackupsPage() {
           </aside>
         </section>
 
-        <section className="rounded-xl border bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-indigo-500" />
@@ -754,7 +804,7 @@ export default function AdminBackupsPage() {
                     <td className="px-4 py-3 text-gray-600">{job.target_name || '-'}</td>
                     <td className="max-w-xl px-4 py-3">
                       {job.error ? (
-                        <div className="text-xs text-red-600">{job.error}</div>
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">{readableError(job.error)}</div>
                       ) : (
                         <>
                           <div className="text-xs text-gray-700">{job.file_name || '-'}</div>

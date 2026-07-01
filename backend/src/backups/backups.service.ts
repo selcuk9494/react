@@ -642,6 +642,17 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
       });
       child.on('error', (error) => {
         if (timeout) clearTimeout(timeout);
+        const code = (error as any)?.code;
+        if (code === 'ENOENT') {
+          if (command.includes('pg_dump')) {
+            reject(new Error('Sunucuda pg_dump bulunamadi. PostgreSQL client tools kurun veya PG_DUMP_BIN ile pg_dump yolunu tanimlayin.'));
+            return;
+          }
+          if (command.includes('rclone')) {
+            reject(new Error('Sunucuda rclone bulunamadi. iCloud/rclone hedefi icin rclone kurun veya RCLONE_BIN ile yolunu tanimlayin.'));
+            return;
+          }
+        }
         reject(error);
       });
       child.on('close', (code) => {
