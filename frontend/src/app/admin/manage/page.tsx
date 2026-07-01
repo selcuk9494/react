@@ -402,39 +402,22 @@ export default function AdminManagePage() {
           </div>
         )}
 
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold text-slate-500">Kullanıcı</div>
-            <div className="mt-2 text-3xl font-bold">{users.length}</div>
-          </div>
-          <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold text-slate-500">Tekil şube</div>
-            <div className="mt-2 text-3xl font-bold">{branches.length}</div>
-          </div>
-          <div className="rounded-md border bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="text-sm font-semibold text-slate-500">Seçili kayıt</div>
-            <div className="mt-2 truncate text-lg font-bold">
-              {activeTab === 'users'
-                ? selectedUser?.email || 'Kullanıcı seçilmedi'
-                : selectedBranch?.name || 'Şube seçilmedi'}
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-5 inline-flex rounded-md border bg-white p-1 shadow-sm">
+        <div className="mb-5 grid rounded-md border bg-white p-1 shadow-sm sm:inline-grid sm:grid-cols-2">
           <button
             onClick={() => setActiveTab('users')}
-            className={`inline-flex items-center gap-2 rounded px-4 py-2 text-sm font-bold ${activeTab === 'users' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}
+            className={`inline-flex items-center justify-center gap-2 rounded px-6 py-3 text-sm font-bold ${activeTab === 'users' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             <Users className="h-4 w-4" />
             Kullanıcılar
+            <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === 'users' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'}`}>{users.length}</span>
           </button>
           <button
             onClick={() => setActiveTab('branches')}
-            className={`inline-flex items-center gap-2 rounded px-4 py-2 text-sm font-bold ${activeTab === 'branches' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}
+            className={`inline-flex items-center justify-center gap-2 rounded px-6 py-3 text-sm font-bold ${activeTab === 'branches' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             <Building className="h-4 w-4" />
             Şubeler
+            <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === 'branches' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'}`}>{branches.length}</span>
           </button>
         </div>
 
