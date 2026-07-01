@@ -617,10 +617,28 @@ export default function AdminManagePage() {
               )}
 
               <details className="rounded-md border bg-white shadow-sm">
-                <summary className="flex cursor-pointer items-center gap-2 p-4 text-lg font-bold">
-                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                  Rapor Yetkileri
+                <summary className="cursor-pointer p-4">
+                  <span className="inline-flex items-center gap-2 text-lg font-bold">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                    Rapor Yetkileri
+                  </span>
                 </summary>
+                <div className="flex flex-wrap gap-2 border-t px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setReportsForm(AVAILABLE_REPORTS.map((report) => report.id))}
+                    className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Tümünü seç
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportsForm([])}
+                    className="rounded-md bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700"
+                  >
+                    Temizle
+                  </button>
+                </div>
                 <div className="grid gap-2 border-t p-4 sm:grid-cols-2 lg:grid-cols-3">
                   {AVAILABLE_REPORTS.map((report) => (
                     <label key={report.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
