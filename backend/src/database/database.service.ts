@@ -261,8 +261,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_branch_assignments (
-          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL,
+          branch_id INTEGER NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (user_id, branch_id)
         );
