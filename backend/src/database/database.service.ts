@@ -135,56 +135,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           kasa_no INTEGER NOT NULL
         );
       `);
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS user_branch_assignments (
-          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (user_id, branch_id)
-        );
-      `);
-      await client.query(`
-        INSERT INTO user_branch_assignments (user_id, branch_id)
-        SELECT b.user_id, b.id
-        FROM branches b
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM user_branch_assignments uba
-          WHERE uba.user_id = b.user_id
-            AND uba.branch_id = b.id
-        );
-      `);
-      await client.query(`
-        WITH ranked AS (
-          SELECT id,
-                 user_id,
-                 FIRST_VALUE(id) OVER (
-                   PARTITION BY LOWER(TRIM(db_host)),
-                                COALESCE(db_port, 5432),
-                                LOWER(TRIM(db_name)),
-                                LOWER(TRIM(db_user))
-                   ORDER BY id ASC
-                 ) AS keeper_id,
-                 ROW_NUMBER() OVER (
-                   PARTITION BY LOWER(TRIM(db_host)),
-                                COALESCE(db_port, 5432),
-                                LOWER(TRIM(db_name)),
-                                LOWER(TRIM(db_user))
-                   ORDER BY id ASC
-                 ) AS duplicate_rank
-          FROM branches
-        )
-        INSERT INTO user_branch_assignments (user_id, branch_id)
-        SELECT r.user_id, r.keeper_id
-        FROM ranked r
-        WHERE r.duplicate_rank > 1
-          AND NOT EXISTS (
-            SELECT 1
-            FROM user_branch_assignments uba
-            WHERE uba.user_id = r.user_id
-              AND uba.branch_id = r.keeper_id
-          );
-      `);
+      await this.ensureUserBranchAssignmentsSchema(client);
       await client.query(`
         DELETE FROM branches b
         USING (
@@ -302,6 +253,68 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     } finally {
       client.release();
+    }
+  }
+
+  async ensureUserBranchAssignmentsSchema(existingClient?: any) {
+    const client = existingClient || (await this.mainPool.connect());
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_branch_assignments (
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, branch_id)
+        );
+      `);
+      await client.query(`
+        INSERT INTO user_branch_assignments (user_id, branch_id)
+        SELECT b.user_id, b.id
+        FROM branches b
+        WHERE b.user_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM user_branch_assignments uba
+            WHERE uba.user_id = b.user_id
+              AND uba.branch_id = b.id
+          );
+      `);
+      await client.query(`
+        WITH ranked AS (
+          SELECT id,
+                 user_id,
+                 FIRST_VALUE(id) OVER (
+                   PARTITION BY LOWER(TRIM(db_host)),
+                                COALESCE(db_port, 5432),
+                                LOWER(TRIM(db_name)),
+                                LOWER(TRIM(db_user))
+                   ORDER BY id ASC
+                 ) AS keeper_id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY LOWER(TRIM(db_host)),
+                                COALESCE(db_port, 5432),
+                                LOWER(TRIM(db_name)),
+                                LOWER(TRIM(db_user))
+                   ORDER BY id ASC
+                 ) AS duplicate_rank
+          FROM branches
+          WHERE user_id IS NOT NULL
+        )
+        INSERT INTO user_branch_assignments (user_id, branch_id)
+        SELECT r.user_id, r.keeper_id
+        FROM ranked r
+        WHERE r.duplicate_rank > 1
+          AND NOT EXISTS (
+            SELECT 1
+            FROM user_branch_assignments uba
+            WHERE uba.user_id = r.user_id
+              AND uba.branch_id = r.keeper_id
+          );
+      `);
+    } finally {
+      if (!existingClient) {
+        client.release();
+      }
     }
   }
 

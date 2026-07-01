@@ -76,6 +76,7 @@ export class UsersService {
     // However, keeping it NULL in DB is better for future updates (new reports automatically allowed).
 
     // Fetch assigned branches
+    await this.db.ensureUserBranchAssignmentsSchema();
     const branchesRes = await pool.query(
       `SELECT b.*
        FROM branches b
