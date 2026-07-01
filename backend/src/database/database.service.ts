@@ -93,6 +93,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           `ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`,
         );
       }
+      const hasAllowedReports = await colCheck('allowed_reports');
+      if (!hasAllowedReports) {
+        await client.query(`ALTER TABLE users ADD COLUMN allowed_reports TEXT[]`);
+      }
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS branches (

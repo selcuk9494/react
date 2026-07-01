@@ -28,6 +28,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit() {
+    await this.ensureBackupSchema();
     await this.ensureDefaultTarget();
     this.scheduler = setInterval(() => {
       this.runDueScheduledBackups().catch((error) =>
@@ -41,6 +42,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getOverview(filters: any = {}) {
+    await this.ensureBackupSchema();
     const [targets, configs, backups] = await Promise.all([
       this.listTargets(),
       this.listConfigs(),
@@ -64,6 +66,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listTargets() {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     return this.db.executeQuery(
       pool,
@@ -72,6 +75,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async saveTarget(body: any, targetId?: number) {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     const kind = body?.kind === 'rclone' ? 'rclone' : 'local';
     const retentionDays = this.clampRetentionDays(body?.retention_days);
@@ -114,6 +118,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listConfigs() {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     return this.db.executeQuery(
       pool,
@@ -134,26 +139,44 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
          c.next_run_at,
          t.name AS target_name,
          t.kind AS target_kind,
-         last_backup.status AS last_status,
-         last_backup.created_at AS last_backup_at,
-         last_backup.error AS last_error,
-         last_backup.size_bytes AS last_size_bytes
+         (
+           SELECT j.status
+           FROM branch_database_backups j
+           WHERE j.branch_id = b.id
+           ORDER BY j.created_at DESC
+           LIMIT 1
+         ) AS last_status,
+         (
+           SELECT j.created_at
+           FROM branch_database_backups j
+           WHERE j.branch_id = b.id
+           ORDER BY j.created_at DESC
+           LIMIT 1
+         ) AS last_backup_at,
+         (
+           SELECT j.error
+           FROM branch_database_backups j
+           WHERE j.branch_id = b.id
+           ORDER BY j.created_at DESC
+           LIMIT 1
+         ) AS last_error,
+         (
+           SELECT j.size_bytes
+           FROM branch_database_backups j
+           WHERE j.branch_id = b.id
+           ORDER BY j.created_at DESC
+           LIMIT 1
+         ) AS last_size_bytes
        FROM branches b
        JOIN users u ON u.id = b.user_id
        LEFT JOIN branch_backup_configs c ON c.branch_id = b.id
        LEFT JOIN backup_targets t ON t.id = c.target_id
-       LEFT JOIN LATERAL (
-         SELECT status, created_at, error, size_bytes
-         FROM branch_database_backups
-         WHERE branch_id = b.id
-         ORDER BY created_at DESC
-         LIMIT 1
-       ) last_backup ON TRUE
        ORDER BY u.email ASC, b.name ASC, b.id ASC`,
     );
   }
 
   async saveConfig(branchId: number, body: any) {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     const scheduleHour = this.clampScheduleHour(body?.schedule_hour);
     const retentionDays = this.clampRetentionDays(body?.retention_days);
@@ -187,6 +210,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listBackups(filters: any = {}) {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     const limit = Math.min(500, Math.max(20, parseInt(String(filters.limit || 100), 10) || 100));
     const status = String(filters.status || '').trim();
@@ -243,6 +267,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
     createdBy: string,
     preferredTargetId: number | null,
   ) {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     const branch = await this.getBranch(branchId);
     if (!branch) throw new Error('Sube bulunamadi.');
@@ -484,6 +509,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureDefaultTarget(): Promise<BackupTarget | null> {
+    await this.ensureBackupSchema();
     const pool = this.db.getMainPool();
     const existing = await this.db.executeQuery(
       pool,
@@ -498,6 +524,62 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
       [this.localRoot()],
     );
     return created[0] || null;
+  }
+
+  private async ensureBackupSchema() {
+    const pool = this.db.getMainPool();
+    await this.db.executeQuery(
+      pool,
+      `CREATE TABLE IF NOT EXISTS backup_targets (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        kind VARCHAR(30) NOT NULL DEFAULT 'local',
+        local_path TEXT,
+        rclone_remote TEXT,
+        retention_days INTEGER NOT NULL DEFAULT 3,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+    );
+    await this.db.executeQuery(
+      pool,
+      `CREATE TABLE IF NOT EXISTS branch_backup_configs (
+        id SERIAL PRIMARY KEY,
+        branch_id INTEGER UNIQUE REFERENCES branches(id) ON DELETE CASCADE,
+        target_id INTEGER REFERENCES backup_targets(id) ON DELETE SET NULL,
+        is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        schedule_hour INTEGER NOT NULL DEFAULT 2,
+        retention_days INTEGER NOT NULL DEFAULT 3,
+        last_run_at TIMESTAMP,
+        next_run_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+    );
+    await this.db.executeQuery(
+      pool,
+      `CREATE TABLE IF NOT EXISTS branch_database_backups (
+        id SERIAL PRIMARY KEY,
+        branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+        target_id INTEGER REFERENCES backup_targets(id) ON DELETE SET NULL,
+        branch_name TEXT,
+        owner_email TEXT,
+        database_name TEXT,
+        status VARCHAR(30) NOT NULL DEFAULT 'pending',
+        trigger_type VARCHAR(30) NOT NULL DEFAULT 'manual',
+        file_name TEXT,
+        storage_path TEXT,
+        size_bytes BIGINT,
+        checksum TEXT,
+        started_at TIMESTAMP,
+        finished_at TIMESTAMP,
+        duration_ms INTEGER,
+        error TEXT,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+    );
   }
 
   private spawnCommand(

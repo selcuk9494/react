@@ -160,9 +160,15 @@ export default function AdminBackupsPage() {
           retention_days: Number(item.retention_days ?? 3),
         },
       ])));
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setMessage('Yedekleme bilgileri alınamadı.');
+      const status = error?.response?.status;
+      const apiMessage = error?.response?.data?.message;
+      if (status === 403) {
+        setMessage('Bu ekran için Veritabanı Yedekleri yetkisi gerekiyor.');
+      } else {
+        setMessage(apiMessage || 'Yedekleme bilgileri alınamadı. Backend bağlantısını ve yedek tablolarını kontrol edin.');
+      }
     } finally {
       setLoading(false);
     }
