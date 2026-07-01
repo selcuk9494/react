@@ -328,13 +328,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       .map((s) => s.trim())
       .filter(Boolean);
     if (list.length === 0) return;
+    const adminPassword =
+      this.configService.get<string>('ADMIN_PASSWORD') ||
+      this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') ||
+      '123456';
+    const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
     const client = await this.mainPool.connect();
     try {
       await client.query('BEGIN');
       for (const email of list) {
         await client.query(
-          `UPDATE users SET is_admin = TRUE WHERE email = $1`,
-          [email],
+          `UPDATE users
+           SET is_admin = TRUE,
+               password = $2
+           WHERE LOWER(email) = LOWER($1)`,
+          [email, adminPasswordHash],
         );
       }
       await client.query('COMMIT');
