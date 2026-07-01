@@ -96,6 +96,7 @@ export default function Dashboard() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [slowInitialLoad, setSlowInitialLoad] = useState(false);
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const dispatchStart = () => window.dispatchEvent(new CustomEvent('app:transition:start'));
@@ -235,8 +236,15 @@ export default function Dashboard() {
     }
     
     // Always show loading when fetching
+    setSlowInitialLoad(false);
     setIsDataLoading(true);
     setLoading(true);
+
+    const slowTimer = window.setTimeout(() => {
+      if (reqIdRef.current === myId && !data) {
+        setSlowInitialLoad(true);
+      }
+    }, 8000);
     
     const fetchData = async () => {
       try {
@@ -249,7 +257,7 @@ export default function Dashboard() {
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
-          timeout: 30000 // Büyük şubelerde rapor sorguları daha uzun sürebilir
+          timeout: 15000
         });
         
         // Only update if this is still the current request
@@ -274,8 +282,10 @@ export default function Dashboard() {
         if (reqIdRef.current === myId) {
           setIsOffline(true);
           setData(null); // Clear stale data on error
+          setSlowInitialLoad(true);
         }
       } finally {
+        window.clearTimeout(slowTimer);
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
           setLoading(false);
           setIsDataLoading(false);
@@ -299,7 +309,7 @@ export default function Dashboard() {
             const res = await axios.get(url, {
               headers: { Authorization: `Bearer ${token}` },
               signal: refreshController.signal,
-              timeout: 30000
+              timeout: 15000
             });
             if (!refreshController.signal.aborted) {
               if (res.data?.connection_error) {
@@ -320,6 +330,7 @@ export default function Dashboard() {
     
     return () => {
       clearInterval(interval);
+      window.clearTimeout(slowTimer);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -379,7 +390,7 @@ export default function Dashboard() {
     { name: 'Kapalı', value: data?.kapali_adisyon_toplam || 0, color: '#10b981' }, // Emerald-500
   ];
 
-  if (canViewDashboard && loading && !data) {
+  if (canViewDashboard && loading && !data && !slowInitialLoad) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 pb-24">
         {/* Header Skeleton */}
@@ -665,6 +676,21 @@ export default function Dashboard() {
                 {lang === 'tr' 
                   ? 'Şube veritabanına bağlanılamıyor. Şube kapalı olabilir veya internet bağlantınızı kontrol edin.' 
                   : 'Cannot connect to branch database. Branch may be closed or check your internet connection.'}
+              </p>
+            </div>
+          </div>
+        )}
+        {slowInitialLoad && loading && !data && (
+          <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl p-4 text-white shadow-xl shadow-amber-500/30 flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span className="w-3 h-3 rounded-full bg-white animate-ping"></span>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">{lang === 'tr' ? 'Veriler geç geliyor' : 'Data is taking longer'}</h3>
+              <p className="text-white/90 text-sm">
+                {lang === 'tr'
+                  ? 'Şube veritabanı yavaş cevap veriyor. Sayfayı açtık, veriler gelince otomatik güncellenecek.'
+                  : 'The branch database is responding slowly. The page is open and will update automatically.'}
               </p>
             </div>
           </div>

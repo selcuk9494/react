@@ -381,10 +381,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         max: 10, // Reduced max connections per branch
         min: 1, // Keep 1 connection alive
         idleTimeoutMillis: 60000, // Keep connections longer (60s)
-        connectionTimeoutMillis: 8000, // Longer timeout for branch DBs
+        connectionTimeoutMillis: 4000, // Keep dashboard from waiting too long on unreachable branch DBs
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
-        statement_timeout: 45000, // 45s timeout for branch queries
+        statement_timeout: 20000, // Keep slow branch queries bounded
         ssl: config.db_host.includes('render.com')
           ? { rejectUnauthorized: false }
           : false,
