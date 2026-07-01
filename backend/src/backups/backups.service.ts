@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { DatabaseService } from '../database/database.service';
 
@@ -458,7 +459,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
       return `${remoteDir}/${fileName}`;
     }
 
-    const root = target.local_path || this.localRoot();
+    const root = this.writableLocalRoot(target.local_path);
     const finalDir = path.join(root, relativeDir);
     await fs.promises.mkdir(finalDir, { recursive: true });
     const finalPath = path.join(finalDir, fileName);
@@ -468,7 +469,7 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
 
   private async cleanupOldBackups(target: BackupTarget) {
     if (!target || target.kind !== 'local') return;
-    const root = target.local_path || this.localRoot();
+    const root = this.writableLocalRoot(target.local_path);
     const cutoff = Date.now() - this.clampRetentionDays(target.retention_days) * 24 * 60 * 60 * 1000;
     const walk = async (dir: string) => {
       let entries: fs.Dirent[];
@@ -604,6 +605,14 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
     );
+    await this.db.executeQuery(
+      pool,
+      `UPDATE backup_targets
+       SET local_path = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE kind = 'local'
+         AND local_path LIKE '/var/task%'`,
+      [this.localRoot()],
+    );
   }
 
   private spawnCommand(
@@ -654,7 +663,20 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private localRoot() {
-    return this.config.get<string>('BACKUP_LOCAL_ROOT') || path.join(process.cwd(), 'backups', 'database');
+    const configured = this.config.get<string>('BACKUP_LOCAL_ROOT');
+    if (configured) return configured;
+    if (process.env.VERCEL || process.cwd().startsWith('/var/task')) {
+      return path.join(os.tmpdir(), 'backups', 'database');
+    }
+    return path.join(process.cwd(), 'backups', 'database');
+  }
+
+  private writableLocalRoot(value?: string | null) {
+    const root = value || this.localRoot();
+    if (root.startsWith('/var/task')) {
+      return path.join(os.tmpdir(), 'backups', 'database');
+    }
+    return root;
   }
 
   private schedulerIntervalMs() {
