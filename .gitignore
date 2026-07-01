@@ -9,6 +9,8 @@ coverage
 *.log
 backend/dist
 backend/node_modules
+/backend/backups/
+/backups/
 frontend/.next
 frontend/node_modules
 frontend/out

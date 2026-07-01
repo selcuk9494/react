@@ -131,6 +131,83 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           kasa_no INTEGER NOT NULL
         );
       `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS backup_targets (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          kind VARCHAR(30) NOT NULL DEFAULT 'local',
+          local_path TEXT,
+          rclone_remote TEXT,
+          retention_days INTEGER NOT NULL DEFAULT 3,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_backup_configs (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER UNIQUE REFERENCES branches(id) ON DELETE CASCADE,
+          target_id INTEGER REFERENCES backup_targets(id) ON DELETE SET NULL,
+          is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          schedule_hour INTEGER NOT NULL DEFAULT 2,
+          retention_days INTEGER NOT NULL DEFAULT 3,
+          last_run_at TIMESTAMP,
+          next_run_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_database_backups (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+          target_id INTEGER REFERENCES backup_targets(id) ON DELETE SET NULL,
+          branch_name TEXT,
+          owner_email TEXT,
+          database_name TEXT,
+          status VARCHAR(30) NOT NULL DEFAULT 'pending',
+          trigger_type VARCHAR(30) NOT NULL DEFAULT 'manual',
+          file_name TEXT,
+          storage_path TEXT,
+          size_bytes BIGINT,
+          checksum TEXT,
+          started_at TIMESTAMP,
+          finished_at TIMESTAMP,
+          duration_ms INTEGER,
+          error TEXT,
+          created_by TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = 'branch_database_backups_branch_status_idx'
+              AND n.nspname = current_schema()
+          ) THEN
+            CREATE INDEX branch_database_backups_branch_status_idx
+            ON branch_database_backups (branch_id, status, created_at);
+          END IF;
+        END $$;
+      `);
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = 'branch_backup_configs_enabled_next_idx'
+              AND n.nspname = current_schema()
+          ) THEN
+            CREATE INDEX branch_backup_configs_enabled_next_idx
+            ON branch_backup_configs (is_enabled, next_run_at);
+          END IF;
+        END $$;
+      `);
     } catch (e) {
       console.log(
         'Schema init error (might be okay if tables exist):',

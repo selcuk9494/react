@@ -8,6 +8,7 @@ import { ReportsModule } from './reports/reports.module';
 import { BranchesModule } from './branches/branches.module';
 import { StockModule } from './stock/stock.module';
 import { AdminModule } from './admin/admin.module';
+import { BackupsModule } from './backups/backups.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -22,6 +23,7 @@ import { AppService } from './app.service';
     BranchesModule,
     StockModule,
     AdminModule,
+    BackupsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
