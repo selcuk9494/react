@@ -75,9 +75,13 @@ export class UsersService {
     // But if you want to be explicit, we can return a full list here.
     // However, keeping it NULL in DB is better for future updates (new reports automatically allowed).
 
-    // Fetch branches
+    // Fetch assigned branches
     const branchesRes = await pool.query(
-      'SELECT * FROM branches WHERE user_id = $1 ORDER BY created_at ASC, id ASC',
+      `SELECT b.*
+       FROM branches b
+       JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       WHERE uba.user_id = $1
+       ORDER BY uba.created_at ASC, b.id ASC`,
       [user.id],
     );
     user.branches = branchesRes.rows;
@@ -126,21 +130,45 @@ export class UsersService {
               : typeof rawClosing === 'string'
                 ? parseInt(rawClosing, 10)
                 : 6;
-          const branchRes = await client.query(
-            'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+          const dbPort =
+            typeof branch.db_port === 'number'
+              ? branch.db_port
+              : parseInt(String(branch.db_port || 5432), 10);
+          const sourceRes = await client.query(
+            `SELECT id
+             FROM branches
+             WHERE LOWER(TRIM(db_host)) = $1
+               AND COALESCE(db_port, 5432) = $2
+               AND LOWER(TRIM(db_name)) = $3
+               AND LOWER(TRIM(db_user)) = $4
+             ORDER BY id ASC
+             LIMIT 1`,
             [
-              user.id,
-              branch.name,
-              branch.db_host,
-              branch.db_port,
-              branch.db_name,
-              branch.db_user,
-              branch.db_password,
-              branch.kasa_no || 1,
-              Number.isFinite(closingHour) ? closingHour : 6,
+              String(branch.db_host || '').trim().toLowerCase(),
+              Number.isFinite(dbPort) ? dbPort : 5432,
+              String(branch.db_name || '').trim().toLowerCase(),
+              String(branch.db_user || '').trim().toLowerCase(),
             ],
           );
-          const branchId = branchRes.rows?.[0]?.id;
+          let branchId = sourceRes.rows?.[0]?.id;
+          const isNewBranch = !branchId;
+          if (isNewBranch) {
+            const branchRes = await client.query(
+              'INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+              [
+                user.id,
+                branch.name,
+                branch.db_host,
+                Number.isFinite(dbPort) ? dbPort : 5432,
+                branch.db_name,
+                branch.db_user,
+                branch.db_password,
+                branch.kasa_no || 1,
+                Number.isFinite(closingHour) ? closingHour : 6,
+              ],
+            );
+            branchId = branchRes.rows?.[0]?.id;
+          }
           const primaryKasa =
             typeof branch.kasa_no === 'number'
               ? branch.kasa_no
@@ -155,9 +183,25 @@ export class UsersService {
             ),
           );
           if (branchId) {
+            await client.query(
+              `INSERT INTO user_branch_assignments (user_id, branch_id)
+               SELECT $1, $2
+               WHERE NOT EXISTS (
+                 SELECT 1
+                 FROM user_branch_assignments
+                 WHERE user_id = $1 AND branch_id = $2
+               )`,
+              [user.id, branchId],
+            );
             for (const kasa of kasalar) {
               await client.query(
-                'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
+                `INSERT INTO branch_kasas (branch_id, kasa_no)
+                 SELECT $1, $2
+                 WHERE NOT EXISTS (
+                   SELECT 1
+                   FROM branch_kasas
+                   WHERE branch_id = $1 AND kasa_no = $2
+                 )`,
                 [branchId, kasa],
               );
             }

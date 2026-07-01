@@ -1555,7 +1555,11 @@ export class StockService {
 
       const userId = userRes.rows[0].id;
       const branchRes = await mainPool.query(
-        'SELECT * FROM branches WHERE user_id = $1',
+        `SELECT b.*
+         FROM branches b
+         JOIN user_branch_assignments uba ON uba.branch_id = b.id
+         WHERE uba.user_id = $1
+         ORDER BY uba.created_at ASC, b.id ASC`,
         [userId],
       );
       if (branchRes.rows.length === 0)

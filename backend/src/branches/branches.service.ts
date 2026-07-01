@@ -37,33 +37,47 @@ export class BranchesService {
     return Number.isFinite(parsed) ? parsed : 5432;
   }
 
-  private async findDuplicateForUser(userId: string, data: any, excludeBranchId?: number) {
+  private async findDuplicateSource(data: any, excludeBranchId?: number) {
     const pool = this.db.getMainPool();
     const params: any[] = [
-      userId,
-      this.normalizeText(data?.name),
       this.normalizeText(data?.db_host),
       this.normalizePort(data?.db_port),
       this.normalizeText(data?.db_name),
+      this.normalizeText(data?.db_user),
     ];
-    const excludeSql = excludeBranchId ? `AND id <> $6` : '';
+    const excludeSql = excludeBranchId ? `AND id <> $5` : '';
     if (excludeBranchId) params.push(excludeBranchId);
 
     const rows = await this.db.executeQuery(
       pool,
       `SELECT *
        FROM branches
-       WHERE user_id = $1
-         AND LOWER(TRIM(name)) = $2
-         AND LOWER(TRIM(db_host)) = $3
-         AND COALESCE(db_port, 5432) = $4
-         AND LOWER(TRIM(db_name)) = $5
+       WHERE LOWER(TRIM(db_host)) = $1
+         AND COALESCE(db_port, 5432) = $2
+         AND LOWER(TRIM(db_name)) = $3
+         AND LOWER(TRIM(db_user)) = $4
          ${excludeSql}
        ORDER BY id ASC
        LIMIT 1`,
       params,
     );
     return rows[0] || null;
+  }
+
+  private async assignBranchToUser(userId: string, branchId: number) {
+    const pool = this.db.getMainPool();
+    await this.db.executeQuery(
+      pool,
+      `INSERT INTO user_branch_assignments (user_id, branch_id)
+       SELECT $1, $2
+       WHERE NOT EXISTS (
+         SELECT 1 FROM user_branch_assignments
+         WHERE user_id = $1 AND branch_id = $2
+       )`,
+      [userId, branchId],
+    );
+    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    await this.cache.del(this.cache.generateKey('branches', 'id', branchId));
   }
 
   async findAll(userId: string) {
@@ -78,11 +92,14 @@ export class BranchesService {
     const query = `
       SELECT 
         b.*,
+        owner.email AS owner_email,
         COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
       FROM branches b
+      JOIN user_branch_assignments uba ON uba.branch_id = b.id
+      LEFT JOIN users owner ON owner.id = b.user_id
       LEFT JOIN branch_kasas k ON k.branch_id = b.id
-      WHERE b.user_id = $1
-      GROUP BY b.id
+      WHERE uba.user_id = $1
+      GROUP BY b.id, owner.email
       ORDER BY b.id
     `;
     const res = await this.db.executeQuery(pool, query, [userId]);
@@ -153,8 +170,9 @@ export class BranchesService {
 
   async create(userId: string, data: any) {
     const pool = this.db.getMainPool();
-    const duplicate = await this.findDuplicateForUser(userId, data);
+    const duplicate = await this.findDuplicateSource(data);
     if (duplicate) {
+      await this.assignBranchToUser(userId, duplicate.id);
       return duplicate;
     }
     const query = `
@@ -190,21 +208,29 @@ export class BranchesService {
     }
 
     // Invalidate user's branches cache
-    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    await this.assignBranchToUser(userId, branch.id);
 
     return branch;
   }
 
   async update(userId: string, id: number, data: any) {
     const pool = this.db.getMainPool();
-    const duplicate = await this.findDuplicateForUser(userId, data, id);
+    const duplicate = await this.findDuplicateSource(data, id);
     if (duplicate) {
+      await this.assignBranchToUser(userId, duplicate.id);
+      await this.remove(userId, id);
       return duplicate;
     }
     const query = `
       UPDATE branches 
       SET name = $1, db_host = $2, db_port = $3, db_name = $4, db_user = $5, db_password = $6, kasa_no = $7, closing_hour = $8
-      WHERE id = $9 AND user_id = $10
+      WHERE id = $9
+        AND EXISTS (
+          SELECT 1
+          FROM user_branch_assignments uba
+          WHERE uba.user_id = $10
+            AND uba.branch_id = branches.id
+        )
       RETURNING *
     `;
     const closingHour =
@@ -249,9 +275,19 @@ export class BranchesService {
 
   async remove(userId: string, id: number) {
     const pool = this.db.getMainPool();
-    const query =
-      'DELETE FROM branches WHERE id = $1 AND user_id = $2 RETURNING id';
-    const res = await this.db.executeQuery(pool, query, [id, userId]);
+    const res = await this.db.executeQuery(
+      pool,
+      'DELETE FROM user_branch_assignments WHERE branch_id = $1 AND user_id = $2 RETURNING branch_id AS id',
+      [id, userId],
+    );
+    const stillAssigned = await this.db.executeQuery(
+      pool,
+      'SELECT 1 FROM user_branch_assignments WHERE branch_id = $1 LIMIT 1',
+      [id],
+    );
+    if (stillAssigned.length === 0) {
+      await this.db.executeQuery(pool, 'DELETE FROM branches WHERE id = $1', [id]);
+    }
 
     // Invalidate caches
     await this.cache.del(this.cache.generateKey('branches', 'user', userId));
