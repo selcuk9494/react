@@ -25,6 +25,7 @@ type BackupConfig = {
   db_port: number;
   db_name: string;
   db_user: string;
+  branch_count?: string | number | null;
   config_id?: number | null;
   target_id?: number | null;
   is_enabled?: boolean | null;
@@ -488,6 +489,11 @@ export default function AdminBackupsPage() {
                             <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(item.last_status)}`}>
                               {statusLabel(item.last_status)}
                             </span>
+                            {Number(item.branch_count || 0) > 1 && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                {Number(item.branch_count)} kayıt tek kaynak
+                              </span>
+                            )}
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
                             {item.owner_email} • {item.db_host}:{item.db_port} / {item.db_name} ({item.db_user})

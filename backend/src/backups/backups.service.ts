@@ -130,7 +130,8 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
          b.db_port,
          b.db_name,
          b.db_user,
-         u.email AS owner_email,
+         b.owner_email,
+         b.branch_count,
          c.id AS config_id,
          c.target_id,
          c.is_enabled,
@@ -168,11 +169,33 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
            ORDER BY j.created_at DESC
            LIMIT 1
          ) AS last_size_bytes
-       FROM branches b
-       JOIN users u ON u.id = b.user_id
+       FROM (
+         SELECT *
+         FROM (
+           SELECT
+             b.*,
+             u.email AS owner_email,
+             COUNT(*) OVER (
+               PARTITION BY LOWER(TRIM(b.db_host)),
+                            COALESCE(b.db_port, 5432),
+                            LOWER(TRIM(b.db_name)),
+                            LOWER(TRIM(b.db_user))
+             ) AS branch_count,
+             ROW_NUMBER() OVER (
+               PARTITION BY LOWER(TRIM(b.db_host)),
+                            COALESCE(b.db_port, 5432),
+                            LOWER(TRIM(b.db_name)),
+                            LOWER(TRIM(b.db_user))
+               ORDER BY b.id ASC
+             ) AS backup_source_rank
+           FROM branches b
+           JOIN users u ON u.id = b.user_id
+         ) ranked_branches
+         WHERE backup_source_rank = 1
+       ) b
        LEFT JOIN branch_backup_configs c ON c.branch_id = b.id
        LEFT JOIN backup_targets t ON t.id = c.target_id
-       ORDER BY u.email ASC, b.name ASC, b.id ASC`,
+       ORDER BY b.name ASC, b.db_host ASC, b.id ASC`,
     );
   }
 

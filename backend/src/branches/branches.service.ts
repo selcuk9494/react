@@ -122,28 +122,30 @@ export class BranchesService {
   async findAllGlobal() {
     const pool = this.db.getMainPool();
     const query = `
-      SELECT DISTINCT ON (
-        LOWER(TRIM(branch_rows.name)),
-        LOWER(TRIM(branch_rows.db_host)),
-        COALESCE(branch_rows.db_port, 5432),
-        LOWER(TRIM(branch_rows.db_name))
-      ) *
+      SELECT *
       FROM (
-        SELECT 
-          b.*,
-          u.email AS owner_email,
-          COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
-        FROM branches b
-        JOIN users u ON u.id = b.user_id
-        LEFT JOIN branch_kasas k ON k.branch_id = b.id
-        GROUP BY b.id, u.email
-      ) branch_rows
-      ORDER BY
-        LOWER(TRIM(branch_rows.name)),
-        LOWER(TRIM(branch_rows.db_host)),
-        COALESCE(branch_rows.db_port, 5432),
-        LOWER(TRIM(branch_rows.db_name)),
-        branch_rows.id ASC
+        SELECT
+          branch_rows.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY LOWER(TRIM(branch_rows.db_host)),
+                         COALESCE(branch_rows.db_port, 5432),
+                         LOWER(TRIM(branch_rows.db_name)),
+                         LOWER(TRIM(branch_rows.db_user))
+            ORDER BY branch_rows.id ASC
+          ) AS source_rank
+        FROM (
+          SELECT 
+            b.*,
+            u.email AS owner_email,
+            COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+          FROM branches b
+          JOIN users u ON u.id = b.user_id
+          LEFT JOIN branch_kasas k ON k.branch_id = b.id
+          GROUP BY b.id, u.email
+        ) branch_rows
+      ) ranked_sources
+      WHERE source_rank = 1
+      ORDER BY name ASC, db_host ASC, id ASC
     `;
     const res = await this.db.executeQuery(pool, query, []);
     return res;
