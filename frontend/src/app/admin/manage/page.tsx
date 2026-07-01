@@ -8,8 +8,6 @@ import { getApiUrl } from '@/utils/api';
 import {
   Building,
   Check,
-  Database,
-  KeyRound,
   Link2,
   RefreshCw,
   Save,
@@ -19,17 +17,6 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-
-type AdminUser = {
-  id: string;
-  email: string;
-  is_admin?: boolean;
-  selected_branch?: number;
-  expiry_date?: string;
-  days_left?: number;
-  branches?: Branch[];
-  allowed_reports?: string[] | null;
-};
 
 type Branch = {
   id?: number | null;
@@ -44,6 +31,16 @@ type Branch = {
   kasalar_input?: string;
   closing_hour: number;
   owner_email?: string;
+};
+
+type AdminUser = {
+  id: string;
+  email: string;
+  is_admin?: boolean;
+  selected_branch?: number;
+  expiry_date?: string;
+  branches?: Branch[];
+  allowed_reports?: string[] | null;
 };
 
 const AVAILABLE_REPORTS = [
@@ -97,6 +94,7 @@ const normalizeKasalar = (value: unknown, fallback = 1) => {
       : typeof value === 'number'
         ? [value]
         : [];
+
   const parsed = Array.from(
     new Set(
       raw
@@ -108,10 +106,17 @@ const normalizeKasalar = (value: unknown, fallback = 1) => {
 };
 
 const formatKasalar = (branch: Partial<Branch>) =>
-  normalizeKasalar(branch.kasalar ?? branch.kasalar_input ?? branch.kasa_no, branch.kasa_no || 1).join(', ');
+  normalizeKasalar(
+    branch.kasalar ?? branch.kasalar_input ?? branch.kasa_no,
+    branch.kasa_no || 1,
+  ).join(', ');
 
 const branchPayload = (branch: Branch) => {
-  const kasalar = normalizeKasalar(branch.kasalar_input ?? branch.kasalar ?? branch.kasa_no, parseInteger(branch.kasa_no, 1));
+  const kasalar = normalizeKasalar(
+    branch.kasalar_input ?? branch.kasalar ?? branch.kasa_no,
+    parseInteger(branch.kasa_no, 1),
+  );
+
   return {
     name: branch.name.trim(),
     db_host: branch.db_host.trim(),
@@ -128,6 +133,7 @@ const branchPayload = (branch: Branch) => {
 export default function AdminManagePage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'users' | 'branches'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +143,7 @@ export default function AdminManagePage() {
   const [branchQuery, setBranchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState<number | ''>('');
+  const [assignBranchId, setAssignBranchId] = useState<number | ''>('');
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
@@ -145,7 +152,9 @@ export default function AdminManagePage() {
     is_admin: false,
   });
   const [branchForm, setBranchForm] = useState<Branch>(emptyBranch);
-  const [reportsForm, setReportsForm] = useState<string[]>(AVAILABLE_REPORTS.map((report) => report.id));
+  const [reportsForm, setReportsForm] = useState<string[]>(
+    AVAILABLE_REPORTS.map((report) => report.id),
+  );
 
   const authHeaders = useMemo(
     () => ({ headers: { Authorization: `Bearer ${token}` } }),
@@ -191,6 +200,16 @@ export default function AdminManagePage() {
     fetchData().catch(console.error);
   }, [token, authLoading, user?.is_admin, router]);
 
+  const showMessage = (text: string) => {
+    setMessage(text);
+    window.setTimeout(() => setMessage(''), 3500);
+  };
+
+  const refreshAfterSave = async (successMessage: string) => {
+    await fetchData();
+    showMessage(successMessage);
+  };
+
   const resetUserForm = () => {
     setSelectedUserId('');
     setUserForm({ email: '', password: '', expiry_days: 30, expiry_date: '', is_admin: false });
@@ -226,20 +245,14 @@ export default function AdminManagePage() {
     });
   };
 
-  const refreshAfterSave = async (successMessage: string) => {
-    await fetchData();
-    setMessage(successMessage);
-    window.setTimeout(() => setMessage(''), 3500);
-  };
-
   const saveUser = async () => {
     if (!token || saving) return;
     if (!/\S+@\S+\.\S+/.test(userForm.email)) {
-      setMessage('Geçerli bir e-posta girin.');
+      showMessage('Geçerli bir e-posta girin.');
       return;
     }
     if (!selectedUserId && !userForm.password.trim()) {
-      setMessage('Yeni kullanıcı için şifre zorunlu.');
+      showMessage('Yeni kullanıcı için şifre zorunlu.');
       return;
     }
     setSaving(true);
@@ -276,11 +289,11 @@ export default function AdminManagePage() {
           authHeaders,
         );
         setSelectedUserId(created.data?.id || '');
-        await refreshAfterSave('Kullanıcı oluşturuldu. Şimdi şube atayabilirsiniz.');
+        await refreshAfterSave('Kullanıcı oluşturuldu.');
       }
     } catch (error) {
       console.error(error);
-      setMessage('Kullanıcı kaydedilemedi.');
+      showMessage('Kullanıcı kaydedilemedi.');
     } finally {
       setSaving(false);
     }
@@ -290,7 +303,7 @@ export default function AdminManagePage() {
     if (!token || saving) return;
     const payload = branchPayload(branchForm);
     if (!payload.name || !payload.db_host || !payload.db_name || !payload.db_user || !payload.db_password) {
-      setMessage('Şube için tüm bağlantı alanlarını doldurun.');
+      showMessage('Şube için tüm bağlantı alanlarını doldurun.');
       return;
     }
     setSaving(true);
@@ -301,11 +314,11 @@ export default function AdminManagePage() {
       } else {
         const created = await axios.post(`${getApiUrl()}/admin/branches`, payload, authHeaders);
         setSelectedBranchId(created.data?.id || '');
-        await refreshAfterSave('Şube kaydedildi. Kullanıcıya atayabilirsiniz.');
+        await refreshAfterSave('Şube kaydedildi.');
       }
     } catch (error) {
       console.error(error);
-      setMessage('Şube kaydedilemedi.');
+      showMessage('Şube kaydedilemedi.');
     } finally {
       setSaving(false);
     }
@@ -325,16 +338,17 @@ export default function AdminManagePage() {
     await refreshAfterSave('Şube silindi.');
   };
 
-  const assignSelectedBranch = async () => {
-    if (!selectedUserId || !selectedBranchId) {
-      setMessage('Atama için kullanıcı ve şube seçin.');
+  const assignBranch = async () => {
+    if (!selectedUserId || !assignBranchId) {
+      showMessage('Atama için kullanıcı ve şube seçin.');
       return;
     }
     await axios.post(
       `${getApiUrl()}/admin/users/${selectedUserId}/branches/assign`,
-      { branch_id: selectedBranchId },
+      { branch_id: assignBranchId },
       authHeaders,
     );
+    setAssignBranchId('');
     await refreshAfterSave('Şube kullanıcıya atandı.');
   };
 
@@ -360,12 +374,12 @@ export default function AdminManagePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 text-slate-950">
-      <main className="mx-auto max-w-[1500px] px-4 py-6 pt-24 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 pt-24 sm:px-6 lg:px-8">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-normal">Admin Yönetimi</h1>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Kullanıcıyı ayrı, şubeyi ayrı kaydedin; sonra tekil şubeyi kullanıcıya atayın.
+              Önce kullanıcıyı veya şubeyi kaydedin; sonra kullanıcı ekranından şube atayın.
             </p>
           </div>
           <div className="flex gap-2">
@@ -390,31 +404,48 @@ export default function AdminManagePage() {
 
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-500"><span>Kullanıcı</span><Users className="h-5 w-5 text-indigo-500" /></div>
+            <div className="text-sm font-semibold text-slate-500">Kullanıcı</div>
             <div className="mt-2 text-3xl font-bold">{users.length}</div>
           </div>
           <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-500"><span>Tekil şube</span><Building className="h-5 w-5 text-teal-500" /></div>
+            <div className="text-sm font-semibold text-slate-500">Tekil şube</div>
             <div className="mt-2 text-3xl font-bold">{branches.length}</div>
           </div>
-          <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-500"><span>Seçili kullanıcı</span><ShieldCheck className="h-5 w-5 text-emerald-500" /></div>
-            <div className="mt-2 truncate text-lg font-bold">{selectedUser?.email || '-'}</div>
+          <div className="rounded-md border bg-white p-4 shadow-sm lg:col-span-2">
+            <div className="text-sm font-semibold text-slate-500">Seçili kayıt</div>
+            <div className="mt-2 truncate text-lg font-bold">
+              {activeTab === 'users'
+                ? selectedUser?.email || 'Kullanıcı seçilmedi'
+                : selectedBranch?.name || 'Şube seçilmedi'}
+            </div>
           </div>
-          <div className="rounded-md border bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-500"><span>Seçili şube</span><Database className="h-5 w-5 text-amber-500" /></div>
-            <div className="mt-2 truncate text-lg font-bold">{selectedBranch?.name || '-'}</div>
-          </div>
+        </div>
+
+        <div className="mb-5 inline-flex rounded-md border bg-white p-1 shadow-sm">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`inline-flex items-center gap-2 rounded px-4 py-2 text-sm font-bold ${activeTab === 'users' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}
+          >
+            <Users className="h-4 w-4" />
+            Kullanıcılar
+          </button>
+          <button
+            onClick={() => setActiveTab('branches')}
+            className={`inline-flex items-center gap-2 rounded px-4 py-2 text-sm font-bold ${activeTab === 'branches' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}
+          >
+            <Building className="h-4 w-4" />
+            Şubeler
+          </button>
         </div>
 
         {loading ? (
           <div className="rounded-md border bg-white p-12 text-center font-semibold text-slate-500">Yükleniyor...</div>
-        ) : (
-          <div className="grid gap-5 xl:grid-cols-[360px_minmax(420px,1fr)_420px]">
+        ) : activeTab === 'users' ? (
+          <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
             <section className="rounded-md border bg-white shadow-sm">
               <div className="border-b p-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-indigo-600" /> Kullanıcılar</h2>
+                  <h2 className="text-lg font-bold">Kullanıcılar</h2>
                   <button onClick={resetUserForm} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
                     <UserPlus className="h-4 w-4" />
                     Yeni
@@ -432,14 +463,9 @@ export default function AdminManagePage() {
                     onClick={() => selectUser(item)}
                     className={`mb-2 w-full rounded-md border p-3 text-left transition ${selectedUserId === item.id ? 'border-indigo-400 bg-indigo-50' : 'bg-white hover:bg-slate-50'}`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate font-bold">{item.email}</div>
-                        <div className="mt-1 text-xs font-medium text-slate-500">
-                          {(item.branches || []).length} şube atanmış
-                        </div>
-                      </div>
-                      {item.is_admin && <span className="rounded-full bg-slate-900 px-2 py-1 text-xs font-bold text-white">Admin</span>}
+                    <div className="truncate font-bold">{item.email || 'E-posta yok'}</div>
+                    <div className="mt-1 text-xs font-medium text-slate-500">
+                      {(item.branches || []).length} şube atanmış {item.is_admin ? '• Admin' : ''}
                     </div>
                   </button>
                 ))}
@@ -449,15 +475,15 @@ export default function AdminManagePage() {
             <section className="space-y-5">
               <div className="rounded-md border bg-white shadow-sm">
                 <div className="border-b p-4">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><KeyRound className="h-5 w-5 text-indigo-600" /> Kullanıcı Kaydı</h2>
+                  <h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-indigo-600" /> Kullanıcı Bilgileri</h2>
                 </div>
-                <div className="grid gap-3 p-4 md:grid-cols-2">
+                <div className="grid gap-4 p-4 md:grid-cols-2">
                   <label className="text-sm font-semibold text-slate-600">
                     E-posta
                     <input className="mt-1 w-full rounded-md border px-3 py-2 text-slate-950" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} />
                   </label>
                   <label className="text-sm font-semibold text-slate-600">
-                    Şifre {selectedUserId ? '(opsiyonel)' : ''}
+                    Şifre {selectedUserId ? '(boş bırakılırsa değişmez)' : ''}
                     <input className="mt-1 w-full rounded-md border px-3 py-2 text-slate-950" type="password" value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} />
                   </label>
                   {selectedUserId ? (
@@ -488,88 +514,33 @@ export default function AdminManagePage() {
                 </div>
               </div>
 
-              <div className="rounded-md border bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b p-4">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><Building className="h-5 w-5 text-teal-600" /> Şube Havuzu</h2>
-                  <button onClick={resetBranchForm} className="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white">Yeni Şube</button>
-                </div>
-                <div className="border-b p-4">
-                  <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input className="w-full outline-none" placeholder="Şube, IP, DB adı ara" value={branchQuery} onChange={(event) => setBranchQuery(event.target.value)} />
+              {selectedUserId && (
+                <div className="rounded-md border bg-white shadow-sm">
+                  <div className="border-b p-4">
+                    <h2 className="flex items-center gap-2 text-lg font-bold"><Link2 className="h-5 w-5 text-indigo-600" /> Şube Atamaları</h2>
                   </div>
-                </div>
-                <div className="max-h-[310px] overflow-auto p-2">
-                  {filteredBranches.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => selectBranch(item)}
-                      className={`mb-2 w-full rounded-md border p-3 text-left transition ${selectedBranchId === item.id ? 'border-teal-400 bg-teal-50' : 'bg-white hover:bg-slate-50'}`}
-                    >
-                      <div className="font-bold">{item.name}</div>
-                      <div className="mt-1 text-xs font-semibold text-slate-500">{item.db_host}:{item.db_port} / {item.db_name} ({item.db_user})</div>
-                      <div className="mt-1 text-xs text-slate-500">Kasalar: {formatKasalar(item)} | Kapanış: {parseInteger(item.closing_hour, 6)} | Sahip: {item.owner_email || '-'}</div>
+                  <div className="grid gap-3 border-b p-4 md:grid-cols-[1fr_auto]">
+                    <select className="rounded-md border px-3 py-2 font-semibold" value={assignBranchId} onChange={(event) => setAssignBranchId(parseInteger(event.target.value, 0) || '')}>
+                      <option value="">Şube seçin</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id || ''}>
+                          {branch.name || branch.db_host} - {branch.db_host}:{branch.db_port}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={assignBranch} className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-bold text-white">
+                      <Check className="h-4 w-4" />
+                      Ata
                     </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <aside className="space-y-5">
-              <div className="rounded-md border bg-white shadow-sm">
-                <div className="border-b p-4">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><Database className="h-5 w-5 text-amber-600" /> Şube Kaydı</h2>
-                </div>
-                <div className="grid gap-3 p-4">
-                  <label className="text-sm font-semibold text-slate-600">Şube adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.name} onChange={(event) => setBranchForm({ ...branchForm, name: event.target.value })} /></label>
-                  <div className="grid grid-cols-[1fr_92px] gap-2">
-                    <label className="text-sm font-semibold text-slate-600">IP / Host<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_host} onChange={(event) => setBranchForm({ ...branchForm, db_host: event.target.value })} /></label>
-                    <label className="text-sm font-semibold text-slate-600">Port<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" value={branchForm.db_port} onChange={(event) => setBranchForm({ ...branchForm, db_port: parseInteger(event.target.value, 5432) })} /></label>
                   </div>
-                  <label className="text-sm font-semibold text-slate-600">Veritabanı adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_name} onChange={(event) => setBranchForm({ ...branchForm, db_name: event.target.value })} /></label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-sm font-semibold text-slate-600">DB kullanıcı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_user} onChange={(event) => setBranchForm({ ...branchForm, db_user: event.target.value })} /></label>
-                    <label className="text-sm font-semibold text-slate-600">DB şifre<input className="mt-1 w-full rounded-md border px-3 py-2" type="password" value={branchForm.db_password} onChange={(event) => setBranchForm({ ...branchForm, db_password: event.target.value })} /></label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-sm font-semibold text-slate-600">Kasalar<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.kasalar_input || ''} onChange={(event) => setBranchForm({ ...branchForm, kasalar_input: event.target.value, kasa_no: normalizeKasalar(event.target.value, branchForm.kasa_no)[0] ?? 1 })} /></label>
-                    <label className="text-sm font-semibold text-slate-600">Kapanış<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" min={0} max={23} value={branchForm.closing_hour} onChange={(event) => setBranchForm({ ...branchForm, closing_hour: parseInteger(event.target.value, 6) })} /></label>
-                  </div>
-                </div>
-                <div className="flex justify-between border-t p-4">
-                  <button onClick={deleteBranch} disabled={!selectedBranchId} className="inline-flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-40">
-                    <Trash2 className="h-4 w-4" />
-                    Sil
-                  </button>
-                  <button onClick={saveBranch} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
-                    <Save className="h-4 w-4" />
-                    {selectedBranchId ? 'Şubeyi Kaydet' : 'Şube Oluştur'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-white shadow-sm">
-                <div className="border-b p-4">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><Link2 className="h-5 w-5 text-indigo-600" /> Kullanıcıya Şube Ata</h2>
-                </div>
-                <div className="space-y-3 p-4">
-                  <div className="rounded-md bg-slate-50 p-3 text-sm font-semibold text-slate-600">
-                    Kullanıcı: <span className="text-slate-950">{selectedUser?.email || 'Seçilmedi'}</span><br />
-                    Şube: <span className="text-slate-950">{selectedBranch?.name || 'Seçilmedi'}</span>
-                  </div>
-                  <button onClick={assignSelectedBranch} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-bold text-white">
-                    <Check className="h-4 w-4" />
-                    Seçili Şubeyi Ata
-                  </button>
-                </div>
-                <div className="border-t p-4">
-                  <div className="mb-2 text-sm font-bold text-slate-700">Atanmış Şubeler</div>
-                  <div className="space-y-2">
+                  <div className="grid gap-2 p-4">
                     {(selectedUser?.branches || []).map((branch, index) => (
-                      <div key={branch.id} className="rounded-md border p-3">
-                        <div className="font-bold">{branch.name}</div>
-                        <div className="text-xs font-semibold text-slate-500">{branch.db_host}:{branch.db_port} / {branch.db_name}</div>
-                        <div className="mt-2 flex gap-2">
+                      <div key={branch.id} className="flex flex-col gap-2 rounded-md border p-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="font-bold">{branch.name}</div>
+                          <div className="text-xs font-semibold text-slate-500">{branch.db_host}:{branch.db_port} / {branch.db_name}</div>
+                        </div>
+                        <div className="flex gap-2">
                           {selectedUser?.selected_branch === index ? (
                             <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">Varsayılan</span>
                           ) : (
@@ -582,13 +553,14 @@ export default function AdminManagePage() {
                     {!selectedUser?.branches?.length && <div className="text-sm font-semibold text-slate-400">Henüz atanmış şube yok.</div>}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="rounded-md border bg-white shadow-sm">
-                <div className="border-b p-4">
-                  <h2 className="flex items-center gap-2 text-lg font-bold"><ShieldCheck className="h-5 w-5 text-emerald-600" /> Yetkiler</h2>
-                </div>
-                <div className="grid max-h-[360px] gap-2 overflow-auto p-4">
+              <details className="rounded-md border bg-white shadow-sm">
+                <summary className="flex cursor-pointer items-center gap-2 p-4 text-lg font-bold">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                  Rapor Yetkileri
+                </summary>
+                <div className="grid gap-2 border-t p-4 sm:grid-cols-2 lg:grid-cols-3">
                   {AVAILABLE_REPORTS.map((report) => (
                     <label key={report.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                       <input type="checkbox" checked={reportsForm.includes(report.id)} onChange={() => toggleReport(report.id)} />
@@ -596,6 +568,66 @@ export default function AdminManagePage() {
                     </label>
                   ))}
                 </div>
+              </details>
+            </section>
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
+            <section className="rounded-md border bg-white shadow-sm">
+              <div className="border-b p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-bold">Şube Havuzu</h2>
+                  <button onClick={resetBranchForm} className="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white">Yeni Şube</button>
+                </div>
+                <div className="mt-3 flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Search className="h-4 w-4 text-slate-400" />
+                  <input className="w-full outline-none" placeholder="Şube, IP, DB adı ara" value={branchQuery} onChange={(event) => setBranchQuery(event.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-2 p-2">
+                {filteredBranches.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => selectBranch(item)}
+                    className={`rounded-md border p-3 text-left transition ${selectedBranchId === item.id ? 'border-teal-400 bg-teal-50' : 'bg-white hover:bg-slate-50'}`}
+                  >
+                    <div className="font-bold">{item.name || item.db_host}</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-500">{item.db_host}:{item.db_port} / {item.db_name} ({item.db_user})</div>
+                    <div className="mt-1 text-xs text-slate-500">Kasalar: {formatKasalar(item)} | Kapanış: {parseInteger(item.closing_hour, 6)} | Sahip: {item.owner_email || '-'}</div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <aside className="rounded-md border bg-white shadow-sm">
+              <div className="border-b p-4">
+                <h2 className="flex items-center gap-2 text-lg font-bold"><Building className="h-5 w-5 text-teal-600" /> Şube Bilgileri</h2>
+              </div>
+              <div className="grid gap-3 p-4">
+                <label className="text-sm font-semibold text-slate-600">Şube adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.name} onChange={(event) => setBranchForm({ ...branchForm, name: event.target.value })} /></label>
+                <div className="grid grid-cols-[1fr_92px] gap-2">
+                  <label className="text-sm font-semibold text-slate-600">IP / Host<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_host} onChange={(event) => setBranchForm({ ...branchForm, db_host: event.target.value })} /></label>
+                  <label className="text-sm font-semibold text-slate-600">Port<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" value={branchForm.db_port} onChange={(event) => setBranchForm({ ...branchForm, db_port: parseInteger(event.target.value, 5432) })} /></label>
+                </div>
+                <label className="text-sm font-semibold text-slate-600">Veritabanı adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_name} onChange={(event) => setBranchForm({ ...branchForm, db_name: event.target.value })} /></label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-sm font-semibold text-slate-600">DB kullanıcı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_user} onChange={(event) => setBranchForm({ ...branchForm, db_user: event.target.value })} /></label>
+                  <label className="text-sm font-semibold text-slate-600">DB şifre<input className="mt-1 w-full rounded-md border px-3 py-2" type="password" value={branchForm.db_password} onChange={(event) => setBranchForm({ ...branchForm, db_password: event.target.value })} /></label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-sm font-semibold text-slate-600">Kasalar<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.kasalar_input || ''} onChange={(event) => setBranchForm({ ...branchForm, kasalar_input: event.target.value, kasa_no: normalizeKasalar(event.target.value, branchForm.kasa_no)[0] ?? 1 })} /></label>
+                  <label className="text-sm font-semibold text-slate-600">Kapanış<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" min={0} max={23} value={branchForm.closing_hour} onChange={(event) => setBranchForm({ ...branchForm, closing_hour: parseInteger(event.target.value, 6) })} /></label>
+                </div>
+              </div>
+              <div className="flex justify-between border-t p-4">
+                <button onClick={deleteBranch} disabled={!selectedBranchId} className="inline-flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-40">
+                  <Trash2 className="h-4 w-4" />
+                  Sil
+                </button>
+                <button onClick={saveBranch} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+                  <Save className="h-4 w-4" />
+                  {selectedBranchId ? 'Şubeyi Kaydet' : 'Şube Oluştur'}
+                </button>
               </div>
             </aside>
           </div>
