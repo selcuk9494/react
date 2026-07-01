@@ -28,6 +28,44 @@ export class BranchesService {
     );
   }
 
+  private normalizeText(value: any): string {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  private normalizePort(value: any): number {
+    const parsed = parseInt(String(value || 5432), 10);
+    return Number.isFinite(parsed) ? parsed : 5432;
+  }
+
+  private async findDuplicateForUser(userId: string, data: any, excludeBranchId?: number) {
+    const pool = this.db.getMainPool();
+    const params: any[] = [
+      userId,
+      this.normalizeText(data?.name),
+      this.normalizeText(data?.db_host),
+      this.normalizePort(data?.db_port),
+      this.normalizeText(data?.db_name),
+    ];
+    const excludeSql = excludeBranchId ? `AND id <> $6` : '';
+    if (excludeBranchId) params.push(excludeBranchId);
+
+    const rows = await this.db.executeQuery(
+      pool,
+      `SELECT *
+       FROM branches
+       WHERE user_id = $1
+         AND LOWER(TRIM(name)) = $2
+         AND LOWER(TRIM(db_host)) = $3
+         AND COALESCE(db_port, 5432) = $4
+         AND LOWER(TRIM(db_name)) = $5
+         ${excludeSql}
+       ORDER BY id ASC
+       LIMIT 1`,
+      params,
+    );
+    return rows[0] || null;
+  }
+
   async findAll(userId: string) {
     // Try cache first
     const cacheKey = this.cache.generateKey('branches', 'user', userId);
@@ -84,15 +122,28 @@ export class BranchesService {
   async findAllGlobal() {
     const pool = this.db.getMainPool();
     const query = `
-      SELECT 
-        b.*,
-        u.email AS owner_email,
-        COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
-      FROM branches b
-      JOIN users u ON u.id = b.user_id
-      LEFT JOIN branch_kasas k ON k.branch_id = b.id
-      GROUP BY b.id, u.email
-      ORDER BY b.id
+      SELECT DISTINCT ON (
+        LOWER(TRIM(branch_rows.name)),
+        LOWER(TRIM(branch_rows.db_host)),
+        COALESCE(branch_rows.db_port, 5432),
+        LOWER(TRIM(branch_rows.db_name))
+      ) *
+      FROM (
+        SELECT 
+          b.*,
+          u.email AS owner_email,
+          COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+        FROM branches b
+        JOIN users u ON u.id = b.user_id
+        LEFT JOIN branch_kasas k ON k.branch_id = b.id
+        GROUP BY b.id, u.email
+      ) branch_rows
+      ORDER BY
+        LOWER(TRIM(branch_rows.name)),
+        LOWER(TRIM(branch_rows.db_host)),
+        COALESCE(branch_rows.db_port, 5432),
+        LOWER(TRIM(branch_rows.db_name)),
+        branch_rows.id ASC
     `;
     const res = await this.db.executeQuery(pool, query, []);
     return res;
@@ -100,6 +151,10 @@ export class BranchesService {
 
   async create(userId: string, data: any) {
     const pool = this.db.getMainPool();
+    const duplicate = await this.findDuplicateForUser(userId, data);
+    if (duplicate) {
+      return duplicate;
+    }
     const query = `
       INSERT INTO branches (user_id, name, db_host, db_port, db_name, db_user, db_password, kasa_no, closing_hour)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -140,6 +195,10 @@ export class BranchesService {
 
   async update(userId: string, id: number, data: any) {
     const pool = this.db.getMainPool();
+    const duplicate = await this.findDuplicateForUser(userId, data, id);
+    if (duplicate) {
+      return duplicate;
+    }
     const query = `
       UPDATE branches 
       SET name = $1, db_host = $2, db_port = $3, db_name = $4, db_user = $5, db_password = $6, kasa_no = $7, closing_hour = $8

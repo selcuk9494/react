@@ -132,6 +132,23 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         );
       `);
       await client.query(`
+        DELETE FROM branches b
+        USING (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY user_id,
+                                LOWER(TRIM(name)),
+                                LOWER(TRIM(db_host)),
+                                COALESCE(db_port, 5432),
+                                LOWER(TRIM(db_name))
+                   ORDER BY id ASC
+                 ) AS duplicate_rank
+          FROM branches
+        ) d
+        WHERE b.id = d.id
+          AND d.duplicate_rank > 1;
+      `);
+      await client.query(`
         CREATE TABLE IF NOT EXISTS backup_targets (
           id SERIAL PRIMARY KEY,
           name VARCHAR(255) NOT NULL,

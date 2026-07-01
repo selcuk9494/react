@@ -171,12 +171,16 @@ export default function AdminBackupsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!token) return;
-    if (!user?.is_admin) {
+    const canSeeBackups =
+      user?.allowed_reports === null ||
+      typeof user?.allowed_reports === 'undefined' ||
+      user?.allowed_reports?.includes('database_backups');
+    if (!user?.is_admin || !canSeeBackups) {
       router.push('/dashboard');
       return;
     }
     fetchOverview();
-  }, [token, authLoading, user?.is_admin, router]);
+  }, [token, authLoading, user?.is_admin, user?.allowed_reports, router]);
 
   const filteredJobs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -390,9 +394,10 @@ export default function AdminBackupsPage() {
             <div className="border-b px-4 py-3">
               <h2 className="font-semibold text-gray-950">Şube Yedek Ayarları</h2>
             </div>
-            <div className="border-b bg-gray-50 p-4">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[150px_1fr_130px_130px_auto] lg:items-center">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+            <div className="border-b bg-gray-50 p-4 space-y-3">
+              <div className="text-sm font-semibold text-gray-900">Toplu şube ataması</div>
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[150px_1fr_120px_130px_220px] lg:items-end">
+                <label className="flex items-center gap-2 pb-2 text-sm font-medium text-gray-800">
                   <input
                     type="checkbox"
                     checked={selectedAllBranches}
@@ -400,33 +405,40 @@ export default function AdminBackupsPage() {
                   />
                   Tüm şubeler
                 </label>
-                <select
-                  value={bulkForm.target_id}
-                  onChange={(event) => setBulkForm({ ...bulkForm, target_id: event.target.value })}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                >
-                  {targets.map((target) => (
-                    <option key={target.id} value={target.id}>{target.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={bulkForm.schedule_hour}
-                  onChange={(event) => setBulkForm({ ...bulkForm, schedule_hour: parseInt(event.target.value || '2', 10) })}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                  title="Yedek saati"
-                />
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={bulkForm.retention_days}
-                  onChange={(event) => setBulkForm({ ...bulkForm, retention_days: parseInt(event.target.value || '3', 10) })}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                  title="Saklama günü"
-                />
+                <label className="space-y-1 text-xs font-medium text-gray-500">
+                  <span>Yedek hedefi</span>
+                  <select
+                    value={bulkForm.target_id}
+                    onChange={(event) => setBulkForm({ ...bulkForm, target_id: event.target.value })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                  >
+                    {targets.map((target) => (
+                      <option key={target.id} value={target.id}>{target.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium text-gray-500">
+                  <span>Yedek saati</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={bulkForm.schedule_hour}
+                    onChange={(event) => setBulkForm({ ...bulkForm, schedule_hour: parseInt(event.target.value || '2', 10) })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-medium text-gray-500">
+                  <span>Saklama günü</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={bulkForm.retention_days}
+                    onChange={(event) => setBulkForm({ ...bulkForm, retention_days: parseInt(event.target.value || '3', 10) })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                  />
+                </label>
                 <div className="flex flex-wrap gap-2">
                   <label className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
                     <input
@@ -478,8 +490,8 @@ export default function AdminBackupsPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-[120px_170px_92px_92px_auto_auto] md:items-center">
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-[115px_190px_105px_115px_auto_auto] md:items-end">
+                        <label className="flex items-center gap-2 pb-2 text-sm text-gray-700">
                           <input
                             type="checkbox"
                             checked={form.is_enabled}
@@ -487,33 +499,40 @@ export default function AdminBackupsPage() {
                           />
                           Otomatik
                         </label>
-                        <select
-                          value={form.target_id}
-                          onChange={(event) => updateConfigForm(item.branch_id, { target_id: event.target.value })}
-                          className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                        >
-                          {targets.map((target) => (
-                            <option key={target.id} value={target.id}>{target.name}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          min={0}
-                          max={23}
-                          value={form.schedule_hour}
-                          onChange={(event) => updateConfigForm(item.branch_id, { schedule_hour: parseInt(event.target.value || '2', 10) })}
-                          className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                          title="Saat"
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          max={30}
-                          value={form.retention_days}
-                          onChange={(event) => updateConfigForm(item.branch_id, { retention_days: parseInt(event.target.value || '3', 10) })}
-                          className="rounded-lg border px-3 py-2 text-sm text-gray-900"
-                          title="Saklama günü"
-                        />
+                        <label className="space-y-1 text-xs font-medium text-gray-500">
+                          <span>Hedef</span>
+                          <select
+                            value={form.target_id}
+                            onChange={(event) => updateConfigForm(item.branch_id, { target_id: event.target.value })}
+                            className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                          >
+                            {targets.map((target) => (
+                              <option key={target.id} value={target.id}>{target.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs font-medium text-gray-500">
+                          <span>Saat</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={form.schedule_hour}
+                            onChange={(event) => updateConfigForm(item.branch_id, { schedule_hour: parseInt(event.target.value || '2', 10) })}
+                            className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs font-medium text-gray-500">
+                          <span>Saklama günü</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={form.retention_days}
+                            onChange={(event) => updateConfigForm(item.branch_id, { retention_days: parseInt(event.target.value || '3', 10) })}
+                            className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                          />
+                        </label>
                         <button
                           onClick={() => saveConfig(item.branch_id)}
                           disabled={savingBranchId === item.branch_id}
@@ -553,44 +572,59 @@ export default function AdminBackupsPage() {
                 <h2 className="font-semibold text-gray-950">Yedekleme Hedefi</h2>
               </div>
               <div className="mt-4 space-y-3">
-                <input
-                  value={targetForm.name}
-                  onChange={(event) => setTargetForm({ ...targetForm, name: event.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                  placeholder="Hedef adı"
-                />
-                <select
-                  value={targetForm.kind}
-                  onChange={(event) => setTargetForm({ ...targetForm, kind: event.target.value as 'local' | 'rclone' })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                >
-                  <option value="local">Lokal/NAS klasörü</option>
-                  <option value="rclone">rclone remote</option>
-                </select>
+                <label className="block space-y-1 text-xs font-medium text-gray-500">
+                  <span>Hedef adı</span>
+                  <input
+                    value={targetForm.name}
+                    onChange={(event) => setTargetForm({ ...targetForm, name: event.target.value })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                    placeholder="Hedef adı"
+                  />
+                </label>
+                <label className="block space-y-1 text-xs font-medium text-gray-500">
+                  <span>Hedef türü</span>
+                  <select
+                    value={targetForm.kind}
+                    onChange={(event) => setTargetForm({ ...targetForm, kind: event.target.value as 'local' | 'rclone' })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                  >
+                    <option value="local">Lokal/NAS klasörü</option>
+                    <option value="rclone">rclone remote</option>
+                  </select>
+                </label>
                 {targetForm.kind === 'local' ? (
-                  <input
-                    value={targetForm.local_path}
-                    onChange={(event) => setTargetForm({ ...targetForm, local_path: event.target.value })}
-                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                    placeholder="Boşsa backend/backups/database"
-                  />
+                  <label className="block space-y-1 text-xs font-medium text-gray-500">
+                    <span>Klasör yolu</span>
+                    <input
+                      value={targetForm.local_path}
+                      onChange={(event) => setTargetForm({ ...targetForm, local_path: event.target.value })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                      placeholder="Boşsa backend/backups/database"
+                    />
+                  </label>
                 ) : (
-                  <input
-                    value={targetForm.rclone_remote}
-                    onChange={(event) => setTargetForm({ ...targetForm, rclone_remote: event.target.value })}
-                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                    placeholder="örn. drive:fastrest-backups"
-                  />
+                  <label className="block space-y-1 text-xs font-medium text-gray-500">
+                    <span>rclone hedefi</span>
+                    <input
+                      value={targetForm.rclone_remote}
+                      onChange={(event) => setTargetForm({ ...targetForm, rclone_remote: event.target.value })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                      placeholder="örn. drive:fastrest-backups"
+                    />
+                  </label>
                 )}
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={targetForm.retention_days}
-                  onChange={(event) => setTargetForm({ ...targetForm, retention_days: parseInt(event.target.value || '3', 10) })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
-                  placeholder="Saklama günü"
-                />
+                <label className="block space-y-1 text-xs font-medium text-gray-500">
+                  <span>Varsayılan saklama günü</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={targetForm.retention_days}
+                    onChange={(event) => setTargetForm({ ...targetForm, retention_days: parseInt(event.target.value || '3', 10) })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900"
+                    placeholder="Saklama günü"
+                  />
+                </label>
                 <button onClick={saveTarget} className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
                   Hedef Ekle
                 </button>

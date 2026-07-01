@@ -1068,7 +1068,7 @@ export default function Dashboard() {
                 {t('other_reports')}
               </h3>
               <div className="flex items-center gap-2">
-                {user?.is_admin && (
+                {user?.is_admin && isReportAllowed('database_backups') && (
                   <Link
                     href="/admin/backups"
                     className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-700"
@@ -1336,19 +1336,21 @@ export default function Dashboard() {
                         <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'Kullanıcı ve şube' : 'User and branch'}</p>
                       </div>
                     </Link>
-                    <Link
-                      href="/admin/backups"
-                      className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-sky-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-sky-100 to-blue-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
-                      <div className="bg-gradient-to-br from-sky-500 to-blue-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-sky-500/30">
-                        <DatabaseBackup className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="relative z-10">
-                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-sky-600 transition-colors">{lang === 'tr' ? 'Admin — Yedekler' : 'Admin — Backups'}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'DB yedekleme ve takip' : 'DB backups and status'}</p>
-                      </div>
-                    </Link>
+                    {isReportAllowed('database_backups') && (
+                      <Link
+                        href="/admin/backups"
+                        className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-sky-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                      >
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-sky-100 to-blue-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                        <div className="bg-gradient-to-br from-sky-500 to-blue-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-sky-500/30">
+                          <DatabaseBackup className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="relative z-10">
+                          <h4 className="font-bold text-gray-800 text-sm group-hover:text-sky-600 transition-colors">{lang === 'tr' ? 'Admin — Yedekler' : 'Admin — Backups'}</h4>
+                          <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{lang === 'tr' ? 'DB yedekleme ve takip' : 'DB backups and status'}</p>
+                        </div>
+                      </Link>
+                    )}
                   </>
                 )}
             </div>

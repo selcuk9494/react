@@ -24,6 +24,14 @@ export class BackupsController {
     if (!req.user?.is_admin) {
       throw new ForbiddenException();
     }
+    const allowedReports = req.user?.allowed_reports;
+    if (
+      allowedReports !== null &&
+      typeof allowedReports !== 'undefined' &&
+      (!Array.isArray(allowedReports) || !allowedReports.includes('database_backups'))
+    ) {
+      throw new ForbiddenException();
+    }
   }
 
   @Get()
