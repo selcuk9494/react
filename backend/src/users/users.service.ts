@@ -6,6 +6,10 @@ import { DatabaseService } from '../database/database.service';
 export class UsersService {
   constructor(private db: DatabaseService) {}
 
+  private isBcryptHash(value: string) {
+    return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
+  }
+
   async findOne(email: string): Promise<any> {
     // Check if we're in mock mode
     if (this.db.isMockMode()) {
@@ -109,11 +113,15 @@ export class UsersService {
       const isAdmin = !!userData?.is_admin;
       const allowedReports = userData.allowed_reports || null;
 
+      const password = this.isBcryptHash(userData.password)
+        ? userData.password
+        : await bcrypt.hash(userData.password, 10);
+
       const userRes = await client.query(
         'INSERT INTO users (email, password, selected_branch, expiry_date, is_admin, allowed_reports) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
         [
           userData.email,
-          userData.password,
+          password,
           0,
           expiryDate,
           isAdmin,
@@ -325,6 +333,10 @@ export class UsersService {
       hash,
       userId,
     ]);
+  }
+
+  async upgradePlainPassword(userId: string, plainPassword: string): Promise<void> {
+    await this.updatePassword(userId, plainPassword);
   }
 
   async remove(userId: string): Promise<void> {

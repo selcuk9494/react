@@ -18,7 +18,12 @@ export class AuthService {
       return 'not_found';
     }
     console.log('User found, checking password...');
-    if (await bcrypt.compare(pass, user.password)) {
+    const passwordMatches =
+      (await bcrypt.compare(pass, user.password)) || user.password === pass;
+    if (passwordMatches) {
+      if (user.password === pass) {
+        await this.usersService.upgradePlainPassword(user.id, pass);
+      }
       if (user.expiry_date) {
         const now = new Date();
         const exp = new Date(user.expiry_date);
