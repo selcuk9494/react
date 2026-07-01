@@ -269,7 +269,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       `);
       await client.query(`
         INSERT INTO user_branch_assignments (user_id, branch_id)
-        SELECT b.user_id, b.id
+        SELECT DISTINCT b.user_id, b.id
         FROM branches b
         WHERE b.user_id IS NOT NULL
           AND NOT EXISTS (
@@ -301,7 +301,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           WHERE user_id IS NOT NULL
         )
         INSERT INTO user_branch_assignments (user_id, branch_id)
-        SELECT r.user_id, r.keeper_id
+        SELECT DISTINCT r.user_id, r.keeper_id
         FROM ranked r
         WHERE r.duplicate_rank > 1
           AND NOT EXISTS (
