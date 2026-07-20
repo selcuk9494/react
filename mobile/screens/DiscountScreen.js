@@ -1,13 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import DateFilterComponent from '../components/DateFilterComponent';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
+const START_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const value = `${String(hour).padStart(2, '0')}:00`;
+  return { label: value, value };
+});
+const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const value = `${String(hour).padStart(2, '0')}:59`;
+  return { label: value, value };
+});
 
 export default function DiscountScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -125,6 +134,7 @@ export default function DiscountScreen({ navigation }) {
     { key: 'adsno', label: 'Adisyon No' },
     { key: 'customer_name', label: T.customer },
     { key: 'tarih', label: 'Tarih' },
+    { key: 'kapanis_saati', label: 'Kapanış' },
     { key: 'tutar', label: T.amount, format: (value) => formatCurrency(Number(value || 0)) },
     { key: 'iskonto', label: T.discount, format: (value) => formatCurrency(Number(value || 0)) },
   ];
@@ -135,6 +145,7 @@ export default function DiscountScreen({ navigation }) {
     const orderNo = item.adsno || item.order_no || index + 1;
     const customerName = item.customer_name || item.mustid || T.customer;
     const orderDate = item.tarih || item.date || '';
+    const closingTime = item.kapanis_saati ? String(item.kapanis_saati).slice(0, 5) : '';
     const orderId = item.adsno || item.order_no;
 
     return (
@@ -155,7 +166,7 @@ export default function DiscountScreen({ navigation }) {
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.customerName}>{customerName}</Text>
-            <Text style={styles.dateText}>{orderDate}</Text>
+            <Text style={styles.dateText}>{closingTime ? `${orderDate} • ${closingTime}` : orderDate}</Text>
             <Text style={styles.totalText}>{T.amount}: {formatCurrency(parseFloat(orderAmount))}</Text>
           </View>
           <View style={styles.amountInfo}>
@@ -208,27 +219,35 @@ export default function DiscountScreen({ navigation }) {
       <View style={styles.timeFilterContainer}>
         <View style={styles.timeField}>
           <Text style={styles.timeLabel}>Başlangıç</Text>
-          <TextInput
-            style={styles.timeInput}
-            value={startTime}
-            onChangeText={setStartTime}
-            placeholder="09:00"
-            placeholderTextColor="#94a3b8"
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+          <View style={styles.timePickerContainer}>
+            <Picker
+              selectedValue={startTime}
+              onValueChange={setStartTime}
+              style={styles.timePicker}
+              itemStyle={styles.timePickerItem}
+            >
+              <Picker.Item label="Tümü" value="" />
+              {START_HOUR_OPTIONS.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
+          </View>
         </View>
         <View style={styles.timeField}>
           <Text style={styles.timeLabel}>Bitiş</Text>
-          <TextInput
-            style={styles.timeInput}
-            value={endTime}
-            onChangeText={setEndTime}
-            placeholder="18:00"
-            placeholderTextColor="#94a3b8"
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+          <View style={styles.timePickerContainer}>
+            <Picker
+              selectedValue={endTime}
+              onValueChange={setEndTime}
+              style={styles.timePicker}
+              itemStyle={styles.timePickerItem}
+            >
+              <Picker.Item label="Tümü" value="" />
+              {END_HOUR_OPTIONS.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
+          </View>
         </View>
         {(startTime || endTime) && (
           <TouchableOpacity style={styles.clearTimeButton} onPress={() => { setStartTime(''); setEndTime(''); }}>
@@ -336,13 +355,18 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginBottom: 4,
   },
-  timeInput: {
+  timePickerContainer: {
     backgroundColor: '#fff',
     borderColor: '#e2e8f0',
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    overflow: 'hidden',
+  },
+  timePicker: {
+    height: 42,
+    color: '#1e293b',
+  },
+  timePickerItem: {
     fontSize: 13,
     color: '#1e293b',
   },
