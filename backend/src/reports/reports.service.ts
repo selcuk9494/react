@@ -2896,14 +2896,26 @@ export class ReportsService {
     const isValidTime = (value?: string) =>
       typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
     const timeFilters: string[] = [];
-    if (isValidTime(startTime)) {
+    const hasStartTime = isValidTime(startTime);
+    const hasEndTime = isValidTime(endTime);
+    if (hasStartTime && hasEndTime) {
+      params.push(`${startTime}:00`);
+      const startTimeIndex = params.length;
+      params.push(`${endTime}:59`);
+      const endTimeIndex = params.length;
+      const isOvernightRange = startTime! > endTime!;
+      timeFilters.push(
+        isOvernightRange
+          ? `(a_time.kapanis_saati::time >= $${startTimeIndex}::time OR a_time.kapanis_saati::time <= $${endTimeIndex}::time)`
+          : `a_time.kapanis_saati::time BETWEEN $${startTimeIndex}::time AND $${endTimeIndex}::time`,
+      );
+    } else if (hasStartTime) {
       params.push(`${startTime}:00`);
       timeFilters.push(
         `a_time.kapanis_saati::time >= $${params.length}::time`,
       );
-    }
-    if (isValidTime(endTime)) {
-      params.push(`${endTime}:00`);
+    } else if (hasEndTime) {
+      params.push(`${endTime}:59`);
       timeFilters.push(
         `a_time.kapanis_saati::time <= $${params.length}::time`,
       );
@@ -2913,13 +2925,15 @@ export class ReportsService {
       WITH adisyon_agg AS (
         SELECT
           a.adsno,
+          DATE(COALESCE(a.kaptar, a.raptar)) as rapor_tarihi,
           MAX(a.kapsaat) as kapanis_saati,
           MAX(a.acsaat) as acilis_saati,
           MAX(COALESCE(a.masano, 0)) as masa_no,
           MAX(a.garsonno) as garsonno
         FROM ads_adisyon a
         WHERE a.kasa = ANY($1)
-        GROUP BY a.adsno
+          AND DATE(COALESCE(a.kaptar, a.raptar)) BETWEEN $2 AND $3
+        GROUP BY a.adsno, DATE(COALESCE(a.kaptar, a.raptar))
       ),
       payments AS (
         SELECT 
@@ -2930,7 +2944,9 @@ export class ReportsService {
           COALESCE(SUM(o.otutar + o.iskonto), 0) as tutar,
           MAX(o.mustid) as mustid
         FROM ads_odeme o
-        LEFT JOIN adisyon_agg a_time ON a_time.adsno = o.adsno
+        LEFT JOIN adisyon_agg a_time
+          ON a_time.adsno = o.adsno
+          AND a_time.rapor_tarihi = DATE(o.raptar)
         WHERE o.kasa = ANY($1)
           AND DATE(o.raptar) BETWEEN $2 AND $3
           AND o.iskonto > 0
@@ -2950,7 +2966,9 @@ export class ReportsService {
         p.mustid,
         per.adi as garson_adi
       FROM payments p
-      LEFT JOIN adisyon_agg a ON a.adsno = p.adsno
+      LEFT JOIN adisyon_agg a
+        ON a.adsno = p.adsno
+        AND a.rapor_tarihi = p.raptar
       LEFT JOIN ads_musteri m ON p.mustid = m.mustid
       LEFT JOIN personel per ON a.garsonno = per.id
       ORDER BY p.raptar DESC, p.adsno DESC

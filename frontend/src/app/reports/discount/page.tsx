@@ -9,6 +9,16 @@ import ReportHeader from '@/components/ReportHeader';
 import { useReportData } from '@/utils/useReportData';
 import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
+const START_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const label = `${String(hour).padStart(2, '0')}:00`;
+  return { label, value: label };
+});
+
+const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
+  label: `${String(hour).padStart(2, '0')}:59`,
+  value: `${String(hour).padStart(2, '0')}:59`,
+}));
+
 export default function DiscountPage() {
   const { token } = useAuth();
   const { t } = useI18n();
@@ -101,21 +111,33 @@ export default function DiscountPage() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-wrap items-end gap-3">
           <label className="text-xs font-bold text-gray-600">
             Başlangıç Saati
-            <input
-              type="time"
+            <select
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
-            />
+            >
+              <option value="">Tümü</option>
+              {START_HOUR_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-xs font-bold text-gray-600">
             Bitiş Saati
-            <input
-              type="time"
+            <select
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
-            />
+            >
+              <option value="">Tümü</option>
+              {END_HOUR_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           {(startTime || endTime) && (
             <button
