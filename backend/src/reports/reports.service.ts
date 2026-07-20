@@ -2898,30 +2898,19 @@ export class ReportsService {
     const timeFilters: string[] = [];
     if (isValidTime(startTime)) {
       params.push(`${startTime}:00`);
-      timeFilters.push(`COALESCE(o.raptar::time, '00:00:00'::time) >= $${params.length}::time`);
+      timeFilters.push(
+        `a_time.kapanis_saati::time >= $${params.length}::time`,
+      );
     }
     if (isValidTime(endTime)) {
       params.push(`${endTime}:00`);
-      timeFilters.push(`COALESCE(o.raptar::time, '23:59:59'::time) <= $${params.length}::time`);
+      timeFilters.push(
+        `a_time.kapanis_saati::time <= $${params.length}::time`,
+      );
     }
 
     const query = `
-      WITH payments AS (
-        SELECT 
-          o.adsno,
-          DATE(o.raptar) as raptar,
-          COALESCE(SUM(o.otutar), 0) as net_tutar,
-          COALESCE(SUM(o.iskonto), 0) as iskonto,
-          COALESCE(SUM(o.otutar + o.iskonto), 0) as tutar,
-          MAX(o.mustid) as mustid
-        FROM ads_odeme o
-        WHERE o.kasa = ANY($1)
-          AND DATE(o.raptar) BETWEEN $2 AND $3
-          AND o.iskonto > 0
-          ${timeFilters.length ? `AND ${timeFilters.join(' AND ')}` : ''}
-        GROUP BY o.adsno, DATE(o.raptar)
-      ),
-      adisyon_agg AS (
+      WITH adisyon_agg AS (
         SELECT
           a.adsno,
           MAX(a.kapsaat) as kapanis_saati,
@@ -2931,6 +2920,22 @@ export class ReportsService {
         FROM ads_adisyon a
         WHERE a.kasa = ANY($1)
         GROUP BY a.adsno
+      ),
+      payments AS (
+        SELECT 
+          o.adsno,
+          DATE(o.raptar) as raptar,
+          COALESCE(SUM(o.otutar), 0) as net_tutar,
+          COALESCE(SUM(o.iskonto), 0) as iskonto,
+          COALESCE(SUM(o.otutar + o.iskonto), 0) as tutar,
+          MAX(o.mustid) as mustid
+        FROM ads_odeme o
+        LEFT JOIN adisyon_agg a_time ON a_time.adsno = o.adsno
+        WHERE o.kasa = ANY($1)
+          AND DATE(o.raptar) BETWEEN $2 AND $3
+          AND o.iskonto > 0
+          ${timeFilters.length ? `AND ${timeFilters.join(' AND ')}` : ''}
+        GROUP BY o.adsno, DATE(o.raptar)
       )
       SELECT
         p.adsno,
