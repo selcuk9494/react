@@ -14,6 +14,7 @@ type ReportRow = {
   tarih: string;
   masa_no: number;
   person_count: number;
+  total_amount: number;
   country_code?: string | number | null;
   country_name: string;
   kapanis_saati?: string | null;
@@ -73,16 +74,18 @@ export default function GuestNationalityReportPage() {
   }, [token, allowed, period, customStartDate, customEndDate]);
 
   const nationalityRows = useMemo(() => {
-    const grouped = new Map<string, { nationality: string; person_count: number; order_count: number }>();
+    const grouped = new Map<string, { nationality: string; person_count: number; order_count: number; total_amount: number }>();
     for (const row of report?.data || []) {
       const nationality = row.country_name || 'Belirtilmemiş';
       const current = grouped.get(nationality) || {
         nationality,
         person_count: 0,
         order_count: 0,
+        total_amount: 0,
       };
       current.person_count += Number(row.person_count || 0);
       current.order_count += 1;
+      current.total_amount += Number(row.total_amount || 0);
       grouped.set(nationality, current);
     }
     const totalGuests = Array.from(grouped.values()).reduce(
@@ -110,8 +113,18 @@ export default function GuestNationalityReportPage() {
     { key: 'nationality', label: 'Milliyet' },
     { key: 'person_count', label: 'Kişi Sayısı' },
     { key: 'order_count', label: 'Adisyon Sayısı' },
+    { key: 'total_amount', label: 'Adisyon Toplamı', format: (value: unknown) => formatCurrency(Number(value || 0)) },
     { key: 'percentage', label: 'Toplam Oranı', format: (value: unknown) => `%${Number(value || 0).toFixed(1)}` },
   ];
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+    }).format(value);
+  const totalAmount = nationalityRows.reduce(
+    (total, row) => total + row.total_amount,
+    0,
+  );
   const summaryCards: Array<{
     label: string;
     value: string | number;
@@ -119,6 +132,7 @@ export default function GuestNationalityReportPage() {
     color: string;
   }> = [
     { label: 'Toplam Kişi', value: filteredGuests, icon: Users, color: 'text-indigo-600' },
+    { label: 'Adisyon Toplamı', value: formatCurrency(totalAmount), icon: ReceiptText, color: 'text-teal-600' },
     { label: 'Adisyon', value: nationalityRows.reduce((total, row) => total + row.order_count, 0), icon: ReceiptText, color: 'text-emerald-600' },
     {
       label: 'Milliyet',
@@ -171,7 +185,7 @@ export default function GuestNationalityReportPage() {
       />
 
       <main className="max-w-5xl mx-auto px-4 pt-[145px] space-y-4">
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {summaryCards.map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <Icon className={`w-5 h-5 mb-2 ${color}`} />
@@ -202,10 +216,10 @@ export default function GuestNationalityReportPage() {
             <div className="p-12 text-center text-gray-500">Seçilen kriterlerde kayıt bulunamadı.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[760px]">
                 <thead className="bg-gray-50 text-xs text-gray-500">
                   <tr>
-                    {['Milliyet', 'Kişi Sayısı', 'Adisyon Sayısı', 'Toplam Oranı'].map((heading) => (
+                    {['Milliyet', 'Kişi Sayısı', 'Adisyon Sayısı', 'Adisyon Toplamı', 'Kişi Oranı'].map((heading) => (
                       <th key={heading} className="px-4 py-3 text-left font-semibold">{heading}</th>
                     ))}
                   </tr>
@@ -216,6 +230,7 @@ export default function GuestNationalityReportPage() {
                       <td className="px-4 py-4 font-bold text-gray-900">{row.nationality}</td>
                       <td className="px-4 py-4 font-black text-indigo-700">{row.person_count}</td>
                       <td className="px-4 py-4">{row.order_count}</td>
+                      <td className="px-4 py-4 font-bold text-emerald-700">{formatCurrency(row.total_amount)}</td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-2 w-28 rounded-full bg-gray-100 overflow-hidden">

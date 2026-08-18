@@ -239,47 +239,62 @@ export class ReportsService {
     countryAlias = 'c',
   ) {
     try {
-      const [codeCol, nameCol] = await Promise.all([
-        this.pickExistingColumn(pool, 'country', [
-          'countrycode',
-          'country_code',
-          'country',
-          'code',
-          'cno',
-          'countryid',
-          'country_id',
-          'countryno',
-          'country_no',
-          'id',
-          'no',
-          'ulkekodu',
-          'ulke_kodu',
-          'kod',
-        ]),
-        this.pickExistingColumn(pool, 'country', [
-          'countryname',
-          'country_name',
-          'cname',
-          'nationality',
-          'nationality_name',
-          'uyruk',
-          'milliyet',
-          'name',
-          'adi',
-          'ulke',
-          'ulkeadi',
-          'ulke_adi',
-          'tanim',
-          'description',
-        ]),
+      const columns = await this.db.executeQuery(
+        pool,
+        `
+          SELECT table_schema, table_name, column_name, data_type
+          FROM information_schema.columns
+          WHERE lower(table_name) = 'country'
+            AND table_schema NOT IN ('pg_catalog', 'information_schema')
+          ORDER BY
+            CASE WHEN table_schema = current_schema() THEN 0 ELSE 1 END,
+            ordinal_position
+        `,
+        [],
+      );
+      if (!columns?.length) return { join: '', name: 'NULL::text' };
+
+      const schemaName = String(columns[0].table_schema);
+      const tableName = String(columns[0].table_name);
+      const sameTableColumns = columns.filter(
+        (column: any) =>
+          String(column.table_schema) === schemaName &&
+          String(column.table_name) === tableName,
+      );
+      const normalize = (value: unknown) =>
+        String(value || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+      const findColumn = (names: string[]) => {
+        const normalizedNames = names.map(normalize);
+        return sameTableColumns.find((column: any) =>
+          normalizedNames.includes(normalize(column.column_name)),
+        )?.column_name;
+      };
+      const codeCol = findColumn([
+        'countrycode', 'country', 'code', 'cno', 'countryid', 'countryno',
+        'id', 'no', 'ulkekodu', 'kod', 'recno',
       ]);
+      const preferredNameCol = findColumn([
+        'countryname', 'cname', 'nationality', 'nationalityname', 'nation',
+        'uyruk', 'milliyet', 'name', 'adi', 'ulke', 'ulkeadi', 'tanim',
+        'description', 'ack1',
+      ]);
+      const fallbackNameCol = sameTableColumns.find(
+        (column: any) =>
+          String(column.column_name) !== String(codeCol) &&
+          ['character varying', 'character', 'text'].includes(
+            String(column.data_type),
+          ),
+      )?.column_name;
+      const nameCol = preferredNameCol || fallbackNameCol;
 
       if (!codeCol || !nameCol) {
         return { join: '', name: 'NULL::text' };
       }
 
       return {
-        join: `LEFT JOIN country ${countryAlias} ON CAST(${countryAlias}.${this.quoteIdent(codeCol)} AS text) = CAST(${orderAlias}.country_code AS text)`,
+        join: `LEFT JOIN ${this.quoteIdent(schemaName)}.${this.quoteIdent(tableName)} ${countryAlias} ON CAST(${countryAlias}.${this.quoteIdent(codeCol)} AS text) = CAST(${orderAlias}.country_code AS text)`,
         name: `NULLIF(TRIM(CAST(${countryAlias}.${this.quoteIdent(nameCol)} AS text)), '')`,
       };
     } catch {
@@ -896,7 +911,8 @@ export class ReportsService {
           MAX(COALESCE(a.masano, 0)) as masa_no,
           MAX(COALESCE(a.mustcnt, 0))::int as person_count,
           MAX(a.country) as country_code,
-          MAX(a.kapsaat) as kapanis_saati
+          MAX(a.kapsaat) as kapanis_saati,
+          COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as total_amount
         FROM ads_adisyon a
         WHERE a.kasa = ANY($1)
           AND DATE(COALESCE(a.kaptar, a.raptar)) BETWEEN $2::date AND $3::date
@@ -920,6 +936,7 @@ export class ReportsService {
     const normalized = rows.map((row: any) => ({
       ...row,
       person_count: Number(row.person_count || 0),
+      total_amount: Number(row.total_amount || 0),
       country_name: row.country_name || row.country_code || 'Belirtilmemiş',
     }));
     const totalGuests = normalized.reduce(
@@ -935,6 +952,10 @@ export class ReportsService {
       summary: {
         order_count: normalized.length,
         total_guests: totalGuests,
+        total_amount: normalized.reduce(
+          (sum: number, row: any) => sum + row.total_amount,
+          0,
+        ),
         country_count: countries.filter((name) => name !== 'Belirtilmemiş')
           .length,
         avg_guests:
