@@ -419,6 +419,26 @@ export default function OrderDetailScreen({ navigation, route }) {
                     </View>
                 )}
 
+                {Number(orderData?.person_count || 0) > 0 && (
+                    <View style={styles.gridItem}>
+                        <Feather name="users" size={16} color="#818cf8" />
+                        <View style={styles.gridTextContainer}>
+                            <Text style={styles.gridLabel}>Kişi Sayısı</Text>
+                            <Text style={styles.gridValue}>{orderData.person_count}</Text>
+                        </View>
+                    </View>
+                )}
+
+                {(orderData?.country_name || orderData?.country_code) && (
+                    <View style={styles.gridItem}>
+                        <Feather name="globe" size={16} color="#818cf8" />
+                        <View style={styles.gridTextContainer}>
+                            <Text style={styles.gridLabel}>Milliyet</Text>
+                            <Text style={styles.gridValue}>{orderData.country_name || orderData.country_code}</Text>
+                        </View>
+                    </View>
+                )}
+
                 {(orderData?.garson || orderData?.garson_adi) && (
                     <View style={styles.gridItem}>
                         <Feather name="user" size={16} color="#818cf8" />

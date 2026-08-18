@@ -291,6 +291,12 @@ function OrderDetailContent() {
     if (orderData.customer_name) {
       text += `👥 Müşteri: ${orderData.customer_name}\n`;
     }
+    if (Number(orderData.person_count || 0) > 0) {
+      text += `👥 Kişi Sayısı: ${orderData.person_count}\n`;
+    }
+    if (orderData.country_name || orderData.country_code) {
+      text += `🌍 Milliyet: ${orderData.country_name || orderData.country_code}\n`;
+    }
     
     if (orderData.customer_phone) {
       text += `☎️ Telefon: ${orderData.customer_phone}\n`;
@@ -487,6 +493,30 @@ function OrderDetailContent() {
                             <div>
                                 <p className="text-xs text-indigo-200">{t('date')}</p>
                                 <p className="text-sm font-semibold">{formatDate(orderData.tarih)}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {Number(orderData?.person_count || 0) > 0 && (
+                        <div className="flex items-center space-x-2">
+                            <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                <User className="w-4 h-4 text-indigo-200" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-indigo-200">Kişi Sayısı</p>
+                                <p className="text-sm font-semibold">{orderData.person_count}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {(orderData?.country_name || orderData?.country_code) && (
+                        <div className="flex items-center space-x-2">
+                            <div className="p-1.5 bg-indigo-500/30 rounded-lg">
+                                <MapPin className="w-4 h-4 text-indigo-200" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-indigo-200">Milliyet</p>
+                                <p className="text-sm font-semibold">{orderData.country_name || orderData.country_code}</p>
                             </div>
                         </div>
                     )}

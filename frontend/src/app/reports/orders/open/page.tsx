@@ -209,6 +209,8 @@ function OpenOrdersContent() {
     { key: 'adtur', label: 'Tip', format: (value: any) => Number(value) === 1 ? 'Paket' : 'Adisyon' },
     { key: 'garson_adi', label: 'Garson', format: (value: any, row: any) => value || row.garson || '' },
     { key: 'customer_name', label: 'Müşteri' },
+    { key: 'person_count', label: 'Kişi Sayısı' },
+    { key: 'country_name', label: 'Milliyet', format: (value: any, row: any) => value || row.country_code || '' },
     { key: 'tarih', label: 'Tarih', format: (value: any) => value ? formatDate(String(value)) : '' },
     { key: 'acilis_saati', label: 'Açılış', format: (value: any) => value ? formatTime(String(value)) : '' },
     { key: 'tutar', label: 'Tutar', format: (value: any) => formatCurrency(Number(value || 0)) },
@@ -431,6 +433,18 @@ function OpenOrdersContent() {
                                 <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
                                 <span className="text-base font-bold text-gray-900 truncate">Masa No: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
                             </div>
+                            {Number(order.person_count || 0) > 0 && (
+                                <div className="flex items-center">
+                                    <Users className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">Kişi Sayısı: {order.person_count}</span>
+                                </div>
+                            )}
+                            {(order.country_name || order.country_code) && (
+                                <div className="flex items-center">
+                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">Milliyet: {order.country_name || order.country_code}</span>
+                                </div>
+                            )}
                             {order.acilis_saati && (
                                 <div className="flex items-center">
                                     <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />

@@ -233,6 +233,53 @@ export class ReportsService {
     }
   }
 
+  private async getCountryLookupSql(
+    pool: any,
+    orderAlias = 'o',
+    countryAlias = 'c',
+  ) {
+    try {
+      const [codeCol, nameCol] = await Promise.all([
+        this.pickExistingColumn(pool, 'country', [
+          'countrycode',
+          'country_code',
+          'code',
+          'countryid',
+          'country_id',
+          'countryno',
+          'country_no',
+          'id',
+          'no',
+          'ulkekodu',
+          'ulke_kodu',
+          'kod',
+        ]),
+        this.pickExistingColumn(pool, 'country', [
+          'countryname',
+          'country_name',
+          'name',
+          'adi',
+          'country',
+          'ulkeadi',
+          'ulke_adi',
+          'tanim',
+          'description',
+        ]),
+      ]);
+
+      if (!codeCol || !nameCol) {
+        return { join: '', name: 'NULL::text' };
+      }
+
+      return {
+        join: `LEFT JOIN country ${countryAlias} ON CAST(${countryAlias}.${this.quoteIdent(codeCol)} AS text) = CAST(${orderAlias}.country_code AS text)`,
+        name: `NULLIF(TRIM(CAST(${countryAlias}.${this.quoteIdent(nameCol)} AS text)), '')`,
+      };
+    } catch {
+      return { join: '', name: 'NULL::text' };
+    }
+  }
+
   private async getBranchPool(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branch =
@@ -303,6 +350,11 @@ export class ReportsService {
     type?: 'adisyon' | 'paket',
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const countryLookup = await this.getCountryLookupSql(
+      pool,
+      'orders',
+      'country_ref',
+    );
     const safeClosing = Number.isFinite(closingHour)
       ? Math.min(23, Math.max(0, Math.floor(closingHour)))
       : 6;
@@ -356,6 +408,8 @@ export class ReportsService {
                 MAX(COALESCE(a.adtur, 0)) as adtur,
                 MAX(a.kasa) as kasano,
                 MAX(a.mustid) as mustid,
+                MAX(COALESCE(a.mustcnt, 0)) as person_count,
+                MAX(a.country) as country_code,
                 MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
             FROM ads_acik a
             LEFT JOIN ads_musteri m ON a.mustid = m.mustid
@@ -388,6 +442,7 @@ export class ReportsService {
             ORDER BY a.adsno DESC
         `;
       let rows = await this.db.executeQuery(pool, query, params);
+      const canEnrichCountry = Boolean(rows?.length);
       if (!rows || rows.length === 0) {
         const fbQuery = `
                 SELECT 
@@ -398,7 +453,9 @@ export class ReportsService {
                     MAX(a.acsaat) as acilis_saati,
                     MAX(a.actar) as tarih,
                     MAX(COALESCE(a.adtur, 0)) as adtur,
-                    MAX(a.kasa) as kasano
+                    MAX(a.kasa) as kasano,
+                    MAX(COALESCE(a.mustcnt, 0)) as person_count,
+                    MAX(a.country) as country_code
                 FROM ads_acik a
                 WHERE a.kasa = ANY($1)
                 GROUP BY a.adsno
@@ -416,7 +473,9 @@ export class ReportsService {
                         MAX(a.acsaat) as acilis_saati,
                         MAX(a.actar) as tarih,
                         MAX(COALESCE(a.adtur, 0)) as adtur,
-                        MAX(a.kasa) as kasano
+                        MAX(a.kasa) as kasano,
+                        MAX(COALESCE(a.mustcnt, 0)) as person_count,
+                        MAX(a.country) as country_code
                     FROM ads_acik a
                     WHERE a.kasa = ANY($1)
                     GROUP BY a.adsno
@@ -425,6 +484,14 @@ export class ReportsService {
                 `;
           rows = await this.db.executeQuery(pool, fbSingleQuery, [kasa_nos]);
         }
+      }
+      if (countryLookup.join && canEnrichCountry) {
+        const enrichedQuery = `
+          SELECT orders.*, ${countryLookup.name} as country_name
+          FROM (${query}) orders
+          ${countryLookup.join}
+        `;
+        rows = await this.db.executeQuery(pool, enrichedQuery, params);
       }
       return rows;
     } else {
@@ -491,6 +558,8 @@ export class ReportsService {
                     MAX(a.acsaat) as acilis_saati,
                     MAX(a.garsonno) as garsonno,
                     MAX(a.mustid) as mustid,
+                    MAX(COALESCE(a.mustcnt, 0)) as person_count,
+                    MAX(a.country) as country_code,
                     COALESCE(SUM(a.tutar), 0) as toplam_tutar_adisyon
                 FROM ads_adisyon a
                 WHERE a.kasa = ANY($1) ${typeCondition}${adisyonDateFilter}
@@ -521,11 +590,15 @@ export class ReportsService {
                 per.adi as garson_adi,
                 COALESCE(p.payment_mustid, a.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
-                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name
+                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name,
+                a.person_count,
+                a.country_code,
+                ${countryLookup.name} as country_name
             FROM adisyon_agg a
             LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
             LEFT JOIN personel per ON a.garsonno = per.id
             LEFT JOIN ads_musteri m ON COALESCE(p.payment_mustid, a.mustid) = m.mustid
+            ${countryLookup.join.replace(/orders\./g, 'a.')}
             ${outerDateFilter}
             ORDER BY a.adsno DESC
         `;
@@ -543,6 +616,7 @@ export class ReportsService {
   ) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const customerExtra = await this.getCustomerExtraSelects(pool);
+    const countryLookup = await this.getCountryLookupSql(pool, 'oi', 'country_ref');
     let resolvedAdtur = typeof adtur !== 'undefined' ? adtur : undefined;
     if (typeof resolvedAdtur === 'undefined') {
       try {
@@ -588,6 +662,8 @@ export class ReportsService {
                     MAX(CAST(COALESCE(sipyer, 0) AS INTEGER)) as sipyer,
                     MAX(garsonno) as garsonno,
                     MAX(mustid) as mustid,
+                    MAX(COALESCE(mustcnt, 0)) as person_count,
+                    MAX(country) as country_code,
                     MAX(actar) as tarih,
                     MAX(acsaat) as acilis_saati,
                     COALESCE(SUM(iskonto), 0) as toplam_iskonto,
@@ -645,6 +721,9 @@ export class ReportsService {
                 ${customerExtra.phone} as customer_phone,
                 ${customerExtra.address} as customer_address,
                 oi.mustid,
+                oi.person_count,
+                oi.country_code,
+                ${countryLookup.name} as country_name,
                 oi.tarih,
                 oi.acilis_saati,
                 NULL as kapanis_saati,
@@ -655,6 +734,7 @@ export class ReportsService {
             FROM order_info oi
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON oi.mustid = m.mustid
+            ${countryLookup.join}
             LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno
@@ -675,6 +755,8 @@ export class ReportsService {
                     MAX(CAST(COALESCE(sipyer, 0) AS INTEGER)) as sipyer,
                     MAX(garsonno) as garsonno,
                     MAX(mustid) as mustid,
+                    MAX(COALESCE(mustcnt, 0)) as person_count,
+                    MAX(country) as country_code,
                     MAX(acsaat) as acilis_saati,
                     MAX(kapsaat) as kapanis_saati
                 FROM ads_adisyon
@@ -737,6 +819,9 @@ export class ReportsService {
                 ${customerExtra.phone} as customer_phone,
                 ${customerExtra.address} as customer_address,
                 COALESCE(oi.mustid, pi.payment_mustid) as mustid,
+                oi.person_count,
+                oi.country_code,
+                ${countryLookup.name} as country_name,
                 COALESCE(pi.tarih, CURRENT_DATE) as tarih,
                 oi.acilis_saati,
                 oi.kapanis_saati,
@@ -748,6 +833,7 @@ export class ReportsService {
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
             LEFT JOIN personel p ON oi.garsonno = p.id
             LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, pi.payment_mustid, 0) = m.mustid
+            ${countryLookup.join}
             LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
             LEFT JOIN order_items items ON items.adsno = oi.adsno

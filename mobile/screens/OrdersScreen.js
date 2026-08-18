@@ -60,6 +60,8 @@ export default function OrdersScreen({ navigation, route }) {
       waiter: 'Garson',
       time: 'Saat',
       date: 'Tarih',
+      personCount: 'Kişi Sayısı',
+      nationality: 'Milliyet',
     },
     en: {
       order: 'Order',
@@ -80,6 +82,8 @@ export default function OrdersScreen({ navigation, route }) {
       waiter: 'Waiter',
       time: 'Time',
       date: 'Date',
+      personCount: 'Person Count',
+      nationality: 'Nationality',
     }
   }[lang];
 
@@ -365,6 +369,18 @@ export default function OrdersScreen({ navigation, route }) {
                     <Text style={styles.detailText}>{item.garson_adi}</Text>
                 </View>
             )}
+            {Number(item.person_count || 0) > 0 && (
+                <View style={styles.detailItem}>
+                    <Feather name="users" size={14} color="#94a3b8" />
+                    <Text style={styles.detailText}>{T.personCount}: {item.person_count}</Text>
+                </View>
+            )}
+            {(item.country_name || item.country_code) && (
+                <View style={styles.detailItem}>
+                    <Feather name="globe" size={14} color="#94a3b8" />
+                    <Text style={styles.detailText}>{T.nationality}: {item.country_name || item.country_code}</Text>
+                </View>
+            )}
         </View>
 
         {(item.customer_name || item.customer_phone || item.customer_address) && (
@@ -498,6 +514,8 @@ export default function OrdersScreen({ navigation, route }) {
           { key: 'adsno', label: 'Adisyon' },
           { key: 'masa_no', label: T.table, format: (value, row) => value ?? row.masano ?? '' },
           { key: 'garson_adi', label: T.waiter, format: (value, row) => value || row.garson || '' },
+          { key: 'person_count', label: T.personCount },
+          { key: 'country_name', label: T.nationality, format: (value, row) => value || row.country_code || '' },
           { key: 'tarih', label: T.date },
           { key: 'acilis_saati', label: 'Açılış' },
           { key: 'kapanis_saati', label: 'Kapanış' },
