@@ -37,8 +37,6 @@ export default function GuestNationalityReportPage() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [countryFilter, setCountryFilter] = useState('all');
-  const [personFilter, setPersonFilter] = useState('');
   const [search, setSearch] = useState('');
 
   const allowed =
@@ -74,44 +72,45 @@ export default function GuestNationalityReportPage() {
     fetchReport();
   }, [token, allowed, period, customStartDate, customEndDate]);
 
-  const rows = useMemo(() => {
-    const minPeople = Number(personFilter || 0);
+  const nationalityRows = useMemo(() => {
+    const grouped = new Map<string, { nationality: string; person_count: number; order_count: number }>();
+    for (const row of report?.data || []) {
+      const nationality = row.country_name || 'Belirtilmemiş';
+      const current = grouped.get(nationality) || {
+        nationality,
+        person_count: 0,
+        order_count: 0,
+      };
+      current.person_count += Number(row.person_count || 0);
+      current.order_count += 1;
+      grouped.set(nationality, current);
+    }
+    const totalGuests = Array.from(grouped.values()).reduce(
+      (total, row) => total + row.person_count,
+      0,
+    );
     const needle = search.trim().toLocaleLowerCase('tr-TR');
-    return (report?.data || []).filter((row) => {
-      if (countryFilter !== 'all' && row.country_name !== countryFilter) return false;
-      if (minPeople > 0 && Number(row.person_count) < minPeople) return false;
-      if (
-        needle &&
-        !String(row.adsno).toLocaleLowerCase('tr-TR').includes(needle) &&
-        !String(row.masa_no).toLocaleLowerCase('tr-TR').includes(needle) &&
-        !row.country_name.toLocaleLowerCase('tr-TR').includes(needle)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [report, countryFilter, personFilter, search]);
+    return Array.from(grouped.values())
+      .map((row) => ({
+        ...row,
+        percentage: totalGuests > 0 ? (row.person_count / totalGuests) * 100 : 0,
+      }))
+      .filter((row) =>
+        !needle || row.nationality.toLocaleLowerCase('tr-TR').includes(needle),
+      )
+      .sort((a, b) => b.person_count - a.person_count);
+  }, [report, search]);
 
-  const filteredGuests = rows.reduce(
+  const filteredGuests = nationalityRows.reduce(
     (total, row) => total + Number(row.person_count || 0),
     0,
   );
-  const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString('tr-TR');
-  const formatTime = (value?: string | null) =>
-    value ? String(value).substring(0, 5) : '-';
-  const orderType = (value: number) =>
-    Number(value) === 1 ? 'Paket' : Number(value) === 3 ? 'Hızlı Satış' : 'Adisyon';
 
   const exportColumns = [
-    { key: 'tarih', label: 'Tarih', format: (value: unknown) => formatDate(String(value)) },
-    { key: 'kapanis_saati', label: 'Saat', format: (value: unknown) => formatTime(String(value || '')) },
-    { key: 'adsno', label: 'Adisyon No' },
-    { key: 'masa_no', label: 'Masa' },
-    { key: 'adtur', label: 'Tip', format: (value: unknown) => orderType(Number(value)) },
+    { key: 'nationality', label: 'Milliyet' },
     { key: 'person_count', label: 'Kişi Sayısı' },
-    { key: 'country_name', label: 'Milliyet' },
-    { key: 'country_code', label: 'Ülke Kodu' },
+    { key: 'order_count', label: 'Adisyon Sayısı' },
+    { key: 'percentage', label: 'Toplam Oranı', format: (value: unknown) => `%${Number(value || 0).toFixed(1)}` },
   ];
   const summaryCards: Array<{
     label: string;
@@ -120,12 +119,12 @@ export default function GuestNationalityReportPage() {
     color: string;
   }> = [
     { label: 'Toplam Kişi', value: filteredGuests, icon: Users, color: 'text-indigo-600' },
-    { label: 'Adisyon', value: rows.length, icon: ReceiptText, color: 'text-emerald-600' },
+    { label: 'Adisyon', value: nationalityRows.reduce((total, row) => total + row.order_count, 0), icon: ReceiptText, color: 'text-emerald-600' },
     {
       label: 'Milliyet',
       value: new Set(
-        rows
-          .map((row) => row.country_name)
+        nationalityRows
+          .map((row) => row.nationality)
           .filter((name) => name !== 'Belirtilmemiş'),
       ).size,
       icon: Globe2,
@@ -133,7 +132,12 @@ export default function GuestNationalityReportPage() {
     },
     {
       label: 'Ort. Kişi',
-      value: rows.length ? (filteredGuests / rows.length).toFixed(1) : '0',
+      value: nationalityRows.length
+        ? (
+            filteredGuests /
+            nationalityRows.reduce((total, row) => total + row.order_count, 0)
+          ).toFixed(1)
+        : '0',
       icon: Users,
       color: 'text-amber-600',
     },
@@ -161,7 +165,7 @@ export default function GuestNationalityReportPage() {
           <ReportExportButtons
             title="Kişi ve Uyruk Raporu"
             columns={exportColumns}
-            rows={rows}
+            rows={nationalityRows}
           />
         }
       />
@@ -178,61 +182,48 @@ export default function GuestNationalityReportPage() {
         </section>
 
         <section className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="max-w-xl">
             <label className="relative">
               <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Adisyon, masa veya milliyet ara"
+                placeholder="Milliyet ara"
                 className="w-full border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm"
               />
             </label>
-            <select
-              value={countryFilter}
-              onChange={(event) => setCountryFilter(event.target.value)}
-              className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
-            >
-              <option value="all">Tüm milliyetler</option>
-              {(report?.countries || []).map((country) => (
-                <option key={country} value={country}>{country}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              value={personFilter}
-              onChange={(event) => setPersonFilter(event.target.value)}
-              placeholder="En az kişi sayısı"
-              className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-            />
           </div>
         </section>
 
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-gray-500">Rapor yükleniyor...</div>
-          ) : rows.length === 0 ? (
+          ) : nationalityRows.length === 0 ? (
             <div className="p-12 text-center text-gray-500">Seçilen kriterlerde kayıt bulunamadı.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px]">
+              <table className="w-full min-w-[640px]">
                 <thead className="bg-gray-50 text-xs text-gray-500">
                   <tr>
-                    {['Tarih / Saat', 'Adisyon', 'Masa', 'Tip', 'Kişi', 'Milliyet'].map((heading) => (
+                    {['Milliyet', 'Kişi Sayısı', 'Adisyon Sayısı', 'Toplam Oranı'].map((heading) => (
                       <th key={heading} className="px-4 py-3 text-left font-semibold">{heading}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
-                  {rows.map((row) => (
-                    <tr key={`${row.adsno}-${row.adtur}-${row.tarih}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">{formatDate(row.tarih)} · {formatTime(row.kapanis_saati)}</td>
-                      <td className="px-4 py-3 font-bold">#{row.adsno}</td>
-                      <td className="px-4 py-3">{row.masa_no === 99999 ? 'Paket' : row.masa_no || '-'}</td>
-                      <td className="px-4 py-3">{orderType(row.adtur)}</td>
-                      <td className="px-4 py-3 font-bold text-indigo-700">{row.person_count}</td>
-                      <td className="px-4 py-3">{row.country_name}</td>
+                  {nationalityRows.map((row) => (
+                    <tr key={row.nationality} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 font-bold text-gray-900">{row.nationality}</td>
+                      <td className="px-4 py-4 font-black text-indigo-700">{row.person_count}</td>
+                      <td className="px-4 py-4">{row.order_count}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-2 w-28 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, row.percentage)}%` }} />
+                          </div>
+                          <span className="font-semibold">%{row.percentage.toFixed(1)}</span>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
