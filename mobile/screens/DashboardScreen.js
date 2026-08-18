@@ -1207,6 +1207,15 @@ export default function DashboardScreen({ navigation, route }) {
                     onPress={() => navigation.navigate('Personnel')} 
                 />
                 )}
+                {isReportAllowed('guest_nationality') && (
+                <ReportCard
+                    title={lang === 'tr' ? 'Kişi ve Uyruk' : 'Guests & Nationality'}
+                    desc={lang === 'tr' ? 'Milliyet bazlı kişi ve tutar' : 'Guests and totals by nationality'}
+                    icon="globe"
+                    colors={['#4f46e5', '#2563eb']}
+                    onPress={() => navigation.navigate('GuestNationality')}
+                />
+                )}
                 {isReportAllowed('payment_types') && (
                 <ReportCard 
                     title={T.reportPaymentTypesTitle}

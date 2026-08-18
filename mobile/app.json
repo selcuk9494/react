@@ -2,7 +2,7 @@
   "expo": {
     "name": "FR Rapor",
     "slug": "mobile",
-    "version": "1.0.5",
+    "version": "1.0.20",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.micrapor.mobile",
+      "buildNumber": "31",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

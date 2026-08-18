@@ -27,6 +27,7 @@ import AdminBranchesScreen from './screens/AdminBranchesScreen';
 import AdminUsersScreen from './screens/AdminUsersScreen';
 import AdminManageScreen from './screens/AdminManageScreen';
 import ProductPricesScreen from './screens/ProductPricesScreen';
+import GuestNationalityScreen from './screens/GuestNationalityScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -97,6 +98,11 @@ export default function App() {
             name="Personnel" 
             component={PersonnelScreen} 
             options={{ headerShown: false }} 
+          />
+          <Stack.Screen
+            name="GuestNationality"
+            component={GuestNationalityScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen 
             name="HourlySales" 
