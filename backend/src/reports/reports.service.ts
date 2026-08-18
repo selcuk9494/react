@@ -273,7 +273,7 @@ export class ReportsService {
       };
       const codeCol = findColumn([
         'countrycode', 'country', 'code', 'cno', 'countryid', 'countryno',
-        'id', 'no', 'ulkekodu', 'kod', 'recno',
+        'sirano', 'sira_no', 'id', 'no', 'ulkekodu', 'kod', 'recno',
       ]);
       const preferredNameCol = findColumn([
         'countryname', 'cname', 'nationality', 'nationalityname', 'nation',
