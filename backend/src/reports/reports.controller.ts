@@ -163,6 +163,22 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/guest-nationality')
+  async getGuestNationalityReport(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getGuestNationalityReport(
+      req.user,
+      period,
+      startDate,
+      endDate,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/order-details')
   async getOrderDetails(
     @Request() req,

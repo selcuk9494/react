@@ -850,6 +850,93 @@ export class ReportsService {
     }
   }
 
+  async getGuestNationalityReport(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    this.ensureReportAllowed(user, 'guest_nationality');
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
+    let dStart = format(start, 'yyyy-MM-dd');
+    let dEnd = format(end, 'yyyy-MM-dd');
+    if (period === 'today' || period === 'yesterday') {
+      const businessDate = this.getBusinessDayDate(
+        closingHour,
+        period === 'today' ? 'today' : 'yesterday',
+      );
+      dStart = businessDate;
+      dEnd = businessDate;
+    }
+
+    const countryLookup = await this.getCountryLookupSql(
+      pool,
+      'orders',
+      'country_ref',
+    );
+    const query = `
+      WITH orders AS (
+        SELECT
+          a.adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          DATE(COALESCE(a.kaptar, a.raptar)) as tarih,
+          MAX(COALESCE(a.masano, 0)) as masa_no,
+          MAX(COALESCE(a.mustcnt, 0))::int as person_count,
+          MAX(a.country) as country_code,
+          MAX(a.kapsaat) as kapanis_saati
+        FROM ads_adisyon a
+        WHERE a.kasa = ANY($1)
+          AND DATE(COALESCE(a.kaptar, a.raptar)) BETWEEN $2::date AND $3::date
+        GROUP BY
+          a.adsno,
+          COALESCE(a.adtur, 0),
+          DATE(COALESCE(a.kaptar, a.raptar))
+      )
+      SELECT
+        orders.*,
+        ${countryLookup.name} as country_name
+      FROM orders
+      ${countryLookup.join}
+      ORDER BY orders.tarih DESC, orders.kapanis_saati DESC, orders.adsno DESC
+    `;
+    const rows = await this.db.executeQuery(pool, query, [
+      kasa_nos,
+      dStart,
+      dEnd,
+    ]);
+    const normalized = rows.map((row: any) => ({
+      ...row,
+      person_count: Number(row.person_count || 0),
+      country_name: row.country_name || row.country_code || 'Belirtilmemiş',
+    }));
+    const totalGuests = normalized.reduce(
+      (sum: number, row: any) => sum + row.person_count,
+      0,
+    );
+    const countries = Array.from(
+      new Set(normalized.map((row: any) => row.country_name)),
+    ).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+
+    return {
+      data: normalized,
+      summary: {
+        order_count: normalized.length,
+        total_guests: totalGuests,
+        country_count: countries.filter((name) => name !== 'Belirtilmemiş')
+          .length,
+        avg_guests:
+          normalized.length > 0 ? totalGuests / normalized.length : 0,
+      },
+      countries,
+    };
+  }
+
   async debugOrderCheck(user: any, adsno: string) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const openCountQuery = `SELECT COUNT(*)::int as count FROM ads_acik WHERE adsno = $2 AND kasa = ANY($1)`;

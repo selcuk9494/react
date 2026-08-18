@@ -50,6 +50,7 @@ const AVAILABLE_REPORTS = [
   { id: 'open_order_item_gift', label: 'Açık Adisyon Ürün İkram' },
   { id: 'open_order_discount', label: 'Açık Adisyon Dip İndirim' },
   { id: 'closed_orders', label: 'Kapalı Adisyon' },
+  { id: 'guest_nationality', label: 'Kişi ve Uyruk Raporu' },
   { id: 'stock_entry', label: 'Günlük Stok Girişi' },
   { id: 'live_stock', label: 'Canlı Stok Takip' },
   { id: 'product_prices', label: 'Ürün Fiyatları' },

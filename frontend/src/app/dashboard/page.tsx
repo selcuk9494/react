@@ -25,7 +25,8 @@ import {
   Trash2,
   Save,
   Bike,
-  Package
+  Package,
+  Globe2
 } from 'lucide-react';
 import axios from 'axios';
 import clsx from 'clsx';
@@ -1112,7 +1113,7 @@ export default function Dashboard() {
                 </div>
                 {t('other_reports')}
               </h3>
-              <span className="text-xs text-gray-400 font-medium">12 {lang === 'tr' ? 'rapor' : 'reports'}</span>
+              <span className="text-xs text-gray-400 font-medium">13 {lang === 'tr' ? 'rapor' : 'reports'}</span>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -1151,6 +1152,22 @@ export default function Dashboard() {
                 )}
                 
                 {/* Personnel */}
+                {isReportAllowed('guest_nationality') && (
+                <Link
+                    href="/reports/guest-nationality"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-100 to-sky-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-indigo-500 to-blue-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-indigo-500/30">
+                        <Globe2 className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-indigo-600 transition-colors">Kişi ve Uyruk</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">Kişi sayısı ve milliyet dağılımı</p>
+                    </div>
+                </Link>
+                )}
+
                 {isReportAllowed('personnel') && (
                 <Link 
                     href="/reports/performance"
