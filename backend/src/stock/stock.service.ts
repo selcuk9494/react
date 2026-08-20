@@ -813,6 +813,11 @@ export class StockService {
     }
 
     const { pool } = await this.getBranchPool(branchId);
+    try {
+      await this.healCanonicalProductFiyat(pool);
+    } catch (e) {
+      console.error('healCanonicalProductFiyat error', e);
+    }
     const date = await this.getCurrentBusinessDate(branchId);
 
     const plusRes = await pool.query(
@@ -1059,126 +1064,113 @@ export class StockService {
     return items;
   }
 
-  private async getProductFiyatInsertConfig(client: any): Promise<{
-    includeId: boolean;
-    includePId: boolean;
-    hasBastar: boolean;
-    hasBittar: boolean;
-  }> {
+  private async getProductFiyatSchema(client: any) {
+    const columns = await this.getTableColumns(client, 'product_fiyat');
+    const byLower = new Map(columns.map((c) => [c.lower, c]));
+    const idCol = byLower.get('id');
+    const pIdCol = byLower.get('p_id');
+    const alwaysIdentity = new Set<string>();
     try {
-      const res = await client.query(
+      const genRes = await client.query(
         `
-        SELECT
-          lower(column_name) as column_name,
-          is_nullable,
-          column_default
+        SELECT lower(column_name) as column_name, identity_generation
         FROM information_schema.columns
         WHERE table_schema = current_schema()
           AND table_name = 'product_fiyat'
+          AND identity_generation IS NOT NULL
       `,
       );
-      const rows = res?.rows || [];
-      const byName = new Map<string, { is_nullable: string; column_default: any }>();
-      for (const r of rows) {
-        const name = String(r.column_name || '').trim().toLowerCase();
-        if (!name) continue;
-        byName.set(name, { is_nullable: r.is_nullable, column_default: r.column_default });
+      for (const r of genRes.rows || []) {
+        if (String(r.identity_generation || '').toUpperCase() === 'ALWAYS') {
+          alwaysIdentity.add(String(r.column_name || ''));
+        }
       }
-      const isRequiredNoDefault = (col: string) => {
-        const c = byName.get(col);
-        if (!c) return false;
-        const notNull = String(c.is_nullable || '').toUpperCase() === 'NO';
-        const hasDefault = c.column_default !== null && typeof c.column_default !== 'undefined';
-        return notNull && !hasDefault;
-      };
-      return {
-        includeId: isRequiredNoDefault('id'),
-        includePId: isRequiredNoDefault('p_id'),
-        hasBastar: byName.has('bastar'),
-        hasBittar: byName.has('bittar'),
-      };
-    } catch {
-      return { includeId: true, includePId: false, hasBastar: true, hasBittar: true };
-    }
+    } catch {}
+    const canSet = (col: any) => !!col && !alwaysIdentity.has(col.lower);
+    return {
+      hasId: !!idCol,
+      hasPId: !!pIdCol,
+      hasBastar: byLower.has('bastar'),
+      hasBittar: byLower.has('bittar'),
+      hasTarih: byLower.has('tarih'),
+      canSetId: canSet(idCol),
+      canSetPId: canSet(pIdCol),
+    };
   }
 
-  async updateProductPrice(
-    user: any,
-    branchId: string,
-    payload: { plu: number; fiyat: number },
-  ) {
-    this.ensureFeatureAllowed(user, 'product_prices');
-    const { pool } = await this.getBranchPool(branchId);
+  private productFiyatCanonicalOrderSql(schema: {
+    hasId: boolean;
+    hasPId: boolean;
+  }) {
+    const parts: string[] = [];
+    if (schema.hasId) parts.push('CASE WHEN pf.id = pf.plu THEN 0 ELSE 1 END');
+    if (schema.hasPId) parts.push('CASE WHEN pf.p_id = pf.plu THEN 0 ELSE 1 END');
+    parts.push('pf.ctid');
+    return parts.join(', ');
+  }
 
-    const plu = Number(payload?.plu);
-    const fiyat = Number(payload?.fiyat);
-    if (!Number.isFinite(plu) || plu <= 0) {
-      throw new Error('Invalid product');
-    }
-    if (!Number.isFinite(fiyat) || fiyat < 0) {
-      throw new Error('Invalid price');
-    }
+  private productFiyatCurrentValidSql(schema: {
+    hasBastar: boolean;
+    hasBittar: boolean;
+  }) {
+    const parts: string[] = [];
+    if (schema.hasBittar) parts.push('(pf.bittar IS NULL OR pf.bittar >= CURRENT_DATE)');
+    if (schema.hasBastar) parts.push('(pf.bastar IS NULL OR pf.bastar <= CURRENT_DATE)');
+    return parts.length > 0 ? parts.join(' AND ') : 'TRUE';
+  }
 
-    const now = new Date();
-    const turkeyOffset = 3 * 60;
-    const utcOffset = now.getTimezoneOffset();
-    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
-    const y = turkeyTime.getUTCFullYear();
-    const m = String(turkeyTime.getUTCMonth() + 1).padStart(2, '0');
-    const tarih = `${y}${m}`;
-
+  private async healCanonicalProductFiyat(pool: any) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      const schema = await this.getProductFiyatSchema(client);
+      if (!schema.hasBittar) {
+        await client.query('COMMIT');
+        return;
+      }
 
-      await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [plu]);
+      const orderSql = this.productFiyatCanonicalOrderSql(schema);
+      const validSql = this.productFiyatCurrentValidSql(schema);
+      const bittarSet = schema.hasBittar ? ', bittar = NULL' : '';
 
       await client.query(
         `
-        UPDATE product_fiyat
-        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
-        WHERE plu = $1
-          AND (bittar IS NULL OR bittar >= CURRENT_DATE)
-          AND (bastar IS NULL OR bastar <= CURRENT_DATE)
+        WITH ranked AS (
+          SELECT
+            pf.ctid as row_ctid,
+            pf.plu,
+            pf.fiyat,
+            CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
+          FROM product_fiyat pf
+        ),
+        canonical AS (
+          SELECT DISTINCT ON (pf.plu)
+            pf.ctid as row_ctid,
+            pf.plu,
+            CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
+          FROM product_fiyat pf
+          ORDER BY pf.plu, ${orderSql}
+        ),
+        current_valid AS (
+          SELECT DISTINCT ON (plu) plu, fiyat
+          FROM ranked
+          WHERE expired_rank = 0
+            AND fiyat IS NOT NULL
+          ORDER BY plu, row_ctid
+        )
+        UPDATE product_fiyat pf
+        SET
+          fiyat = COALESCE(cv.fiyat, pf.fiyat)
+          ${bittarSet}
+        FROM canonical c
+        LEFT JOIN current_valid cv ON cv.plu = c.plu
+        WHERE pf.ctid = c.row_ctid
+          AND c.expired_rank = 1
+          AND COALESCE(cv.fiyat, pf.fiyat) IS NOT NULL
       `,
-        [plu],
-      );
-
-      const insertCfg = await this.getProductFiyatInsertConfig(client);
-      const cols: string[] = ['plu', 'tarih'];
-      const vals: string[] = ['$1', '$2'];
-      const params: any[] = [plu, tarih];
-      let p = 3;
-      if (insertCfg.includeId) {
-        cols.push('id');
-        vals.push(`$${p}`);
-        params.push(plu);
-        p++;
-      }
-      if (insertCfg.includePId) {
-        cols.push('p_id');
-        vals.push(`$${p}`);
-        params.push(plu);
-        p++;
-      }
-      cols.push('fiyat');
-      vals.push(`$${p}`);
-      params.push(fiyat);
-      if (insertCfg.hasBastar) {
-        cols.push('bastar');
-        vals.push('CURRENT_DATE');
-      }
-      if (insertCfg.hasBittar) {
-        cols.push('bittar');
-        vals.push('NULL');
-      }
-      await client.query(
-        `INSERT INTO product_fiyat (${cols.join(', ')}) VALUES (${vals.join(', ')})`,
-        params,
       );
 
       await client.query('COMMIT');
-      return { success: true };
     } catch (e) {
       try {
         await client.query('ROLLBACK');
@@ -1187,6 +1179,153 @@ export class StockService {
     } finally {
       client.release();
     }
+  }
+
+  private getTurkeyYearMonth() {
+    const now = new Date();
+    const turkeyOffset = 3 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
+    const y = turkeyTime.getUTCFullYear();
+    const m = String(turkeyTime.getUTCMonth() + 1).padStart(2, '0');
+    return `${y}${m}`;
+  }
+
+  private async upsertProductFiyatPrices(
+    client: any,
+    items: Array<{ plu: number; fiyat: number }>,
+  ) {
+    if (items.length === 0) return;
+
+    const schema = await this.getProductFiyatSchema(client);
+    const plus = items.map((i) => i.plu);
+    const prices = items.map((i) => i.fiyat);
+    const orderSql = this.productFiyatCanonicalOrderSql(schema);
+    const validSql = this.productFiyatCurrentValidSql(schema);
+    const bittarSet = schema.hasBittar ? ', bittar = NULL' : '';
+
+    await client.query(
+      `
+      WITH targets AS (
+        SELECT DISTINCT ON (pf.plu) pf.ctid as row_ctid, pf.plu
+        FROM product_fiyat pf
+        WHERE pf.plu = ANY($1::int[])
+        ORDER BY pf.plu, ${orderSql}
+      )
+      UPDATE product_fiyat pf
+      SET fiyat = u.fiyat
+          ${bittarSet}
+      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      JOIN targets t ON t.plu = u.plu
+      WHERE pf.ctid = t.row_ctid
+    `,
+      [plus, prices],
+    );
+
+    if (schema.hasBittar || schema.hasBastar) {
+      await client.query(
+        `
+        UPDATE product_fiyat pf
+        SET fiyat = u.fiyat
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        WHERE pf.plu = u.plu
+          AND ${validSql}
+      `,
+        [plus, prices],
+      );
+    }
+
+    const missingRes = await client.query(
+      `
+      SELECT u.plu, u.fiyat
+      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM product_fiyat pf WHERE pf.plu = u.plu
+      )
+    `,
+      [plus, prices],
+    );
+    const missing = missingRes.rows || [];
+    if (missing.length > 0) {
+      const tarih = this.getTurkeyYearMonth();
+      const missPlus = missing.map((r: any) => Number(r.plu));
+      const missPrices = missing.map((r: any) => Number(r.fiyat));
+      const cols: string[] = ['plu'];
+      const select: string[] = ['u.plu'];
+      const extraParams: any[] = [];
+      let nextParam = 3;
+
+      if (schema.hasTarih) {
+        cols.push('tarih');
+        select.push(`$${nextParam}`);
+        extraParams.push(tarih);
+        nextParam++;
+      }
+      if (schema.canSetId) {
+        cols.push('id');
+        select.push('u.plu');
+      }
+      if (schema.canSetPId) {
+        cols.push('p_id');
+        select.push('u.plu');
+      }
+      cols.push('fiyat');
+      select.push('u.fiyat');
+      if (schema.hasBastar) {
+        cols.push('bastar');
+        select.push('CURRENT_DATE');
+      }
+      if (schema.hasBittar) {
+        cols.push('bittar');
+        select.push('NULL');
+      }
+
+      await client.query(
+        `
+        INSERT INTO product_fiyat (${cols.join(', ')})
+        SELECT ${select.join(', ')}
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      `,
+        [missPlus, missPrices, ...extraParams],
+      );
+    }
+
+    try {
+      const productColumns = await this.getTableColumns(client, 'product');
+      const { pluCol, idCol, priceCol } = this.getProductColumnMap(productColumns);
+      const keyCol = pluCol || idCol;
+      if (priceCol && keyCol) {
+        await client.query(
+          `
+          UPDATE product p
+          SET ${this.quoteIdent(priceCol.name)} = u.fiyat
+          FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+          WHERE p.${this.quoteIdent(keyCol.name)} = u.plu
+        `,
+          [plus, prices],
+        );
+      }
+    } catch (e) {
+      console.error('product.fiyat sync error', e);
+    }
+  }
+
+  async updateProductPrice(
+    user: any,
+    branchId: string,
+    payload: { plu: number; fiyat: number },
+  ) {
+    const plu = Number(payload?.plu);
+    const fiyat = Number(payload?.fiyat);
+    if (!Number.isFinite(plu) || plu <= 0) {
+      throw new Error('Invalid product');
+    }
+    if (!Number.isFinite(fiyat) || fiyat < 0) {
+      throw new Error('Invalid price');
+    }
+    return this.updateProductPricesBulk(user, branchId, {
+      items: [{ plu, fiyat }],
+    });
   }
 
   async updateProductPricesBulk(
@@ -1210,16 +1349,7 @@ export class StockService {
 
     if (items.length === 0) return { success: true, updated: 0 };
 
-    const now = new Date();
-    const turkeyOffset = 3 * 60;
-    const utcOffset = now.getTimezoneOffset();
-    const turkeyTime = new Date(now.getTime() + (utcOffset + turkeyOffset) * 60000);
-    const y = turkeyTime.getUTCFullYear();
-    const m = String(turkeyTime.getUTCMonth() + 1).padStart(2, '0');
-    const tarih = `${y}${m}`;
-
     const plus = items.map((i) => i.plu);
-    const prices = items.map((i) => i.fiyat);
 
     const client = await pool.connect();
     try {
@@ -1234,46 +1364,7 @@ export class StockService {
         [plus],
       );
 
-      await client.query(
-        `
-        UPDATE product_fiyat
-        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
-        WHERE plu = ANY($1::int[])
-          AND (bittar IS NULL OR bittar >= CURRENT_DATE)
-          AND (bastar IS NULL OR bastar <= CURRENT_DATE)
-      `,
-        [plus],
-      );
-
-      const insertCfg = await this.getProductFiyatInsertConfig(client);
-      const cols: string[] = ['plu', 'tarih'];
-      const select: string[] = ['u.plu', '$3'];
-      if (insertCfg.includeId) {
-        cols.push('id');
-        select.push('u.plu');
-      }
-      if (insertCfg.includePId) {
-        cols.push('p_id');
-        select.push('u.plu');
-      }
-      cols.push('fiyat');
-      select.push('u.fiyat');
-      if (insertCfg.hasBastar) {
-        cols.push('bastar');
-        select.push('CURRENT_DATE');
-      }
-      if (insertCfg.hasBittar) {
-        cols.push('bittar');
-        select.push('NULL');
-      }
-      await client.query(
-        `
-        INSERT INTO product_fiyat (${cols.join(', ')})
-        SELECT ${select.join(', ')}
-        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-      `,
-        [plus, prices, tarih],
-      );
+      await this.upsertProductFiyatPrices(client, items);
 
       await client.query('COMMIT');
       return { success: true, updated: items.length };
