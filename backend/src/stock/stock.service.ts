@@ -1093,6 +1093,7 @@ export class StockService {
       hasBastar: byLower.has('bastar'),
       hasBittar: byLower.has('bittar'),
       hasTarih: byLower.has('tarih'),
+      hasSirano: byLower.has('sirano'),
       canSetId: canSet(idCol),
       canSetPId: canSet(pIdCol),
     };
@@ -1101,10 +1102,21 @@ export class StockService {
   private productFiyatCanonicalOrderSql(schema: {
     hasId: boolean;
     hasPId: boolean;
+    hasSirano?: boolean;
+    hasBastar?: boolean;
+    hasBittar?: boolean;
   }) {
     const parts: string[] = [];
-    if (schema.hasId) parts.push('CASE WHEN pf.id = pf.plu THEN 0 ELSE 1 END');
-    if (schema.hasPId) parts.push('CASE WHEN pf.p_id = pf.plu THEN 0 ELSE 1 END');
+    if (schema.hasPId) {
+      parts.push('CASE WHEN p.id IS NOT NULL AND pf.p_id = p.id THEN 0 ELSE 1 END');
+    }
+    if (schema.hasId) {
+      parts.push('CASE WHEN p.id IS NOT NULL AND pf.id = p.id THEN 0 ELSE 1 END');
+    }
+    parts.push(
+      `CASE WHEN ${this.productFiyatCurrentValidSql(schema as any)} THEN 0 ELSE 1 END`,
+    );
+    if (schema.hasSirano) parts.push('COALESCE(pf.sirano, 0) DESC');
     parts.push('pf.ctid');
     return parts.join(', ');
   }
@@ -1149,6 +1161,9 @@ export class StockService {
             pf.plu,
             CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
           FROM product_fiyat pf
+          LEFT JOIN product p
+            ON p.plu = pf.plu
+           AND COALESCE(p.silindi, false) = false
           ORDER BY pf.plu, ${orderSql}
         ),
         current_valid AS (
@@ -1209,6 +1224,9 @@ export class StockService {
       WITH targets AS (
         SELECT DISTINCT ON (pf.plu) pf.ctid as row_ctid, pf.plu
         FROM product_fiyat pf
+        LEFT JOIN product p
+          ON p.plu = pf.plu
+         AND COALESCE(p.silindi, false) = false
         WHERE pf.plu = ANY($1::int[])
         ORDER BY pf.plu, ${orderSql}
       )
@@ -1267,7 +1285,7 @@ export class StockService {
       }
       if (schema.canSetPId) {
         cols.push('p_id');
-        select.push('u.plu');
+        select.push('COALESCE(p.id, u.plu)');
       }
       cols.push('fiyat');
       select.push('u.fiyat');
@@ -1285,6 +1303,9 @@ export class StockService {
         INSERT INTO product_fiyat (${cols.join(', ')})
         SELECT ${select.join(', ')}
         FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        LEFT JOIN product p
+          ON p.plu = u.plu
+         AND COALESCE(p.silindi, false) = false
       `,
         [missPlus, missPrices, ...extraParams],
       );
