@@ -349,18 +349,52 @@ export class ReportsService {
       }
     }
 
+    const pool = this.db.getBranchPool({
+      db_host: branch.db_host,
+      db_port: branch.db_port,
+      db_name: branch.db_name,
+      db_user: branch.db_user,
+      db_password: this.decryptPassword(branch.db_password),
+    });
+    const resolvedKasas = await this.expandKasaNosIfStale(pool, kasa_nos);
+
     return {
-      pool: this.db.getBranchPool({
-        db_host: branch.db_host,
-        db_port: branch.db_port,
-        db_name: branch.db_name,
-        db_user: branch.db_user,
-        db_password: this.decryptPassword(branch.db_password),
-      }),
-      kasa_no: primary,
-      kasa_nos,
+      pool,
+      kasa_no: resolvedKasas[0] ?? primary,
+      kasa_nos: resolvedKasas,
       closingHour,
     };
+  }
+
+  private async expandKasaNosIfStale(pool: any, configured: number[]) {
+    const base = (Array.isArray(configured) ? configured : [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n));
+    if (base.length === 0) return [1];
+
+    try {
+      const recent = await this.db.executeQuery(
+        pool,
+        `
+        SELECT DISTINCT kasa
+        FROM ads_odeme
+        WHERE kasa IS NOT NULL
+          AND raptar >= (CURRENT_DATE - INTERVAL '30 days')
+      `,
+        [],
+      );
+      const active = (recent || [])
+        .map((r: any) => Number(r.kasa))
+        .filter((n: number) => Number.isFinite(n) && n > 0);
+      if (active.length === 0) return base;
+
+      const configuredSet = new Set(base);
+      if (active.some((kasa) => configuredSet.has(kasa))) return base;
+
+      return Array.from(new Set(active)).sort((a, b) => a - b);
+    } catch {
+      return base;
+    }
   }
 
   async getOrders(
@@ -1099,46 +1133,76 @@ export class ReportsService {
       const hasAck1 = columns.some((column) => column.toLowerCase() === 'ack1');
 
       if (updateAll) {
-        const updateParams: any[] = [status, kasa_nos, adsno];
+        const selectParams: any[] = [kasa_nos, adsno];
         const adturFilter =
           typeof adtur !== 'undefined'
-            ? `AND COALESCE(adtur, 0) = $${updateParams.length + 1}`
+            ? `AND COALESCE(adtur, 0) = $${selectParams.length + 1}`
             : '';
         if (typeof adtur !== 'undefined') {
-          updateParams.push(adtur);
-        }
-        const updateSet = ['sturu = $1'];
-        if (hasAck1 && note) {
-          updateSet.push(`ack1 = $${updateParams.length + 1}`);
-          updateParams.push(note);
+          selectParams.push(adtur);
         }
 
-        const updateRes = await client.query(
+        const currentItems = await client.query(
           `
-            UPDATE ads_acik
-            SET ${updateSet.join(', ')}
-            WHERE kasa = ANY($2)
-              AND adsno = $3
-              ${adturFilter}
-              AND pluid IS NOT NULL
-              AND COALESCE(sturu, 0) <> $1
-            RETURNING
+            SELECT
+              ctid::text as row_id,
               adsno,
               COALESCE(adtur, 0) as adtur,
               pluid,
               miktar,
               bfiyat,
               tutar,
-              COALESCE(sturu, 0) as sturu,
-              ctid::text as row_id
+              COALESCE(sturu, 0) as sturu
+            FROM ads_acik
+            WHERE kasa = ANY($1)
+              AND adsno = $2
+              ${adturFilter}
+              AND pluid IS NOT NULL
+              AND COALESCE(sturu, 0) <> $${selectParams.length + 1}
+            FOR UPDATE
           `,
-          updateParams,
+          [...selectParams, status],
         );
 
-        updatedItem = updateRes.rows;
+        if (currentItems.rows.length === 0) {
+          throw new NotFoundException('İptal edilecek ürün bulunamadı');
+        }
+
+        const updatedItems: any[] = [];
+        for (const row of currentItems.rows) {
+          const updateSet = ['sturu = $1'];
+          const updateParams: any[] = [status, row.row_id];
+          if (hasAck1 && note) {
+            updateSet.push(`ack1 = $${updateParams.length + 1}`);
+            updateParams.push(note);
+          }
+
+          const updateRes = await client.query(
+            `
+              UPDATE ads_acik
+              SET ${updateSet.join(', ')}
+              WHERE ctid = $2::tid
+              RETURNING
+                adsno,
+                COALESCE(adtur, 0) as adtur,
+                pluid,
+                miktar,
+                bfiyat,
+                tutar,
+                COALESCE(sturu, 0) as sturu,
+                ctid::text as row_id
+            `,
+            updateParams,
+          );
+          if (updateRes.rows[0]) {
+            updatedItems.push(updateRes.rows[0]);
+          }
+        }
+
+        updatedItem = updatedItems;
         await client.query('COMMIT');
         await this.cache.delPattern(`dashboard_v2:${user.id}:*`);
-        return { success: true, items: updatedItem, count: updateRes.rowCount };
+        return { success: true, items: updatedItem, count: updatedItems.length };
       }
 
       const selectParams: any[] = [kasa_nos, adsno, rowId];
@@ -1564,7 +1628,7 @@ export class ReportsService {
     endDate?: string,
   ) {
     const cacheKey = this.cache.generateKey(
-      'dashboard_v2',
+      'dashboard_v3',
       user.id,
       period,
       startDate || 'none',

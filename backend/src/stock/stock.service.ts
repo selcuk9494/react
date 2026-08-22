@@ -1185,6 +1185,25 @@ export class StockService {
       `,
       );
 
+      await client.query(
+        `
+        UPDATE product_fiyat orphan
+        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
+        FROM product p
+        WHERE orphan.p_id = p.id
+          AND COALESCE(p.silindi, false) = false
+          AND orphan.plu IS DISTINCT FROM p.plu
+          AND ${validSql.replaceAll('pf.', 'orphan.')}
+          AND EXISTS (
+            SELECT 1
+            FROM product_fiyat canon
+            WHERE canon.p_id = p.id
+              AND canon.plu = p.plu
+              AND ${validSql.replaceAll('pf.', 'canon.')}
+          )
+      `,
+      );
+
       await client.query('COMMIT');
     } catch (e) {
       try {
@@ -1250,6 +1269,39 @@ export class StockService {
           AND ${validSql}
       `,
         [plus, prices],
+      );
+    }
+
+    if (schema.hasPId) {
+      await client.query(
+        `
+        UPDATE product_fiyat pf
+        SET fiyat = u.fiyat
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        JOIN product p
+          ON p.plu = u.plu
+         AND COALESCE(p.silindi, false) = false
+        WHERE pf.p_id = p.id
+          AND ${validSql}
+      `,
+        [plus, prices],
+      );
+    }
+
+    if (schema.hasPId && schema.hasBittar) {
+      await client.query(
+        `
+        UPDATE product_fiyat orphan
+        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
+        FROM UNNEST($1::int[]) AS u(plu)
+        JOIN product p
+          ON p.plu = u.plu
+         AND COALESCE(p.silindi, false) = false
+        WHERE orphan.p_id = p.id
+          AND orphan.plu IS DISTINCT FROM p.plu
+          AND ${validSql.replace(/pf\./g, 'orphan.')}
+      `,
+        [plus],
       );
     }
 
