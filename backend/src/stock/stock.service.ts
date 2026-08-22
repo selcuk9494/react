@@ -1161,7 +1161,7 @@ export class StockService {
             pf.plu,
             CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
           FROM product_fiyat pf
-          LEFT JOIN product p
+          JOIN product p
             ON p.plu = pf.plu
            AND COALESCE(p.silindi, false) = false
           ORDER BY pf.plu, ${orderSql}
@@ -1187,9 +1187,8 @@ export class StockService {
 
       await client.query(
         `
-        UPDATE product_fiyat orphan
-        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
-        FROM product p
+        DELETE FROM product_fiyat orphan
+        USING product p
         WHERE orphan.p_id = p.id
           AND COALESCE(p.silindi, false) = false
           AND orphan.plu IS DISTINCT FROM p.plu
@@ -1288,12 +1287,11 @@ export class StockService {
       );
     }
 
-    if (schema.hasPId && schema.hasBittar) {
+    if (schema.hasPId) {
       await client.query(
         `
-        UPDATE product_fiyat orphan
-        SET bittar = (CURRENT_DATE - INTERVAL '1 day')::date
-        FROM UNNEST($1::int[]) AS u(plu)
+        DELETE FROM product_fiyat orphan
+        USING UNNEST($1::int[]) AS u(plu)
         JOIN product p
           ON p.plu = u.plu
          AND COALESCE(p.silindi, false) = false
