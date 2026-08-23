@@ -1131,78 +1131,41 @@ export class StockService {
     return parts.length > 0 ? parts.join(' AND ') : 'TRUE';
   }
 
-  private async healCanonicalProductFiyat(pool: any) {
+  private turkeyTodaySql() {
+    return `(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date`;
+  }
+
+  private productFiyatMatchSql(schema: { hasPId: boolean }) {
+    return schema.hasPId ? '(pf.plu = p.plu OR pf.p_id = p.id)' : 'pf.plu = p.plu';
+  }
+
+  private productFiyatLatestPeriodOrderSql(schema: {
+    hasId: boolean;
+    hasPId: boolean;
+    hasSirano?: boolean;
+    hasBastar?: boolean;
+  }) {
+    const parts: string[] = ['p.id'];
+    if (schema.hasPId) {
+      parts.push(
+        'CASE WHEN pf.plu = p.plu AND pf.p_id = p.id THEN 0 WHEN pf.plu = p.plu THEN 1 ELSE 2 END',
+      );
+    } else {
+      parts.push('CASE WHEN pf.plu = p.plu THEN 0 ELSE 1 END');
+    }
+    if (schema.hasBastar) {
+      parts.push(`COALESCE(pf.bastar, DATE '1900-01-01') DESC`);
+    }
+    if (schema.hasSirano) parts.push('COALESCE(pf.sirano, 0) DESC');
+    parts.push('pf.ctid');
+    return parts.join(', ');
+  }
+
+  private async healCanonicalProductFiyat(pool: any, plus?: number[]) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const schema = await this.getProductFiyatSchema(client);
-      if (!schema.hasBittar) {
-        await client.query('COMMIT');
-        return;
-      }
-
-      const orderSql = this.productFiyatCanonicalOrderSql(schema);
-      const validSql = this.productFiyatCurrentValidSql(schema);
-      const bittarSet = schema.hasBittar ? ', bittar = NULL' : '';
-
-      await client.query(
-        `
-        WITH ranked AS (
-          SELECT
-            pf.ctid as row_ctid,
-            pf.plu,
-            pf.fiyat,
-            CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
-          FROM product_fiyat pf
-        ),
-        canonical AS (
-          SELECT DISTINCT ON (pf.plu)
-            pf.ctid as row_ctid,
-            pf.plu,
-            CASE WHEN ${validSql} THEN 0 ELSE 1 END as expired_rank
-          FROM product_fiyat pf
-          JOIN product p
-            ON p.plu = pf.plu
-           AND COALESCE(p.silindi, false) = false
-          ORDER BY pf.plu, ${orderSql}
-        ),
-        current_valid AS (
-          SELECT DISTINCT ON (plu) plu, fiyat
-          FROM ranked
-          WHERE expired_rank = 0
-            AND fiyat IS NOT NULL
-          ORDER BY plu, row_ctid
-        )
-        UPDATE product_fiyat pf
-        SET
-          fiyat = COALESCE(cv.fiyat, pf.fiyat)
-          ${bittarSet}
-        FROM canonical c
-        LEFT JOIN current_valid cv ON cv.plu = c.plu
-        WHERE pf.ctid = c.row_ctid
-          AND c.expired_rank = 1
-          AND COALESCE(cv.fiyat, pf.fiyat) IS NOT NULL
-      `,
-      );
-
-      await client.query(
-        `
-        DELETE FROM product_fiyat orphan
-        USING product p
-        WHERE orphan.p_id = p.id
-          AND COALESCE(p.silindi, false) = false
-          AND orphan.plu IS DISTINCT FROM p.plu
-          AND ${validSql.replaceAll('pf.', 'orphan.')}
-          AND EXISTS (
-            SELECT 1
-            FROM product_fiyat canon
-            WHERE canon.p_id = p.id
-              AND canon.plu = p.plu
-              AND ${validSql.replaceAll('pf.', 'canon.')}
-          )
-      `,
-      );
-
+      await this.closeExtraOpenProductFiyatPeriods(client, plus);
       await client.query('COMMIT');
     } catch (e) {
       try {
@@ -1212,6 +1175,52 @@ export class StockService {
     } finally {
       client.release();
     }
+  }
+
+  private productFiyatIdentityMatchSql(schema: { hasPId: boolean }) {
+    return schema.hasPId
+      ? 'pf.plu = p.plu AND pf.p_id = p.id'
+      : 'pf.plu = p.plu';
+  }
+
+  private async closeExtraOpenProductFiyatPeriods(client: any, plus?: number[]) {
+    const schema = await this.getProductFiyatSchema(client);
+    if (!schema.hasBittar) return;
+
+    const today = this.turkeyTodaySql();
+    const pluFilter = plus?.length ? `AND p.plu = ANY($1::int[])` : '';
+    const params = plus?.length ? [plus] : [];
+    const pIdMatch = this.productFiyatMatchSql(schema);
+
+    // Only close strictly older open periods. Never change fiyat, never
+    // close the latest-start open row, never delete, never reopen.
+    await client.query(
+      `
+      WITH latest_open AS (
+        SELECT
+          p.id as product_id,
+          MAX(pf.bastar) as max_bastar
+        FROM product p
+        JOIN product_fiyat pf
+          ON ${pIdMatch}
+        WHERE COALESCE(p.silindi, false) = false
+          ${pluFilter}
+          AND pf.bittar IS NULL
+        GROUP BY p.id
+      )
+      UPDATE product_fiyat pf
+      SET bittar = (${today} - INTERVAL '1 day')::date
+      FROM product p
+      JOIN latest_open l ON l.product_id = p.id
+      WHERE COALESCE(p.silindi, false) = false
+        ${pluFilter}
+        AND pf.bittar IS NULL
+        AND ${pIdMatch}
+        AND l.max_bastar IS NOT NULL
+        AND (pf.bastar IS NULL OR pf.bastar < l.max_bastar)
+    `,
+      params,
+    );
   }
 
   private getTurkeyYearMonth() {
@@ -1233,132 +1242,150 @@ export class StockService {
     const schema = await this.getProductFiyatSchema(client);
     const plus = items.map((i) => i.plu);
     const prices = items.map((i) => i.fiyat);
-    const orderSql = this.productFiyatCanonicalOrderSql(schema);
-    const validSql = this.productFiyatCurrentValidSql(schema);
-    const bittarSet = schema.hasBittar ? ', bittar = NULL' : '';
+    const pIdMatch = this.productFiyatMatchSql(schema);
+    const today = this.turkeyTodaySql();
 
-    await client.query(
-      `
-      WITH targets AS (
-        SELECT DISTINCT ON (pf.plu) pf.ctid as row_ctid, pf.plu
-        FROM product_fiyat pf
-        LEFT JOIN product p
-          ON p.plu = pf.plu
-         AND COALESCE(p.silindi, false) = false
-        WHERE pf.plu = ANY($1::int[])
-        ORDER BY pf.plu, ${orderSql}
-      )
-      UPDATE product_fiyat pf
-      SET fiyat = u.fiyat
-          ${bittarSet}
-      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-      JOIN targets t ON t.plu = u.plu
-      WHERE pf.ctid = t.row_ctid
-    `,
-      [plus, prices],
-    );
-
-    if (schema.hasBittar || schema.hasBastar) {
+    if (!schema.hasBittar) {
+      const orderSql = this.productFiyatCanonicalOrderSql(schema);
       await client.query(
         `
+        WITH targets AS (
+          SELECT DISTINCT ON (pf.plu) pf.ctid as row_ctid, pf.plu
+          FROM product_fiyat pf
+          LEFT JOIN product p
+            ON p.plu = pf.plu
+           AND COALESCE(p.silindi, false) = false
+          WHERE pf.plu = ANY($1::int[])
+          ORDER BY pf.plu, ${orderSql}
+        )
         UPDATE product_fiyat pf
         SET fiyat = u.fiyat
         FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-        WHERE pf.plu = u.plu
-          AND ${validSql}
+        JOIN targets t ON t.plu = u.plu
+        WHERE pf.ctid = t.row_ctid
       `,
         [plus, prices],
       );
-    }
+    } else {
+      const identitySql = this.productFiyatIdentityMatchSql(schema);
+      const siranoOrder = schema.hasSirano
+        ? 'COALESCE(pf.sirano, 0) DESC, pf.ctid'
+        : 'pf.ctid';
 
-    if (schema.hasPId) {
-      await client.query(
+      // Snapshot currently-open rows. These are the only rows we may close.
+      // New inserts are never in this list, so they cannot be closed by mistake.
+      const oldOpenRes = await client.query(
         `
-        UPDATE product_fiyat pf
-        SET fiyat = u.fiyat
-        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        SELECT pf.ctid::text as row_id
+        FROM UNNEST($1::int[]) AS u(plu)
         JOIN product p
           ON p.plu = u.plu
          AND COALESCE(p.silindi, false) = false
-        WHERE pf.p_id = p.id
-          AND ${validSql}
-      `,
-        [plus, prices],
-      );
-    }
-
-    if (schema.hasPId) {
-      await client.query(
-        `
-        DELETE FROM product_fiyat orphan
-        USING UNNEST($1::int[]) AS u(plu)
-        JOIN product p
-          ON p.plu = u.plu
-         AND COALESCE(p.silindi, false) = false
-        WHERE orphan.p_id = p.id
-          AND orphan.plu IS DISTINCT FROM p.plu
-          AND ${validSql.replace(/pf\./g, 'orphan.')}
+        JOIN product_fiyat pf
+          ON ${pIdMatch}
+        WHERE pf.bittar IS NULL
       `,
         [plus],
       );
-    }
+      const oldOpenIds: string[] = (oldOpenRes.rows || [])
+        .map((r: any) => String(r.row_id || ''))
+        .filter(Boolean);
 
-    const missingRes = await client.query(
-      `
-      SELECT u.plu, u.fiyat
-      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM product_fiyat pf WHERE pf.plu = u.plu
-      )
-    `,
-      [plus, prices],
-    );
-    const missing = missingRes.rows || [];
-    if (missing.length > 0) {
-      const tarih = this.getTurkeyYearMonth();
-      const missPlus = missing.map((r: any) => Number(r.plu));
-      const missPrices = missing.map((r: any) => Number(r.fiyat));
-      const cols: string[] = ['plu'];
-      const select: string[] = ['u.plu'];
-      const extraParams: any[] = [];
-      let nextParam = 3;
+      if (oldOpenIds.length > 0) {
+        await client.query(
+          `
+          UPDATE product_fiyat pf
+          SET bittar = (${today} - INTERVAL '1 day')::date
+          WHERE pf.ctid::text = ANY($1::text[])
+            AND pf.bittar IS NULL
+            AND (
+              ${schema.hasBastar ? `pf.bastar IS NULL OR pf.bastar < ${today}` : 'TRUE'}
+            )
+        `,
+          [oldOpenIds],
+        );
+      }
 
-      if (schema.hasTarih) {
-        cols.push('tarih');
-        select.push(`$${nextParam}`);
-        extraParams.push(tarih);
-        nextParam++;
-      }
-      if (schema.canSetId) {
-        cols.push('id');
-        select.push('u.plu');
-      }
-      if (schema.canSetPId) {
-        cols.push('p_id');
-        select.push('COALESCE(p.id, u.plu)');
-      }
-      cols.push('fiyat');
-      select.push('u.fiyat');
       if (schema.hasBastar) {
-        cols.push('bastar');
-        select.push('CURRENT_DATE');
-      }
-      if (schema.hasBittar) {
-        cols.push('bittar');
-        select.push('NULL');
+        await client.query(
+          `
+          WITH picked AS (
+            SELECT DISTINCT ON (u.plu) pf.ctid as row_ctid, u.fiyat
+            FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+            JOIN product p
+              ON p.plu = u.plu
+             AND COALESCE(p.silindi, false) = false
+            JOIN product_fiyat pf
+              ON ${identitySql}
+             AND pf.bittar IS NULL
+             AND pf.bastar = ${today}
+            ORDER BY u.plu, ${siranoOrder}
+          )
+          UPDATE product_fiyat pf
+          SET fiyat = picked.fiyat
+              ${schema.hasTarih ? ', tarih = $3' : ''}
+          FROM picked
+          WHERE pf.ctid = picked.row_ctid
+        `,
+          schema.hasTarih ? [plus, prices, this.getTurkeyYearMonth()] : [plus, prices],
+        );
       }
 
-      await client.query(
+      const missingRes = await client.query(
         `
-        INSERT INTO product_fiyat (${cols.join(', ')})
-        SELECT ${select.join(', ')}
+        SELECT u.plu, u.fiyat
         FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
-        LEFT JOIN product p
+        JOIN product p
           ON p.plu = u.plu
          AND COALESCE(p.silindi, false) = false
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM product_fiyat pf
+          WHERE pf.bittar IS NULL
+            AND ${identitySql}
+            ${schema.hasBastar ? `AND pf.bastar = ${today}` : ''}
+        )
       `,
-        [missPlus, missPrices, ...extraParams],
+        [plus, prices],
       );
+      const missing = missingRes.rows || [];
+      if (missing.length > 0) {
+        await this.insertProductFiyatPeriods(client, schema, missing);
+      }
+
+      if (oldOpenIds.length > 0) {
+        await client.query(
+          `
+          WITH today_keep AS (
+            SELECT DISTINCT ON (u.plu) pf.ctid as keep_ctid
+            FROM UNNEST($1::int[]) AS u(plu)
+            JOIN product p
+              ON p.plu = u.plu
+             AND COALESCE(p.silindi, false) = false
+            JOIN product_fiyat pf
+              ON ${identitySql}
+             AND pf.bittar IS NULL
+             ${schema.hasBastar ? `AND pf.bastar = ${today}` : ''}
+            ORDER BY u.plu, ${siranoOrder}
+          )
+          UPDATE product_fiyat pf
+          SET bittar = (${today} - INTERVAL '1 day')::date
+          WHERE pf.ctid::text = ANY($2::text[])
+            AND pf.bittar IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM today_keep k WHERE k.keep_ctid = pf.ctid
+            )
+        `,
+          [plus, oldOpenIds],
+        );
+      }
+
+      await this.assertCurrentProductFiyat(client, schema, plus, prices, {
+        today,
+        identitySql,
+        siranoOrder,
+        pIdMatch,
+      });
     }
 
     try {
@@ -1379,6 +1406,212 @@ export class StockService {
     } catch (e) {
       console.error('product.fiyat sync error', e);
     }
+  }
+
+  private async assertCurrentProductFiyat(
+    client: any,
+    schema: { hasPId: boolean; hasBastar: boolean; hasSirano: boolean },
+    plus: number[],
+    prices: number[],
+    ctx: {
+      today: string;
+      identitySql: string;
+      siranoOrder: string;
+      pIdMatch: string;
+    },
+  ) {
+    const { today, identitySql, siranoOrder, pIdMatch } = ctx;
+
+    const verifySql = `
+      SELECT
+        u.plu,
+        u.fiyat as expected,
+        curr.fiyat as actual,
+        COALESCE(curr.open_others, 0) as open_others
+      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      JOIN product p
+        ON p.plu = u.plu
+       AND COALESCE(p.silindi, false) = false
+      LEFT JOIN LATERAL (
+        SELECT
+          pf.fiyat,
+          (
+            SELECT COUNT(*)::int
+            FROM product_fiyat extra
+            WHERE extra.bittar IS NULL
+              AND extra.ctid IS DISTINCT FROM pf.ctid
+              AND (
+                extra.plu = p.plu
+                ${schema.hasPId ? 'OR extra.p_id = p.id' : ''}
+              )
+          ) as open_others
+        FROM product_fiyat pf
+        WHERE pf.bittar IS NULL
+          AND ${identitySql}
+        ORDER BY
+          ${schema.hasBastar ? `COALESCE(pf.bastar, DATE '1900-01-01') DESC,` : ''}
+          ${siranoOrder}
+        LIMIT 1
+      ) curr ON true
+    `;
+
+    const isBad = (rows: any[]) =>
+      (rows || []).filter((r: any) => {
+        const expected = Number(r.expected);
+        const actual = Number(r.actual);
+        if (!Number.isFinite(actual) || Math.abs(actual - expected) > 0.0001) return true;
+        return Number(r.open_others) > 0;
+      });
+
+    let verify = await client.query(verifySql, [plus, prices]);
+    let bad = isBad(verify.rows || []);
+    if (bad.length === 0) return;
+
+    // Last resort: close leftover opens only if the new-price identity row exists.
+    // Never close that keep row, never change leftover fiyat.
+    await client.query(
+      `
+      WITH keep AS (
+        SELECT DISTINCT ON (u.plu) u.plu, pf.ctid as keep_ctid
+        FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+        JOIN product p
+          ON p.plu = u.plu
+         AND COALESCE(p.silindi, false) = false
+        JOIN product_fiyat pf
+          ON ${identitySql}
+         AND pf.bittar IS NULL
+         AND pf.fiyat IS NOT DISTINCT FROM u.fiyat
+         ${schema.hasBastar ? `AND pf.bastar = ${today}` : ''}
+        ORDER BY u.plu, ${siranoOrder}
+      )
+      UPDATE product_fiyat pf
+      SET bittar = (${today} - INTERVAL '1 day')::date
+      FROM UNNEST($1::int[]) AS u(plu)
+      JOIN product p
+        ON p.plu = u.plu
+       AND COALESCE(p.silindi, false) = false
+      WHERE pf.bittar IS NULL
+        AND ${pIdMatch}
+        AND EXISTS (SELECT 1 FROM keep k WHERE k.plu = u.plu)
+        AND NOT EXISTS (
+          SELECT 1 FROM keep k WHERE k.keep_ctid = pf.ctid
+        )
+    `,
+      [plus, prices],
+    );
+
+    verify = await client.query(verifySql, [plus, prices]);
+    bad = isBad(verify.rows || []);
+    if (bad.length > 0) {
+      const plusList = bad.map((r: any) => r.plu).join(', ');
+      throw new Error(
+        `Fiyat dönemi doğrulanamadı (plu ${plusList}). Eski fiyat kayıtları korundu, işlem geri alındı.`,
+      );
+    }
+  }
+
+  private async insertProductFiyatPeriods(
+    client: any,
+    schema: {
+      hasId: boolean;
+      hasPId: boolean;
+      hasBastar: boolean;
+      hasBittar: boolean;
+      hasTarih: boolean;
+      hasSirano: boolean;
+      canSetId: boolean;
+      canSetPId: boolean;
+    },
+    missing: Array<{ plu: number; fiyat: number }>,
+  ) {
+    const missPlus = missing.map((r: any) => Number(r.plu));
+    const missPrices = missing.map((r: any) => Number(r.fiyat));
+    const today = this.turkeyTodaySql();
+    const columns = await this.getTableColumns(client, 'product_fiyat');
+    const skipCopy = new Set([
+      'plu',
+      'p_id',
+      'id',
+      'fiyat',
+      'bastar',
+      'bittar',
+      'tarih',
+      'sirano',
+    ]);
+    const cols: string[] = ['plu'];
+    const select: string[] = ['COALESCE(p.plu, u.plu)'];
+    const extraParams: any[] = [];
+    let nextParam = 3;
+
+    if (schema.hasTarih) {
+      cols.push('tarih');
+      select.push(`$${nextParam}`);
+      extraParams.push(this.getTurkeyYearMonth());
+      nextParam++;
+    }
+    if (schema.canSetPId) {
+      cols.push('p_id');
+      select.push('COALESCE(p.id, u.plu)');
+    }
+    cols.push('fiyat');
+    select.push('u.fiyat');
+    if (schema.hasBastar) {
+      cols.push('bastar');
+      select.push(today);
+    }
+    if (schema.hasBittar) {
+      cols.push('bittar');
+      select.push('NULL');
+    }
+
+    for (const col of columns) {
+      if (this.hasAutoValue(col)) continue;
+      if (skipCopy.has(col.lower)) continue;
+      if (cols.includes(col.name) || cols.includes(col.lower)) continue;
+      const q = this.quoteIdent(col.name);
+      cols.push(col.name);
+      if (!col.nullable && col.defaultValue == null) {
+        const fallback = this.defaultValueForColumn(col);
+        extraParams.push(fallback);
+        select.push(`COALESCE(src.${q}, $${nextParam})`);
+        nextParam++;
+      } else {
+        select.push(`src.${q}`);
+      }
+    }
+
+    const srcMatch = schema.hasPId
+      ? '(pf.plu = u.plu OR (p.id IS NOT NULL AND pf.p_id = p.id))'
+      : 'pf.plu = u.plu';
+    const srcOrder = [
+      schema.hasPId
+        ? `CASE WHEN pf.plu = p.plu AND pf.p_id = p.id THEN 0 WHEN pf.plu = p.plu THEN 1 ELSE 2 END`
+        : `CASE WHEN pf.plu = p.plu THEN 0 ELSE 1 END`,
+      schema.hasBastar ? `COALESCE(pf.bastar, DATE '1900-01-01') DESC` : null,
+      schema.hasSirano ? `COALESCE(pf.sirano, 0) DESC` : null,
+      'pf.ctid',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    await client.query(
+      `
+      INSERT INTO product_fiyat (${cols.map((c) => this.quoteIdent(c)).join(', ')})
+      SELECT ${select.join(', ')}
+      FROM UNNEST($1::int[], $2::numeric[]) AS u(plu, fiyat)
+      LEFT JOIN product p
+        ON p.plu = u.plu
+       AND COALESCE(p.silindi, false) = false
+      LEFT JOIN LATERAL (
+        SELECT pf.*
+        FROM product_fiyat pf
+        WHERE ${srcMatch}
+        ORDER BY ${srcOrder}
+        LIMIT 1
+      ) src ON true
+    `,
+      [missPlus, missPrices, ...extraParams],
+    );
   }
 
   async updateProductPrice(
