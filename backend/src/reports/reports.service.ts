@@ -391,7 +391,7 @@ export class ReportsService {
       const configuredSet = new Set(base);
       if (active.some((kasa) => configuredSet.has(kasa))) return base;
 
-      return Array.from(new Set(active)).sort((a, b) => a - b);
+      return Array.from(new Set<number>(active)).sort((a, b) => a - b);
     } catch {
       return base;
     }
