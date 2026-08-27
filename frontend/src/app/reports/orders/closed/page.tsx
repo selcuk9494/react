@@ -43,6 +43,10 @@ function ClosedOrdersContent() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [adturFilter, setAdturFilter] = useState<'all'|0|1|3>('all');
+  const [amountInput, setAmountInput] = useState(() => searchParams.get('amount') || '');
+  const [amountDir, setAmountDir] = useState<'gte' | 'lte'>(
+    searchParams.get('dir') === 'lte' ? 'lte' : 'gte',
+  );
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -63,7 +67,7 @@ function ClosedOrdersContent() {
   // Legacy: fetchOrders fetches from API. applyFilters filters locally by masa_no.
   useEffect(() => {
     applyFilters();
-  }, [filterMasa, allOrders, adturFilter]);
+  }, [filterMasa, allOrders, adturFilter, amountInput, amountDir]);
 
   const fetchOrders = async (page = 1, append = false) => {
     if (!token) return;
@@ -113,6 +117,19 @@ function ClosedOrdersContent() {
     }
   };
 
+  const parseAmountInput = (raw: string) => {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const normalized = s.includes(',')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s;
+    const n = Number(normalized);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+
+  const netAmount = (order: any) =>
+    Number(order.tutar || 0) - Number(order.iskonto || 0);
+
   const applyFilters = () => {
     let filtered = [...allOrders];
     if (filterMasa) {
@@ -130,6 +147,13 @@ function ClosedOrdersContent() {
         filtered = filtered.filter(o => (o.adtur ?? -1) === t);
       }
     }
+    const amount = parseAmountInput(amountInput);
+    if (amount !== null) {
+      filtered = filtered.filter((o) => {
+        const net = netAmount(o);
+        return amountDir === 'gte' ? net >= amount : net <= amount;
+      });
+    }
     setOrders(filtered);
   };
 
@@ -143,6 +167,8 @@ function ClosedOrdersContent() {
     setFilterMasa('');
     setStartDate('');
     setEndDate('');
+    setAmountInput('');
+    setAmountDir('gte');
     fetchOrders(1);
   };
 
@@ -268,13 +294,64 @@ function ClosedOrdersContent() {
                 </div>
             </div>
 
+            <div className="mt-3">
+                <label className="block text-[10px] font-bold text-gray-900 mb-1">{t('amount_filter')}</label>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder={t('amount_placeholder')}
+                        className="w-32 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition font-medium"
+                        value={amountInput}
+                        onChange={(e) => setAmountInput(e.target.value)}
+                    />
+                    <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setAmountDir('gte')}
+                          className={`px-3 py-1.5 text-xs font-bold ${amountDir === 'gte' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('amount_above')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAmountDir('lte')}
+                          className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 ${amountDir === 'lte' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {t('amount_below')}
+                        </button>
+                    </div>
+                    {amountInput && (
+                      <button
+                        type="button"
+                        onClick={() => setAmountInput('')}
+                        className="text-xs font-bold text-gray-500 hover:text-gray-800"
+                      >
+                        {t('clear_filters')}
+                      </button>
+                    )}
+                </div>
+            </div>
+            
             {/* tarih dropdown kaldırıldı; üst menüden tarih seçimi yapılır */}
             
             {/* scope buttons removed; using global ReportHeader period controls */}
         </div>
 
         {/* Count */}
-        <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-emerald-900">
+                {orders.length} {t('matching_transactions')}
+                {parseAmountInput(amountInput) !== null && (
+                  <span className="font-medium text-emerald-700">
+                    {' '}({formatCurrency(parseAmountInput(amountInput) || 0)} {amountDir === 'gte' ? t('amount_above').toLowerCase() : t('amount_below').toLowerCase()})
+                  </span>
+                )}
+            </p>
+            <p className="text-sm font-black text-emerald-700">
+                {t('matching_total')}: {formatCurrency(orders.reduce((sum, o) => sum + netAmount(o), 0))}
+            </p>
+        </div>
 
         {/* Tip filtre çubuğu kaldırıldı */}
 

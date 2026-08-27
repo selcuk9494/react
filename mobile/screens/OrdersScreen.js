@@ -62,6 +62,13 @@ export default function OrdersScreen({ navigation, route }) {
       date: 'Tarih',
       personCount: 'Kişi Sayısı',
       nationality: 'Milliyet',
+      amount: 'Tutar',
+      above: 'Üstü',
+      below: 'Altı',
+      amountPlaceholder: 'Örn: 500',
+      matching: 'adet işlem',
+      total: 'Toplam',
+      clear: 'Temizle',
     },
     en: {
       order: 'Order',
@@ -84,12 +91,21 @@ export default function OrdersScreen({ navigation, route }) {
       date: 'Date',
       personCount: 'Person Count',
       nationality: 'Nationality',
+      amount: 'Amount',
+      above: 'Above',
+      below: 'Below',
+      amountPlaceholder: 'e.g. 500',
+      matching: 'transactions',
+      total: 'Total',
+      clear: 'Clear',
     }
   }[lang];
 
   // Filters
   const [filterMasa, setFilterMasa] = useState('');
   const [adturFilter, setAdturFilter] = useState(adturParam ? String(adturParam) : 'all');
+  const [amountInput, setAmountInput] = useState('');
+  const [amountDir, setAmountDir] = useState('gte');
   const [multiOnly, setMultiOnly] = useState(false);
   const [period, setPeriod] = useState(
     paymentTypeMode
@@ -223,6 +239,18 @@ export default function OrdersScreen({ navigation, route }) {
     }
   };
 
+  const parseAmountInput = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const normalized = s.includes(',')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s;
+    const n = Number(normalized);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+
+  const netAmount = (order) => Number(order.tutar || 0) - Number(order.iskonto || 0);
+
   const filteredOrders = orders.filter(order => {
     if (filterMasa) {
         const search = filterMasa.toLowerCase();
@@ -256,8 +284,18 @@ export default function OrdersScreen({ navigation, route }) {
         }
     }
 
+    if (isClosed) {
+      const amount = parseAmountInput(amountInput);
+      if (amount !== null) {
+        const net = netAmount(order);
+        if (amountDir === 'gte' ? net < amount : net > amount) return false;
+      }
+    }
+
     return true;
   });
+
+  const filteredTotal = filteredOrders.reduce((sum, order) => sum + netAmount(order), 0);
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
@@ -506,6 +544,49 @@ export default function OrdersScreen({ navigation, route }) {
                 </TouchableOpacity>
             ))}
         </View>
+
+        {isClosed && (
+          <>
+            <View style={styles.amountFilterRow}>
+              <View style={styles.amountBox}>
+                <Text style={styles.amountLabel}>{T.amount}</Text>
+                <TextInput
+                  style={styles.amountInput}
+                  placeholder={T.amountPlaceholder}
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="decimal-pad"
+                  value={amountInput}
+                  onChangeText={setAmountInput}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setAmountDir('gte')}
+                style={[styles.amountDirButton, amountDir === 'gte' && styles.amountDirButtonActive]}
+              >
+                <Text style={[styles.amountDirText, amountDir === 'gte' && styles.amountDirTextActive]}>{T.above}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setAmountDir('lte')}
+                style={[styles.amountDirButton, amountDir === 'lte' && styles.amountDirButtonActive]}
+              >
+                <Text style={[styles.amountDirText, amountDir === 'lte' && styles.amountDirTextActive]}>{T.below}</Text>
+              </TouchableOpacity>
+              {!!amountInput && (
+                <TouchableOpacity onPress={() => setAmountInput('')} style={styles.clearAmount}>
+                  <Text style={styles.clearAmountText}>{T.clear}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.summaryBar}>
+              <Text style={styles.summaryCount}>
+                {filteredOrders.length} {T.matching}
+              </Text>
+              <Text style={styles.summaryTotal}>
+                {T.total}: {formatCurrency(filteredTotal)}
+              </Text>
+            </View>
+          </>
+        )}
       </View>
       <ReportExportActions
         title={paymentName || (isClosed ? T.closedOrders : T.openOrders)}
@@ -664,6 +745,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
+  },
+  amountFilterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  amountBox: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    height: 40,
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  amountLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  amountInput: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    padding: 0,
+  },
+  amountDirButton: {
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  amountDirButtonActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  amountDirText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  amountDirTextActive: {
+    color: '#fff',
+  },
+  clearAmount: {
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  clearAmountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+  },
+  summaryCount: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#065f46',
+  },
+  summaryTotal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#047857',
   },
   listContent: {
     paddingHorizontal: 12,
