@@ -1,11 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput, Alert, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_URL } from '../config';
 import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import ReportExportActions from '../components/ReportExportActions';
+
+const parseYmd = (value) => {
+  if (!value) return new Date();
+  const [y, m, d] = String(value).split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+};
+
+const toYmd = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -13,8 +28,13 @@ export default function OrdersScreen({ navigation, route }) {
   const paymentTypeMode = route.params?.paymentTypeMode === true;
   const paymentOtip = route.params?.otip;
   const paymentName = route.params?.paymentName;
-  const customStartDate = route.params?.start_date;
-  const customEndDate = route.params?.end_date;
+  const [customStartDate, setCustomStartDate] = useState(route.params?.start_date || '');
+  const [customEndDate, setCustomEndDate] = useState(route.params?.end_date || '');
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [startPicker, setStartPicker] = useState(parseYmd(route.params?.start_date));
+  const [endPicker, setEndPicker] = useState(parseYmd(route.params?.end_date));
 
   const orderType = paymentTypeMode ? 'closed' : route.params?.type || 'open'; // 'open' or 'closed'
   const isClosed = orderType === 'closed';
@@ -69,6 +89,11 @@ export default function OrdersScreen({ navigation, route }) {
       matching: 'adet işlem',
       total: 'Toplam',
       clear: 'Temizle',
+      customDate: 'Özel Tarih',
+      dateRangeTitle: 'Tarih Aralığı Seç',
+      startDateLabel: 'Başlangıç',
+      endDateLabel: 'Bitiş',
+      apply: 'Uygula',
     },
     en: {
       order: 'Order',
@@ -98,6 +123,11 @@ export default function OrdersScreen({ navigation, route }) {
       matching: 'transactions',
       total: 'Total',
       clear: 'Clear',
+      customDate: 'Custom Date',
+      dateRangeTitle: 'Select Date Range',
+      startDateLabel: 'Start',
+      endDateLabel: 'End',
+      apply: 'Apply',
     }
   }[lang];
 
@@ -111,7 +141,7 @@ export default function OrdersScreen({ navigation, route }) {
     paymentTypeMode
       ? route.params?.period || 'today'
       : isClosed
-        ? 'today'
+        ? route.params?.period || 'today'
         : 'all',
   ); // 'today', 'all', 'custom'
   const fetchControllerRef = useRef(null);
@@ -154,6 +184,14 @@ export default function OrdersScreen({ navigation, route }) {
         branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
       }
       
+      if (period === 'custom' && (!customStartDate || !customEndDate)) {
+        if (!controller.signal.aborted && reqIdRef.current === myId) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+        return;
+      }
+
       const endpoint = paymentTypeMode
         ? '/reports/payment-types/orders'
         : isClosed
@@ -183,6 +221,10 @@ export default function OrdersScreen({ navigation, route }) {
         }
       } else if (isClosed) {
         params.append('period', period);
+        if (period === 'custom' && customStartDate && customEndDate) {
+          params.append('start_date', customStartDate);
+          params.append('end_date', customEndDate);
+        }
       } else {
         // Open orders endpoint uses 'period' differently (today vs all)
         params.append('period', period === 'today' ? 'today' : 'all');
@@ -296,6 +338,29 @@ export default function OrdersScreen({ navigation, route }) {
   });
 
   const filteredTotal = filteredOrders.reduce((sum, order) => sum + netAmount(order), 0);
+
+  const applyCustomDate = () => {
+    if (startPicker > endPicker) {
+      Alert.alert(T.dateRangeTitle, lang === 'tr' ? 'Bitiş tarihi başlangıçtan önce olamaz.' : 'End date cannot be before start date.');
+      return;
+    }
+    setCustomStartDate(toYmd(startPicker));
+    setCustomEndDate(toYmd(endPicker));
+    setPeriod('custom');
+    setShowDateModal(false);
+    setShowStartPicker(false);
+    setShowEndPicker(false);
+  };
+
+  const handlePeriodPress = (p) => {
+    if (p === 'custom') {
+      setStartPicker(parseYmd(customStartDate));
+      setEndPicker(parseYmd(customEndDate));
+      setShowDateModal(true);
+      return;
+    }
+    setPeriod(p);
+  };
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
@@ -507,24 +572,31 @@ export default function OrdersScreen({ navigation, route }) {
         </View>
         
         {!paymentTypeMode && (
-        <View style={styles.filterRow}>
-            {/* Period Filter (Only show appropriate options) */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodScroll}>
-                {(isClosed ? ['today', 'yesterday', 'week', 'month'] : ['today', 'all']).map((p) => (
-                    <TouchableOpacity 
-                        key={p} 
-                        onPress={() => setPeriod(p)}
-                        style={[
-                            styles.periodButton, 
-                            period === p && { backgroundColor: isClosed ? '#10b981' : '#f97316', borderColor: isClosed ? '#10b981' : '#f97316' }
-                        ]}
-                    >
-                        <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
-                            {p === 'today' ? T.today : p === 'yesterday' ? T.yesterday : p === 'week' ? T.thisWeek : p === 'month' ? T.thisMonth : T.all}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+        <View>
+            <View style={styles.filterRow}>
+                {/* Period Filter (Only show appropriate options) */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodScroll}>
+                    {(isClosed ? ['today', 'yesterday', 'week', 'month', 'custom'] : ['today', 'all']).map((p) => (
+                        <TouchableOpacity 
+                            key={p} 
+                            onPress={() => handlePeriodPress(p)}
+                            style={[
+                                styles.periodButton, 
+                                period === p && { backgroundColor: isClosed ? '#10b981' : '#f97316', borderColor: isClosed ? '#10b981' : '#f97316' }
+                            ]}
+                        >
+                            <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
+                                {p === 'today' ? T.today : p === 'yesterday' ? T.yesterday : p === 'week' ? T.thisWeek : p === 'month' ? T.thisMonth : p === 'custom' ? T.customDate : T.all}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+            {isClosed && period === 'custom' && customStartDate && customEndDate && (
+              <Text style={styles.customRangeText}>
+                {parseYmd(customStartDate).toLocaleDateString(locale)} - {parseYmd(customEndDate).toLocaleDateString(locale)}
+              </Text>
+            )}
         </View>
         )}
 
@@ -627,6 +699,88 @@ export default function OrdersScreen({ navigation, route }) {
             }
         />
       )}
+
+      <Modal
+        visible={showDateModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDateModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowDateModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{T.dateRangeTitle}</Text>
+                  <TouchableOpacity onPress={() => setShowDateModal(false)}>
+                    <Feather name="x" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.datePickerContainer}>
+                  <Text style={styles.dateLabel}>{T.startDateLabel}</Text>
+                  {Platform.OS === 'android' ? (
+                    <TouchableOpacity onPress={() => setShowStartPicker(true)} style={styles.dateButton}>
+                      <Text style={styles.dateButtonText}>{startPicker.toLocaleDateString(locale)}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <DateTimePicker
+                      value={startPicker}
+                      mode="date"
+                      display="default"
+                      onChange={(e, d) => d && setStartPicker(d)}
+                      style={{ width: 120 }}
+                    />
+                  )}
+                  {showStartPicker && Platform.OS === 'android' && (
+                    <DateTimePicker
+                      value={startPicker}
+                      mode="date"
+                      display="default"
+                      onChange={(e, d) => {
+                        setShowStartPicker(false);
+                        if (d) setStartPicker(d);
+                      }}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.datePickerContainer}>
+                  <Text style={styles.dateLabel}>{T.endDateLabel}</Text>
+                  {Platform.OS === 'android' ? (
+                    <TouchableOpacity onPress={() => setShowEndPicker(true)} style={styles.dateButton}>
+                      <Text style={styles.dateButtonText}>{endPicker.toLocaleDateString(locale)}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <DateTimePicker
+                      value={endPicker}
+                      mode="date"
+                      display="default"
+                      onChange={(e, d) => d && setEndPicker(d)}
+                      style={{ width: 120 }}
+                    />
+                  )}
+                  {showEndPicker && Platform.OS === 'android' && (
+                    <DateTimePicker
+                      value={endPicker}
+                      mode="date"
+                      display="default"
+                      onChange={(e, d) => {
+                        setShowEndPicker(false);
+                        if (d) setEndPicker(d);
+                      }}
+                    />
+                  )}
+                </View>
+
+                <TouchableOpacity style={styles.applyButton} onPress={applyCustomDate}>
+                  <Text style={styles.applyButtonText}>{T.apply}</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -714,6 +868,75 @@ const styles = StyleSheet.create({
   },
   periodScroll: {
     flexDirection: 'row',
+  },
+  customRangeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginBottom: 8,
+    marginTop: -2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  datePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dateLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  dateButton: {
+    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  applyButton: {
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  applyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   periodButton: {
     paddingHorizontal: 12,

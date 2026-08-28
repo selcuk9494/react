@@ -36,12 +36,16 @@ function ClosedOrdersContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   
   const [filterMasa, setFilterMasa] = useState('');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [showDateFilter, setShowDateFilter] = useState(false);
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [period, setPeriod] = useState(() => {
+    const p = searchParams.get('period');
+    if (p) return p;
+    if (searchParams.get('start_date') && searchParams.get('end_date')) return 'custom';
+    return 'today';
+  });
+  const [customStartDate, setCustomStartDate] = useState(searchParams.get('start_date') || '');
+  const [customEndDate, setCustomEndDate] = useState(searchParams.get('end_date') || '');
+  const [draftStartDate, setDraftStartDate] = useState(searchParams.get('start_date') || '');
+  const [draftEndDate, setDraftEndDate] = useState(searchParams.get('end_date') || '');
   const [adturFilter, setAdturFilter] = useState<'all'|0|1|3>('all');
   const [amountInput, setAmountInput] = useState(() => searchParams.get('amount') || '');
   const [amountDir, setAmountDir] = useState<'gte' | 'lte'>(
@@ -55,12 +59,15 @@ function ClosedOrdersContent() {
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
+    if (!token) return;
+    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     fetchOrders(1);
-  }, []);
+  }, [token, period, customStartDate, customEndDate]);
 
   useEffect(() => {
-    fetchOrders(1);
-  }, [period, customStartDate, customEndDate]);
+    if (customStartDate) setDraftStartDate(customStartDate);
+    if (customEndDate) setDraftEndDate(customEndDate);
+  }, [customStartDate, customEndDate]);
 
   // Effect to apply local filters if we were doing local filtering, 
   // but the legacy code fetches from API for date, and local for table no.
@@ -333,9 +340,36 @@ function ClosedOrdersContent() {
                 </div>
             </div>
             
-            {/* tarih dropdown kaldırıldı; üst menüden tarih seçimi yapılır */}
+            <div className="mt-3">
+                <label className="block text-[10px] font-bold text-gray-900 mb-1">{t('custom_date')}</label>
+                <div className="flex flex-wrap items-center gap-2">
+                    <input
+                        type="date"
+                        value={draftStartDate}
+                        onChange={(e) => setDraftStartDate(e.target.value)}
+                        className="bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input
+                        type="date"
+                        value={draftEndDate}
+                        onChange={(e) => setDraftEndDate(e.target.value)}
+                        className="bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                          if (!draftStartDate || !draftEndDate) return;
+                          setCustomStartDate(draftStartDate);
+                          setCustomEndDate(draftEndDate);
+                          setPeriod('custom');
+                        }}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                        {t('apply')}
+                    </button>
+                </div>
+            </div>
             
-            {/* scope buttons removed; using global ReportHeader period controls */}
         </div>
 
         {/* Count */}
