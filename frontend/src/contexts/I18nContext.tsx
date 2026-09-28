@@ -79,7 +79,8 @@ const dict: Record<Lang, Record<string, string>> = {
     dynamic_menu_products_desc: 'Satılan ürünler ve menü filtresi',
     dynamic_menu_show_on: 'Dinamik menü ürünleri gösteriliyor',
     dynamic_menu_show_off: 'Dinamik menü ürünleri gizli',
-    dynamic_menu_filter_hint: 'Filtre yalnızca listeyi değiştirir. Ciro menü ana satırları hariç ürün toplamıdır.',
+    dynamic_menu_filter_hint:
+      'Dinamik menünün kendi fiyatı yoktur; ciro içeride seçilen ürünlerden gelir. Filtre yalnızca menü adlarını listeler, toplamı değiştirmez.',
     daily_sales_chart: 'Günlük Satış Grafiği',
     daily_details: 'Günlük Detaylar',
     no_data_selected_range: 'Seçili tarih aralığında veri bulunamadı',
@@ -291,7 +292,8 @@ const dict: Record<Lang, Record<string, string>> = {
     dynamic_menu_products_desc: 'Sold products with menu filter',
     dynamic_menu_show_on: 'Dynamic menu products visible',
     dynamic_menu_show_off: 'Dynamic menu products hidden',
-    dynamic_menu_filter_hint: 'The filter only changes the list. Revenue is always the product total without menu parent rows.',
+    dynamic_menu_filter_hint:
+      'Dynamic menus have no price of their own; revenue comes from the items added inside. The filter only lists menu names and does not change the total.',
     daily_sales_chart: 'Daily Sales Chart',
     daily_details: 'Daily Details',
     no_data_selected_range: 'No data in selected date range',

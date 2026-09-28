@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Filtre yalnızca listeyi değiştirir. Ciro menü ana satırları hariç ürün toplamıdır.'
-        : 'The filter only changes the list. Revenue is always the product total without menu parent rows.',
+        ? 'Dinamik menünün kendi fiyatı yoktur; ciro içeride seçilen ürünlerden gelir. Filtre yalnızca menü adlarını listeler.'
+        : 'Dynamic menus have no price of their own; revenue comes from items added inside. The filter only lists menu names.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -170,10 +170,19 @@ export default function DynamicMenuProductsScreen({ navigation }) {
           <Text style={styles.productName}>{item.product_name}</Text>
           <Text style={styles.groupName}>{item.group_name || T.noGroup}</Text>
           <Text style={styles.metaText}>
-            {Number(item.quantity) || 0} {T.qty} • {formatCurrency(item.price)}
+            {Number(item.quantity) || 0} {T.qty}
+            {!(item.is_dynamic_menu || isStarMenu(item))
+              ? ` • ${formatCurrency(item.price)}`
+              : ''}
           </Text>
         </View>
-        <Text style={styles.amount}>{formatCurrency(item.total)}</Text>
+        <Text style={styles.amount}>
+          {item.is_dynamic_menu || isStarMenu(item)
+            ? lang === 'tr'
+              ? 'Fiyatsız'
+              : 'No price'
+            : formatCurrency(item.total)}
+        </Text>
       </View>
     </View>
   );

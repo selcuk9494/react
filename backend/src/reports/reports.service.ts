@@ -1567,9 +1567,9 @@ export class ReportsService {
         parts.push(`COALESCE(${col}, false) = true`);
         continue;
       }
-      // MicPOS: 0 = ürün, 1 = sabit menü, 2 = dinamik menü
+      // MicPOS: 0 = ürün, 1 = sabit menü, 2 = dinamik menü (fiyatı 0, ciro içerideki ürünlerden)
       if (row.col === 'menu') {
-        parts.push(`COALESCE(${col}, 0) IN (1, 2)`);
+        parts.push(`COALESCE(${col}, 0) = 2`);
       } else {
         parts.push(`COALESCE(${col}, 0) <> 0`);
       }
@@ -3184,16 +3184,19 @@ export class ReportsService {
       endDateOnly,
       includeMenu,
     ]);
-    return (rows || []).map((r: any) => ({
-      plu: r.plu,
-      product_name: r.product_name,
-      group_name: r.group_name,
-      group_id: r.group_id,
-      quantity: Number(r.quantity) || 0,
-      total: Number(r.total) || 0,
-      price: Number(r.price) || 0,
-      is_dynamic_menu: Boolean(r.is_dynamic_menu),
-    }));
+    return (rows || []).map((r: any) => {
+      const isMenu = Boolean(r.is_dynamic_menu);
+      return {
+        plu: r.plu,
+        product_name: r.product_name,
+        group_name: r.group_name,
+        group_id: r.group_id,
+        quantity: Number(r.quantity) || 0,
+        total: isMenu ? 0 : Number(r.total) || 0,
+        price: isMenu ? 0 : Number(r.price) || 0,
+        is_dynamic_menu: isMenu,
+      };
+    });
   }
 
   async getProductGroups(user: any) {

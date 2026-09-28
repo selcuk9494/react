@@ -200,9 +200,16 @@ export default function DynamicMenuProductsPage() {
                         <p className="text-xs text-gray-500">{item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-black text-gray-900">{formatCurrency(asNumber(item.total))}</p>
+                        <p className="font-black text-gray-900">
+                          {isStarMenu(item)
+                            ? lang === 'tr'
+                              ? 'Fiyatsız'
+                              : 'No price'
+                            : formatCurrency(asNumber(item.total))}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          {asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'} • {formatCurrency(asNumber(item.price))}
+                          {asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'}
+                          {!isStarMenu(item) ? ` • ${formatCurrency(asNumber(item.price))}` : ''}
                         </p>
                       </div>
                     </div>
