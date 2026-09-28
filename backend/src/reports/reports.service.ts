@@ -1598,6 +1598,10 @@ export class ReportsService {
     )`;
   }
 
+  private meaningfulNameSql(expr: string, pluExpr: string) {
+    return `NULLIF(NULLIF(BTRIM(COALESCE(${expr}::text, '')), ''), BTRIM(${pluExpr}::text))`;
+  }
+
   private async hasColumn(
     pool: any,
     table: string,
@@ -3071,15 +3075,23 @@ export class ReportsService {
     const menuFlagExpr = hasFlag ? predicate : 'FALSE';
 
     const productNameCols: string[] = [];
-    for (const col of ['product_name', 'urun_adi', 'urunadi', 'adi', 'name']) {
+    for (const col of [
+      'product_name',
+      'urun_adi',
+      'urunadi',
+      'stokadi',
+      'adi',
+      'name',
+    ]) {
       if (await this.hasColumn(pool, 'product', col)) {
-        productNameCols.push(`NULLIF(BTRIM(p.${col}::text), '')`);
+        productNameCols.push(this.meaningfulNameSql(`p.${col}`, 's.pluid'));
       }
     }
     const closedLineNameCol = await this.resolveColumn(pool, 'ads_adisyon', [
       'urunadi',
       'urun_adi',
       'product_name',
+      'stokadi',
       'adi',
     ]);
     const closedLineGroupCol = await this.resolveColumn(pool, 'ads_adisyon', [
@@ -3091,6 +3103,7 @@ export class ReportsService {
           'urunadi',
           'urun_adi',
           'product_name',
+          'stokadi',
           'adi',
         ])
       : null;
@@ -3111,7 +3124,7 @@ export class ReportsService {
 
     const productNameExpr = `COALESCE(${[
       ...productNameCols,
-      `NULLIF(BTRIM(s.line_name::text), '')`,
+      this.meaningfulNameSql('s.line_name', 's.pluid'),
       `CAST(s.pluid AS VARCHAR)`,
     ].join(', ')})`;
     const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
