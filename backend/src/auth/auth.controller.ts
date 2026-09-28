@@ -75,6 +75,16 @@ export class AuthController {
     return this.authService.register(userData);
   }
 
+  @Post('apple')
+  async apple(@Body() body) {
+    const fullName = body?.fullName || {};
+    return this.authService.loginWithApple(body?.identityToken, {
+      email: body?.email,
+      givenName: fullName.givenName || body?.givenName,
+      familyName: fullName.familyName || body?.familyName,
+    });
+  }
+
   @Get('check-login')
   async checkLogin() {
     return this.authService.checkConnection();

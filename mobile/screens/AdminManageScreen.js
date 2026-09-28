@@ -25,6 +25,7 @@ const AVAILABLE_REPORTS = [
   { id: 'live_stock', label: 'Canlı Stok' },
   { id: 'product_prices', label: 'Ürün Fiyatları' },
   { id: 'product_sales', label: 'Ürün Satışları' },
+  { id: 'dynamic_menu_products', label: 'Dinamik Menü Ürün Raporu' },
   { id: 'personnel', label: 'Personel' },
   { id: 'payment_types', label: 'Ödeme Tipleri' },
   { id: 'payment_types_detail', label: 'Ödeme Tipleri (Detay)' },

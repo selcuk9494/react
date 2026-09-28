@@ -123,6 +123,7 @@ export default function DashboardScreen({ navigation, route }) {
       totalRevenue: 'TOPLAM CİRO',
       totalFooter: 'Açık + Kapalı Toplam',
       debtBadge: '💰 Borca Atılan:',
+      unpayableBadge: '⛔ Ödenmez:',
       today: 'Bugün',
       yesterday: 'Dün',
       week: 'Bu Hafta',
@@ -145,6 +146,8 @@ export default function DashboardScreen({ navigation, route }) {
       endDateLabel: 'Bitiş Tarihi:',
       reportProductSalesTitle: 'Ürün Satışları',
       reportProductSalesDesc: 'Ürün bazlı rapor',
+      reportDynamicMenuTitle: 'Dinamik Menü Ürünleri',
+      reportDynamicMenuDesc: 'Satılan ürünler / ciro',
       reportPersonnelTitle: 'Personel',
       reportPersonnelDesc: 'Performans raporu',
       reportPaymentTypesTitle: 'Ödeme Tipleri',
@@ -165,6 +168,8 @@ export default function DashboardScreen({ navigation, route }) {
       reportCourierDesc: 'Teslimat süreleri',
       reportUnpayableTitle: 'Ödenmezler',
       reportUnpayableDesc: 'Ödenmez listesi',
+      reportUnsoldCancelsTitle: 'Satılmadan İptaller',
+      reportUnsoldCancelsDesc: 'İptal edilen siparişler',
       adminSectionTitle: 'Yönetim',
       adminUsersTitle: 'Kullanıcılar',
       adminUsersDesc: 'Ekle / düzenle',
@@ -192,6 +197,7 @@ export default function DashboardScreen({ navigation, route }) {
       totalRevenue: 'TOTAL REVENUE',
       totalFooter: 'Open + Closed Total',
       debtBadge: '💰 On Credit:',
+      unpayableBadge: '⛔ Unpayable:',
       today: 'Today',
       yesterday: 'Yesterday',
       week: 'This Week',
@@ -223,6 +229,8 @@ export default function DashboardScreen({ navigation, route }) {
       profileUpdateFailed: 'Profile update failed',
       reportProductSalesTitle: 'Product Sales',
       reportProductSalesDesc: 'Product based report',
+      reportDynamicMenuTitle: 'Dynamic Menu Products',
+      reportDynamicMenuDesc: 'Sold products / revenue',
       reportPersonnelTitle: 'Personnel',
       reportPersonnelDesc: 'Staff performance',
       reportPaymentTypesTitle: 'Payment Types',
@@ -243,6 +251,8 @@ export default function DashboardScreen({ navigation, route }) {
       reportCourierDesc: 'Delivery times',
       reportUnpayableTitle: 'Unpayables',
       reportUnpayableDesc: 'Unpaid orders',
+      reportUnsoldCancelsTitle: 'Unsold Cancels',
+      reportUnsoldCancelsDesc: 'Cancelled before sale',
       adminSectionTitle: 'Admin',
       adminUsersTitle: 'Users',
       adminUsersDesc: 'Add / edit users',
@@ -609,15 +619,28 @@ export default function DashboardScreen({ navigation, route }) {
 
   const isReportAllowed = (reportId) => {
     if (!user) return false;
-    // If admin, allow all
     if (user.is_admin) return true;
-    // If allowed_reports is null/undefined, allow all (default)
-    // IMPORTANT: null means ALL ALLOWED. Empty array [] means NONE ALLOWED.
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
-    // If allowed_reports is array, check inclusion
-    const hasPermission = user.allowed_reports.includes(reportId);
-    console.log(`Report permission check - User: ${user.email}, Report: ${reportId}, Allowed reports:`, user.allowed_reports, `Has permission: ${hasPermission}`);
-    return hasPermission;
+    const list = Array.isArray(user.allowed_reports)
+      ? user.allowed_reports
+      : typeof user.allowed_reports === 'string'
+        ? user.allowed_reports.replace(/[{}]/g, '').split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
+    if (list.length === 0) return false;
+    const aliases = {
+      unpayable: ['unpayable', 'unpayable_report', 'odenmez', 'odenmezler'],
+      dynamic_menu_products: ['dynamic_menu_products', 'dynamic_menu', 'menu_products'],
+    };
+    const ids = aliases[reportId] || [reportId];
+    if (ids.some((id) => list.includes(id))) return true;
+    // Older saved permission lists predate the unpayable report.
+    if (reportId === 'unpayable' && (list.includes('closed_orders') || list.includes('debts'))) {
+      return true;
+    }
+    if (reportId === 'dynamic_menu_products' && list.includes('product_sales')) {
+      return true;
+    }
+    return false;
   };
 
   if (loading) {
@@ -892,9 +915,18 @@ export default function DashboardScreen({ navigation, route }) {
                 <Text style={styles.footerText}>{T.totalFooter}</Text>
                 <View style={styles.footerDot} />
             </View>
-            {!!dashboardData?.borca_atilan_toplam && dashboardData.borca_atilan_toplam > 0 && (
-                <View style={styles.debtBadge}>
-                    <Text style={styles.debtText}>{T.debtBadge} {formatCurrency(dashboardData.borca_atilan_toplam)}</Text>
+            {((dashboardData?.borca_atilan_toplam || 0) > 0 || (dashboardData?.odenmez_toplam || 0) > 0) && (
+                <View style={styles.extraBadgeRow}>
+                    {(dashboardData?.borca_atilan_toplam || 0) > 0 && (
+                        <View style={styles.debtBadge}>
+                            <Text style={styles.debtText}>{T.debtBadge} {formatCurrency(dashboardData.borca_atilan_toplam)}</Text>
+                        </View>
+                    )}
+                    {(dashboardData?.odenmez_toplam || 0) > 0 && (
+                        <TouchableOpacity style={styles.unpayableBadge} onPress={() => navigation.navigate('Unpayable')}>
+                            <Text style={styles.unpayableBadgeText}>{T.unpayableBadge} {formatCurrency(dashboardData.odenmez_toplam)}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
         </LinearGradient>
@@ -1133,6 +1165,25 @@ export default function DashboardScreen({ navigation, route }) {
                 )}
             </View>
             )}
+            {(dashboardData?.odenmez_toplam || 0) > 0 && (
+                <TouchableOpacity
+                    style={[styles.statCard, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+                    onPress={() => navigation.navigate('Unpayable')}
+                >
+                    <View style={styles.statHeader}>
+                        <View style={[styles.iconBox, { backgroundColor: '#ef4444' }]}>
+                            <Feather name="x-circle" size={16} color="#fff" />
+                        </View>
+                        <Text style={[styles.statTitle, { color: '#b91c1c' }]}>{T.reportUnpayableTitle}</Text>
+                    </View>
+                    <Text style={[styles.statValue, { color: '#dc2626' }]}>
+                      {showPlaceholders ? '...' : formatCurrency(dashboardData?.odenmez_toplam)}
+                    </Text>
+                    <Text style={styles.statCount}>
+                      {showPlaceholders ? '...' : (dashboardData?.odenmez_adet || 0)} {T.orderCount}
+                    </Text>
+                </TouchableOpacity>
+            )}
         </View>
 
         {/* Stock Management Section */}
@@ -1196,6 +1247,15 @@ export default function DashboardScreen({ navigation, route }) {
                     icon="pie-chart" 
                     colors={['#f97316', '#f59e0b']} 
                     onPress={() => navigation.navigate('ProductSales')} 
+                />
+                )}
+                {isReportAllowed('dynamic_menu_products') && (
+                <ReportCard 
+                    title={T.reportDynamicMenuTitle}
+                    desc={T.reportDynamicMenuDesc}
+                    icon="list" 
+                    colors={['#8b5cf6', '#d946ef']} 
+                    onPress={() => navigation.navigate('DynamicMenuProducts')} 
                 />
                 )}
                 {isReportAllowed('personnel') && (
@@ -1279,6 +1339,15 @@ export default function DashboardScreen({ navigation, route }) {
                     onPress={() => navigation.navigate('Debts')} 
                 />
                 )}
+                {isReportAllowed('unpayable') && (
+                <ReportCard 
+                    title={T.reportUnpayableTitle}
+                    desc={T.reportUnpayableDesc}
+                    icon="x-circle" 
+                    colors={['#ef4444', '#b91c1c']} 
+                    onPress={() => navigation.navigate('Unpayable')} 
+                />
+                )}
                 {isReportAllowed('courier') && (
                 <ReportCard 
                     title={T.reportCourierTitle}
@@ -1288,13 +1357,13 @@ export default function DashboardScreen({ navigation, route }) {
                     onPress={() => navigation.navigate('Courier')} 
                 />
                 )}
-                {isReportAllowed('unpayable') && (
+                {isReportAllowed('unsold_cancels') && (
                 <ReportCard 
-                    title={T.reportUnpayableTitle}
-                    desc={T.reportUnpayableDesc}
-                    icon="slash" 
-                    colors={['#ef4444', '#b91c1c']} 
-                    onPress={() => navigation.navigate('Unpayable')} 
+                    title={T.reportUnsoldCancelsTitle}
+                    desc={T.reportUnsoldCancelsDesc}
+                    icon="x-circle" 
+                    colors={['#e11d48', '#be123c']} 
+                    onPress={() => navigation.navigate('UnsoldCancels')} 
                 />
                 )}
             </View>
@@ -1839,8 +1908,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  debtBadge: {
+  extraBadgeRow: {
     marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  debtBadge: {
     backgroundColor: 'rgba(251, 191, 36, 0.9)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1848,6 +1923,17 @@ const styles = StyleSheet.create({
   },
   debtText: {
     color: '#78350f',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  unpayableBadge: {
+    backgroundColor: 'rgba(248, 113, 113, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  unpayableBadgeText: {
+    color: '#7f1d1d',
     fontWeight: '700',
     fontSize: 12,
   },

@@ -97,6 +97,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       if (!hasAllowedReports) {
         await client.query(`ALTER TABLE users ADD COLUMN allowed_reports TEXT[]`);
       }
+      const hasAppleId = await colCheck('apple_id');
+      if (!hasAppleId) {
+        await client.query(`ALTER TABLE users ADD COLUMN apple_id VARCHAR(255)`);
+      }
+      await client.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_apple_id_uidx ON users (apple_id) WHERE apple_id IS NOT NULL`,
+      );
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS branches (
@@ -802,7 +809,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ],
       };
     }
-    // Product Sales (Closed only)
+    // Dynamic menu product sales
+    if (lowerText.includes('is_dynamic_menu') && lowerText.includes('from sales s')) {
+      return {
+        rows: [
+          {
+            product_name: 'Adana Kebap',
+            plu: 101,
+            group_id: 1,
+            group_name: 'Kebaplar',
+            quantity: 50,
+            total: '12500.00',
+            price: '250.00',
+            is_dynamic_menu: false,
+          },
+          {
+            product_name: 'Kahvaltı Menüsü',
+            plu: 501,
+            group_id: 9,
+            group_name: 'Menüler',
+            quantity: 12,
+            total: '4800.00',
+            price: '400.00',
+            is_dynamic_menu: true,
+          },
+        ],
+      };
+    }
     if (
       lowerText.includes('from ads_adisyon') &&
       lowerText.includes('p.product_name as product_name')

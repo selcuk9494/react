@@ -1,13 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import * as jose from 'jose';
+
+const APPLE_ISSUER = 'https://appleid.apple.com';
+const APPLE_JWKS = jose.createRemoteJWKSet(
+  new URL('https://appleid.apple.com/auth/keys'),
+);
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -115,5 +124,89 @@ export class AuthService {
 
   async checkConnection() {
     return this.usersService.checkConnection();
+  }
+
+  async loginWithApple(
+    identityToken: string,
+    profile?: { email?: string; givenName?: string; familyName?: string },
+  ) {
+    const claims = await this.verifyAppleIdentityToken(identityToken);
+    const appleId = String(claims.sub || '').trim();
+    if (!appleId) {
+      throw new UnauthorizedException('Apple kimliği doğrulanamadı');
+    }
+
+    const tokenEmail = String(claims.email || profile?.email || '')
+      .trim()
+      .toLowerCase();
+
+    let user = await this.usersService.findByAppleId(appleId);
+    if (!user && tokenEmail) {
+      user = await this.usersService.findOne(tokenEmail);
+      if (user) {
+        await this.usersService.linkAppleId(user.id, appleId);
+        user = await this.usersService.findOne(tokenEmail);
+      }
+    }
+
+    if (!user) {
+      if (!tokenEmail) {
+        throw new UnauthorizedException(
+          'Bu Apple hesabı henüz bağlı değil. İlk girişte e-posta paylaşın veya mevcut hesabınızla giriş yapın.',
+        );
+      }
+      const randomPassword = crypto.randomBytes(32).toString('hex');
+      const displayName = [profile?.givenName, profile?.familyName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      user = await this.usersService.create({
+        email: tokenEmail,
+        password: randomPassword,
+        username: displayName || undefined,
+        apple_id: appleId,
+      });
+      user = await this.usersService.findOne(tokenEmail);
+    }
+
+    if (user?.expiry_date) {
+      const exp = new Date(user.expiry_date);
+      if (exp.getTime() < Date.now()) {
+        throw new UnauthorizedException(
+          'Kullanım süreniz dolmuş. Lütfen yöneticinizle iletişime geçin.',
+        );
+      }
+    }
+
+    const result: any = { ...user };
+    delete result.password;
+    return this.login(result);
+  }
+
+  private appleAudiences(): string[] {
+    const fromList = (this.configService.get<string>('APPLE_CLIENT_IDS') || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const bundle =
+      this.configService.get<string>('APPLE_BUNDLE_ID') || 'com.micrapor.mobile';
+    const service = this.configService.get<string>('APPLE_SERVICE_ID') || '';
+    return [...new Set([...fromList, bundle, service].filter(Boolean))];
+  }
+
+  private async verifyAppleIdentityToken(identityToken: string) {
+    const token = String(identityToken || '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Apple kimlik jetonu yok');
+    }
+    try {
+      const { payload } = await jose.jwtVerify(token, APPLE_JWKS, {
+        issuer: APPLE_ISSUER,
+        audience: this.appleAudiences(),
+      });
+      return payload;
+    } catch {
+      throw new UnauthorizedException('Apple girişi doğrulanamadı');
+    }
   }
 }

@@ -26,7 +26,9 @@ import {
   Save,
   Bike,
   Package,
-  Globe2
+  Globe2,
+  Ban,
+  LayoutList
 } from 'lucide-react';
 import axios from 'axios';
 import clsx from 'clsx';
@@ -41,6 +43,8 @@ interface DashboardData {
   iptal_toplam: number;
   borca_atilan_toplam?: number;
   borca_atilan_adet?: number;
+  odenmez_toplam?: number;
+  odenmez_adet?: number;
   acik_adisyon_adet: number;
   kapali_adisyon_adet: number;
   iptal_adet: number;
@@ -189,7 +193,25 @@ export default function Dashboard() {
     if (!user) return false;
     if (user.is_admin) return true;
     if (user.allowed_reports === null || user.allowed_reports === undefined) return true;
-    return user.allowed_reports.includes(reportId);
+    const list = Array.isArray(user.allowed_reports)
+      ? user.allowed_reports
+      : typeof user.allowed_reports === 'string'
+        ? String(user.allowed_reports).replace(/[{}]/g, '').split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
+    if (list.length === 0) return false;
+    const aliases: Record<string, string[]> = {
+      unpayable: ['unpayable', 'unpayable_report', 'odenmez', 'odenmezler'],
+      dynamic_menu_products: ['dynamic_menu_products', 'dynamic_menu', 'menu_products'],
+    };
+    const ids = aliases[reportId] || [reportId];
+    if (ids.some((id) => list.includes(id))) return true;
+    if (reportId === 'unpayable' && (list.includes('closed_orders') || list.includes('debts'))) {
+      return true;
+    }
+    if (reportId === 'dynamic_menu_products' && list.includes('product_sales')) {
+      return true;
+    }
+    return false;
   };
   const canViewDashboard = isReportAllowed('dashboard');
 
@@ -748,13 +770,27 @@ export default function Dashboard() {
                 </>
               );
             })()}
-            {!isDataLoading && data && !!data?.borca_atilan_toplam && data.borca_atilan_toplam > 0 && (
-              <div className={clsx(
-                "mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold backdrop-blur-sm",
-                period === 'today' ? "bg-amber-500/90 text-white" : "bg-amber-400 text-amber-900"
-              )}>
-                <span>💰</span>
-                {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam)}
+            {!isDataLoading && data && ((data?.borca_atilan_toplam || 0) > 0 || (data?.odenmez_toplam || 0) > 0) && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+                {(data?.borca_atilan_toplam || 0) > 0 && (
+                  <div className={clsx(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold backdrop-blur-sm",
+                    period === 'today' ? "bg-amber-500/90 text-white" : "bg-amber-400 text-amber-900"
+                  )}>
+                    <span>💰</span>
+                    {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam)}
+                  </div>
+                )}
+                {(data?.odenmez_toplam || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigateWithOverlay('/reports/unpayable')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold bg-red-500/95 text-white"
+                  >
+                    <Ban className="w-4 h-4" />
+                    {lang === 'tr' ? 'Ödenmez' : 'Unpayable'}: {formatCurrency(data.odenmez_toplam || 0)}
+                  </button>
+                )}
               </div>
             )}
             </div>
@@ -1053,10 +1089,33 @@ export default function Dashboard() {
               </div>
             </div>
             )}
+            {(data?.odenmez_toplam || 0) > 0 && (
+            <div
+                onClick={() => navigateWithOverlay('/reports/unpayable')}
+                className="bg-white p-5 rounded-[24px] border border-red-100 shadow-lg shadow-red-100/50 cursor-pointer hover:shadow-xl hover:border-red-200 transition-all duration-300 relative overflow-hidden group lg:rounded-xl lg:border-slate-200 lg:shadow-sm lg:hover:shadow-md"
+            >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-100 to-rose-50 rounded-full -mr-16 -mt-16 opacity-60"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/30">
+                      <Ban className="w-4 h-4 text-white" />
+                    </div>
+                    <h3 className="text-gray-600 text-sm font-semibold">{t('unpayable_report')}</h3>
+                  </div>
+                  <p className="text-3xl font-black text-red-700 tracking-tight">
+                    {isDataLoading || !data ? '...' : formatCurrency(data.odenmez_toplam || 0)}
+                  </p>
+                  <span className="text-xs text-gray-400 mt-2 inline-block">
+                    {data?.odenmez_adet || 0} {t('count_orders')}
+                  </span>
+                  <p className="text-[11px] text-red-500 font-semibold mt-2">
+                    {lang === 'tr' ? 'Ciroya dahil edilmedi' : 'Not included in revenue'}
+                  </p>
+                </div>
+            </div>
+            )}
         </div>
         )}
-
-        {/* Stock Management Section */}
         {(isReportAllowed('stock_entry') || isReportAllowed('live_stock')) && (
         <div className="space-y-4 mt-6 lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:p-5 lg:shadow-sm">
             <div className="flex items-center justify-between px-1 lg:px-0">
@@ -1147,6 +1206,22 @@ export default function Dashboard() {
                     <div className="relative z-10">
                       <h4 className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors">{t('product_sales')}</h4>
                       <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('product_sales_desc')}</p>
+                    </div>
+                </Link>
+                )}
+
+                {isReportAllowed('dynamic_menu_products') && (
+                <Link 
+                    href="/reports/dynamic-menu-products"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-violet-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-violet-100 to-fuchsia-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-violet-500/30">
+                        <LayoutList className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="relative z-10">
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-violet-600 transition-colors">{t('dynamic_menu_products')}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('dynamic_menu_products_desc')}</p>
                     </div>
                 </Link>
                 )}
@@ -1292,16 +1367,14 @@ export default function Dashboard() {
                 {isReportAllowed('unpayable') && (
                 <Link 
                     href="/reports/unpayable"
-                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-slate-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-md hover:shadow-xl hover:border-red-200 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-slate-100 to-gray-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
-                    <div className="bg-gradient-to-br from-slate-500 to-gray-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-slate-500/30">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                        </svg>
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-red-100 to-rose-50 rounded-full -mr-8 -mt-8 opacity-60 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="bg-gradient-to-br from-red-500 to-rose-600 w-11 h-11 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative z-10 shadow-lg shadow-red-500/30">
+                        <Ban className="w-5 h-5 text-white" />
                     </div>
                     <div className="relative z-10">
-                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-slate-600 transition-colors">{t('unpayable_report')}</h4>
+                      <h4 className="font-bold text-gray-800 text-sm group-hover:text-red-600 transition-colors">{t('unpayable_report')}</h4>
                       <p className="text-[10px] text-gray-400 mt-1 font-medium line-clamp-1">{t('unpayable_report_desc')}</p>
                     </div>
                 </Link>

@@ -1545,6 +1545,41 @@ export class ReportsService {
     };
   }
 
+  private async getDynamicMenuPredicate(pool: any, alias = 'p') {
+    const rows = await this.db
+      .executeQuery(
+        pool,
+        `
+        SELECT lower(column_name) as col, lower(data_type) as data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'product'
+          AND lower(column_name) IN ('menu', 'menumu', 'dinamik', 'is_menu')
+      `,
+        [],
+      )
+      .catch(() => []);
+    const parts: string[] = [];
+    for (const row of rows || []) {
+      const col = `${alias}.${row.col}`;
+      const dt = String(row.data_type || '');
+      if (dt.includes('bool')) {
+        parts.push(`COALESCE(${col}, false) = true`);
+        continue;
+      }
+      // MicPOS: 0 = ürün, 1 = sabit menü, 2 = dinamik menü
+      if (row.col === 'menu') {
+        parts.push(`COALESCE(${col}, 0) IN (1, 2)`);
+      } else {
+        parts.push(`COALESCE(${col}, 0) <> 0`);
+      }
+    }
+    if (parts.length === 0) {
+      return { predicate: 'FALSE', hasFlag: false };
+    }
+    return { predicate: `(${parts.join(' OR ')})`, hasFlag: true };
+  }
+
   private async hasColumn(
     pool: any,
     table: string,
@@ -1621,6 +1656,23 @@ export class ReportsService {
     throw new ForbiddenException();
   }
 
+  private unpayableAck4Filter(alias = 'a') {
+    return `(
+      ${alias}.ack4 ILIKE '%ODENMEZ%' OR
+      ${alias}.ack4 ILIKE '%ÖDENMEZ%' OR
+      ${alias}.ack4 ILIKE '%ODENEMEZ%'
+    )`;
+  }
+
+  private unpayableAmountSql(alias = 'a') {
+    return `COALESCE(NULLIF(${alias}.tutar, 0), COALESCE(${alias}.miktar, 0) * COALESCE(${alias}.bfiyat, 0), 0)`;
+  }
+
+  private unpayableDateFilter(period: string, _window: any, startParam = 2, endParam = 3) {
+    if (period === 'all') return '';
+    return ` AND a.kaptar >= $${startParam}::date AND a.kaptar < ($${endParam}::date + interval '1 day')`;
+  }
+
   async getDashboard(
     user: any,
     period: string,
@@ -1628,7 +1680,7 @@ export class ReportsService {
     endDate?: string,
   ) {
     const cacheKey = this.cache.generateKey(
-      'dashboard_v3',
+      'dashboard_v4',
       user.id,
       period,
       startDate || 'none',
@@ -1649,6 +1701,8 @@ export class ReportsService {
       iptal_toplam: 0,
       borca_atilan_toplam: 0,
       borca_atilan_adet: 0,
+      odenmez_toplam: 0,
+      odenmez_adet: 0,
       acik_adisyon_adet: 0,
       kapali_adisyon_adet: 0,
       iptal_adet: 0,
@@ -1747,6 +1801,13 @@ export class ReportsService {
         cancelParams.push(w.startTs, w.endTs);
       }
 
+      const unpayParams: any[] = [kasa_nos];
+      let unpayFilter = '';
+      if (period !== 'all') {
+        unpayFilter = this.unpayableDateFilter(period, w);
+        unpayParams.push(w.startDateOnly, w.endDateOnly);
+      }
+
       const openQuery = `
         WITH per_ads AS (
           SELECT
@@ -1816,12 +1877,29 @@ export class ReportsService {
         ${cancelFilter}
       `;
 
-      const [openAgg, closedAgg, debtAggRows, cancelAggRows, cashReport] =
+      const unpayQuery = `
+        SELECT
+          CASE
+            WHEN COALESCE(a.adtur, 0) = 1 OR COALESCE(a.masano, 0) = 99999 OR COALESCE(a.sipyer, 0) = 2 THEN 'paket'
+            WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
+            ELSE 'adisyon'
+          END as type,
+          COUNT(DISTINCT a.adsno)::int as adet,
+          COALESCE(SUM(${this.unpayableAmountSql('a')}), 0) as toplam
+        FROM ads_adisyon a
+        WHERE a.kasa = ANY($1)
+          AND ${this.unpayableAck4Filter('a')}
+          ${unpayFilter}
+        GROUP BY type
+      `;
+
+      const [openAgg, closedAgg, debtAggRows, cancelAggRows, unpayAgg, cashReport] =
         await Promise.all([
           this.db.executeQuery(pool, openQuery, openParams).catch(() => []),
           this.db.executeQuery(pool, closedQuery, closedParams).catch(() => []),
           this.db.executeQuery(pool, debtQuery, debtParams).catch(() => []),
           this.db.executeQuery(pool, cancelQuery, cancelParams).catch(() => []),
+          this.db.executeQuery(pool, unpayQuery, unpayParams).catch(() => []),
           this.getCashReport(user, period, startDate, endDate).catch(() => ({
             totals: {
               nakit: 0,
@@ -1868,6 +1946,22 @@ export class ReportsService {
       const cancelAgg = (cancelAggRows as any[])[0] || { toplam: 0, adet: 0 };
       result.iptal_toplam = Number(cancelAgg.toplam) || 0;
       result.iptal_adet = Number(cancelAgg.adet) || 0;
+
+      (unpayAgg as any[]).forEach((r) => {
+        const key = r.type;
+        const g = (result.dagilim as any)[key];
+        const adet = Number(r.adet) || 0;
+        const toplam = Number(r.toplam) || 0;
+        result.odenmez_adet += adet;
+        result.odenmez_toplam += toplam;
+        if (g) {
+          g.kapali_toplam = Math.max(0, g.kapali_toplam - toplam);
+        }
+      });
+      result.kapali_adisyon_toplam = Math.max(
+        0,
+        result.kapali_adisyon_toplam - result.odenmez_toplam,
+      );
 
       (['adisyon', 'paket', 'hizli'] as const).forEach((key) => {
         const g = (result.dagilim as any)[key];
@@ -2930,6 +3024,106 @@ export class ReportsService {
     }));
   }
 
+  async getDynamicMenuProductSales(
+    user: any,
+    period: string,
+    startDate?: string,
+    endDate?: string,
+    includeMenu = false,
+  ) {
+    const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const { start, end } = this.getDateRange(
+      period,
+      closingHour,
+      startDate,
+      endDate,
+    );
+    let startDateOnly = format(start, 'yyyy-MM-dd');
+    let endDateOnly = format(end, 'yyyy-MM-dd');
+    if (period === 'today') {
+      startDateOnly = this.getBusinessDayDate(closingHour, 'today');
+      endDateOnly = startDateOnly;
+    } else if (period === 'yesterday') {
+      startDateOnly = this.getBusinessDayDate(closingHour, 'yesterday');
+      endDateOnly = startDateOnly;
+    }
+
+    const { predicate, hasFlag } = await this.getDynamicMenuPredicate(pool, 'p');
+    const includeOpen = period === 'today';
+    const menuExpr = hasFlag ? predicate : 'FALSE';
+
+    const query = `
+      WITH sales AS (
+        SELECT
+          a.pluid,
+          COALESCE(a.miktar, 0) as miktar,
+          COALESCE(a.tutar, 0) as tutar,
+          COALESCE(a.bfiyat, 0) as bfiyat
+        FROM ads_adisyon a
+        WHERE a.kasa = ANY($1)
+          AND a.raptar >= $2::date
+          AND a.raptar <= $3::date
+          AND COALESCE(a.sturu, 0) NOT IN (1, 2, 4)
+        ${
+          includeOpen
+            ? `
+        UNION ALL
+        SELECT
+          a.pluid,
+          COALESCE(a.miktar, 0) as miktar,
+          COALESCE(a.tutar, 0) as tutar,
+          COALESCE(a.bfiyat, 0) as bfiyat
+        FROM ads_acik a
+        WHERE a.kasa = ANY($1)
+          AND a.actar = $2::date
+          AND COALESCE(a.sturu, 0) NOT IN (1, 2, 4)
+        `
+            : ''
+        }
+      ),
+      agg AS (
+        SELECT
+          COALESCE(p.plu, s.pluid) as plu,
+          COALESCE(p.product_name, CAST(s.pluid AS VARCHAR)) as product_name,
+          COALESCE(pg.adi, '') as group_name,
+          p.tip as group_id,
+          COALESCE(SUM(s.miktar), 0) as quantity,
+          COALESCE(SUM(s.tutar), 0) as total,
+          CASE
+            WHEN COALESCE(SUM(s.miktar), 0) > 0
+              THEN COALESCE(SUM(s.tutar), 0) / COALESCE(SUM(s.miktar), 0)
+            ELSE COALESCE(MAX(s.bfiyat), 0)
+          END as price,
+          BOOL_OR(${menuExpr}) as is_dynamic_menu
+        FROM sales s
+        LEFT JOIN product p ON s.pluid = p.plu
+        LEFT JOIN product_group pg ON p.tip = pg.id
+        GROUP BY COALESCE(p.plu, s.pluid), COALESCE(p.product_name, CAST(s.pluid AS VARCHAR)), COALESCE(pg.adi, ''), p.tip
+      )
+      SELECT *
+      FROM agg
+      WHERE ($4::boolean OR NOT COALESCE(is_dynamic_menu, false))
+      ORDER BY total DESC
+    `;
+
+    const rows = await this.db.executeQuery(pool, query, [
+      kasa_nos,
+      startDateOnly,
+      endDateOnly,
+      includeMenu,
+    ]);
+    return (rows || []).map((r: any) => ({
+      plu: r.plu,
+      product_name: r.product_name,
+      group_name: r.group_name,
+      group_id: r.group_id,
+      quantity: Number(r.quantity) || 0,
+      total: Number(r.total) || 0,
+      price: Number(r.price) || 0,
+      is_dynamic_menu: Boolean(r.is_dynamic_menu),
+    }));
+  }
+
   async getProductGroups(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branchId = user.branches[branchIndex]?.id;
@@ -2986,22 +3180,12 @@ export class ReportsService {
     endDate?: string,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
-    const { start, end } = this.getDateRange(
-      period,
-      closingHour,
-      startDate,
-      endDate,
-    );
-    let dStart = format(start, 'yyyy-MM-dd');
-    let dEnd = format(end, 'yyyy-MM-dd');
-    if (period === 'today') {
-      const biz = this.getBusinessDayDate(closingHour, 'today');
-      dStart = biz;
-      dEnd = biz;
-    } else if (period === 'yesterday') {
-      const biz = this.getBusinessDayDate(closingHour, 'yesterday');
-      dStart = biz;
-      dEnd = biz;
+    const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
+    const params: any[] = [kasa_nos];
+    let dateFilter = '';
+    if (period !== 'all') {
+      dateFilter = this.unpayableDateFilter(period, w);
+      params.push(w.startDateOnly, w.endDateOnly);
     }
     const query = `
       SELECT 
@@ -3024,20 +3208,12 @@ export class ReportsService {
       LEFT JOIN product p ON a.pluid = p.plu
       LEFT JOIN product_fiyat pf ON pf.plu = a.pluid
       LEFT JOIN ads_musteri m ON a.mustid = m.mustid
-      WHERE a.kaptar BETWEEN $1 AND $2
-        AND a.kasa = ANY($3)
-        AND (
-          a.ack4 ILIKE '%ODENMEZ%' OR 
-          a.ack4 ILIKE '%ÖDENMEZ%' OR 
-          a.ack4 ILIKE '%ODENEMEZ%'
-        )
+      WHERE a.kasa = ANY($1)
+        AND ${this.unpayableAck4Filter('a')}
+        ${dateFilter}
       ORDER BY a.kaptar DESC, a.adsno DESC
     `;
-    const rows = await this.db.executeQuery(pool, query, [
-      dStart,
-      dEnd,
-      kasa_nos,
-    ]);
+    const rows = await this.db.executeQuery(pool, query, params);
     return rows.map((r: any) => ({
       adtur: r.adtur,
       adsno: r.adsno,
@@ -3049,7 +3225,9 @@ export class ReportsService {
       product_name: r.product_name,
       miktar: parseFloat(r.miktar),
       bfiyat: parseFloat(r.bfiyat),
-      tutar: parseFloat(r.miktar) * parseFloat(r.bfiyat),
+      tutar:
+        parseFloat(r.tutar) ||
+        (parseFloat(r.miktar) || 0) * (parseFloat(r.bfiyat) || 0),
       ack4: r.ack4,
       mustid: r.mustid,
       musteri_adi: r.musteri_adi,

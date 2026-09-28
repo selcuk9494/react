@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AppleAuthentication.isAvailableAsync()
+      .then(setAppleAvailable)
+      .catch(() => setAppleAvailable(false));
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -25,6 +34,47 @@ export default function LoginScreen({ navigation }) {
     await performLogin('demo', 'demo');
   };
 
+  const finishLogin = async (access_token, user) => {
+    await AsyncStorage.setItem('token', access_token);
+    if (user) {
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+    }
+    await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Dashboard', params: { user } }],
+    });
+  };
+
+  const handleAppleLogin = async () => {
+    setLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) {
+        Alert.alert('Giriş Hatası', 'Apple kimliği alınamadı.');
+        return;
+      }
+      const response = await axios.post(`${API_URL}/auth/apple`, {
+        identityToken: credential.identityToken,
+        email: credential.email,
+        fullName: credential.fullName,
+      });
+      const { access_token, user } = response.data;
+      await finishLogin(access_token, user);
+    } catch (error) {
+      if (error?.code === 'ERR_REQUEST_CANCELED') return;
+      const message = error.response?.data?.message || 'Apple ile giriş yapılamadı.';
+      Alert.alert('Giriş Hatası', message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const performLogin = async (loginEmail, loginPassword) => {
     setLoading(true);
     try {
@@ -37,17 +87,7 @@ export default function LoginScreen({ navigation }) {
       });
 
       const { access_token, user } = response.data;
-      await AsyncStorage.setItem('token', access_token);
-      if (user) {
-        await AsyncStorage.setItem('user', JSON.stringify(user));
-      }
-      await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
-      
-      // Navigate to Dashboard
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Dashboard', params: { user } }],
-      });
+      await finishLogin(access_token, user);
 
     } catch (error) {
       console.error(error);
@@ -125,6 +165,16 @@ export default function LoginScreen({ navigation }) {
       >
         <Text style={styles.demoButtonText}>Demo Modu</Text>
       </TouchableOpacity>
+
+      {appleAvailable && (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={8}
+          style={styles.appleButton}
+          onPress={loading ? undefined : handleAppleLogin}
+        />
+      )}
 
       <StatusBar style="auto" />
     </View>
@@ -204,5 +254,10 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
+    marginTop: 12,
   },
 });

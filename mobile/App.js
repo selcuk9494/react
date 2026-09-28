@@ -9,6 +9,7 @@ import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 
 import ProductSalesScreen from './screens/ProductSalesScreen';
+import DynamicMenuProductsScreen from './screens/DynamicMenuProductsScreen';
 import PaymentTypesScreen from './screens/PaymentTypesScreen';
 import PersonnelScreen from './screens/PersonnelScreen';
 import HourlySalesScreen from './screens/HourlySalesScreen';
@@ -21,6 +22,7 @@ import OrderDetailScreen from './screens/OrderDetailScreen';
 import DebtsScreen from './screens/DebtsScreen';
 import CourierScreen from './screens/CourierScreen';
 import UnpayableScreen from './screens/UnpayableScreen';
+import UnsoldCancelsScreen from './screens/UnsoldCancelsScreen';
 import StockEntryScreen from './screens/StockEntryScreen';
 import LiveStockScreen from './screens/LiveStockScreen';
 import AdminBranchesScreen from './screens/AdminBranchesScreen';
@@ -88,6 +90,11 @@ export default function App() {
             options={{ 
               headerShown: false,
             }} 
+          />
+          <Stack.Screen 
+            name="DynamicMenuProducts" 
+            component={DynamicMenuProductsScreen} 
+            options={{ headerShown: false }} 
           />
           <Stack.Screen 
             name="PaymentTypes" 
@@ -162,6 +169,11 @@ export default function App() {
           <Stack.Screen 
             name="Unpayable" 
             component={UnpayableScreen} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="UnsoldCancels" 
+            component={UnsoldCancelsScreen} 
             options={{ headerShown: false }} 
           />
           <Stack.Screen 

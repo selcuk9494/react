@@ -42,6 +42,8 @@ export class ReportsController {
         iptal_toplam: 0,
         borca_atilan_toplam: 0,
         borca_atilan_adet: 0,
+        odenmez_toplam: 0,
+        odenmez_adet: 0,
         acik_adisyon_adet: 0,
         kapali_adisyon_adet: 0,
         iptal_adet: 0,
@@ -456,6 +458,28 @@ export class ReportsController {
       period,
       startDate,
       endDate,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/dynamic-menu-products')
+  async getDynamicMenuProductSales(
+    @Request() req,
+    @Query('period') period: string = 'today',
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('include_menu') includeMenu?: string,
+  ) {
+    const showMenu =
+      includeMenu === '1' ||
+      includeMenu === 'true' ||
+      includeMenu === 'yes';
+    return this.reportsService.getDynamicMenuProductSales(
+      req.user,
+      period,
+      startDate,
+      endDate,
+      showMenu,
     );
   }
 

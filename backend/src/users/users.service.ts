@@ -99,6 +99,28 @@ export class UsersService {
     return user;
   }
 
+  async findByAppleId(appleId: string): Promise<any> {
+    const id = String(appleId || '').trim();
+    if (!id) return null;
+    if (this.db.isMockMode()) return null;
+    const pool = this.db.getMainPool();
+    const res = await pool.query(
+      `SELECT email FROM users WHERE apple_id = $1 LIMIT 1`,
+      [id],
+    );
+    if (res.rows.length === 0) return null;
+    return this.findOne(res.rows[0].email);
+  }
+
+  async linkAppleId(userId: string, appleId: string): Promise<void> {
+    if (this.db.isMockMode()) return;
+    const pool = this.db.getMainPool();
+    await pool.query(
+      `UPDATE users SET apple_id = $1 WHERE id = $2 AND (apple_id IS NULL OR apple_id = $1)`,
+      [appleId, userId],
+    );
+  }
+
   async create(userData: any): Promise<any> {
     const pool = this.db.getMainPool();
     const client = await pool.connect();
@@ -129,6 +151,13 @@ export class UsersService {
         ],
       );
       const user = userRes.rows[0];
+      if (userData.apple_id) {
+        await client.query(`UPDATE users SET apple_id = $1 WHERE id = $2`, [
+          userData.apple_id,
+          user.id,
+        ]);
+        user.apple_id = userData.apple_id;
+      }
 
       if (userData.branches && userData.branches.length > 0) {
         for (const branch of userData.branches) {

@@ -1,15 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, ScrollView, Dimensions, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, TextInput } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
 import ReportExportActions from '../components/ReportExportActions';
 
-const screenWidth = Dimensions.get('window').width;
+const toYmd = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
-export default function UnpayableScreen({ navigation }) {
+export default function UnsoldCancelsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [period, setPeriod] = useState('today');
@@ -19,8 +24,7 @@ export default function UnpayableScreen({ navigation }) {
   const reqIdRef = useRef(0);
   const prevPeriodRef = useRef(period);
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
-  
-  // Custom Date States
+
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
 
@@ -36,7 +40,7 @@ export default function UnpayableScreen({ navigation }) {
 
   useEffect(() => {
     fetchData();
-  }, [period, lang]);
+  }, [period]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -54,21 +58,9 @@ export default function UnpayableScreen({ navigation }) {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const userRaw = await AsyncStorage.getItem('user');
-      let branchId = null;
-      if (userRaw) {
-        const user = JSON.parse(userRaw);
-        branchId = user?.selected_branch_id || user?.branches?.[user?.selected_branch || 0]?.id;
-      }
-      
-      let url = `${API_URL}/reports/unpayable?period=${period}`;
+      let url = `${API_URL}/reports/unsold-cancels?period=${period}`;
       if (period === 'custom') {
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
-        url += `&start_date=${startStr}&end_date=${endStr}`;
-      }
-      if (branchId) {
-        url += `&branchId=${branchId}`;
+        url = `${API_URL}/reports/unsold-cancels?period=custom&start_date=${toYmd(startDate)}&end_date=${toYmd(endDate)}`;
       }
 
       const response = await axios.get(url, {
@@ -76,7 +68,7 @@ export default function UnpayableScreen({ navigation }) {
         signal: controller.signal,
       });
       if (!controller.signal.aborted && reqIdRef.current === myId) {
-        setData(response.data);
+        setData(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
@@ -94,8 +86,11 @@ export default function UnpayableScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    if (period === 'custom') {
+      fetchData();
+    } else {
+      setPeriod('custom');
+    }
   };
 
   const formatCurrency = (val) => {
@@ -105,6 +100,8 @@ export default function UnpayableScreen({ navigation }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     try {
+      const [y, m, d] = String(dateStr).split('-');
+      if (y && m && d) return `${d}.${m}.${y}`;
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) return dateStr;
       return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
@@ -113,62 +110,65 @@ export default function UnpayableScreen({ navigation }) {
     }
   };
 
-  const filteredData = data.filter(item => 
-    (item.musteri_fullname || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.product_name || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredData = data.filter((item) => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return true;
+    return (
+      (item.urun_adi || '').toLowerCase().includes(q) ||
+      (item.personel_adi || '').toLowerCase().includes(q)
+    );
+  });
 
   const totalAmount = filteredData.reduce((acc, curr) => acc + (Number(curr.tutar) || 0), 0);
 
   const T = {
-    unpayableReport: lang === 'tr' ? 'Ödenmez Raporu' : 'Unpayable Report',
+    title: lang === 'tr' ? 'Satılmadan İptaller' : 'Unsold Cancels',
     totalAmount: lang === 'tr' ? 'TOPLAM TUTAR' : 'TOTAL AMOUNT',
     records: lang === 'tr' ? 'Kayıt' : 'Records',
-    search: lang === 'tr' ? 'Ara...' : 'Search...',
-    customer: lang === 'tr' ? 'Müşteri' : 'Customer',
+    search: lang === 'tr' ? 'Ürün / personel ara' : 'Search product / staff',
+    product: lang === 'tr' ? 'Ürün' : 'Product',
+    staff: lang === 'tr' ? 'Personel' : 'Staff',
     quantity: lang === 'tr' ? 'Adet' : 'Qty',
-    table: lang === 'tr' ? 'Masa' : 'Table',
-    description: lang === 'tr' ? 'Açıklama' : 'Description',
+    date: lang === 'tr' ? 'Tarih' : 'Date',
+    time: lang === 'tr' ? 'Saat' : 'Time',
+    amount: lang === 'tr' ? 'Tutar' : 'Amount',
     noRecordsFound: lang === 'tr' ? 'Kayıt bulunamadı' : 'No records found',
-    unpayable: lang === 'tr' ? 'ÖDENMEZ' : 'UNPAYABLE',
   };
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.iconBox}>
-           <Feather name="x-circle" size={20} color="#ef4444" />
+          <Feather name="x-circle" size={20} color="#e11d48" />
         </View>
         <View style={styles.cardInfo}>
-          <Text style={styles.customerName}>{item.musteri_fullname || T.customer}</Text>
-          <Text style={styles.metaText}>{formatDate(item.tarih)} • {item.saat}</Text>
-          <Text style={styles.subText}>{item.product_name} ({item.miktar} {T.quantity})</Text>
+          <Text style={styles.productName}>{item.urun_adi || T.product}</Text>
+          <Text style={styles.metaText}>
+            {formatDate(item.tarih)} • {item.saat}
+          </Text>
+          <Text style={styles.subText}>
+            {item.personel_adi || '-'} • {item.miktar} {T.quantity}
+          </Text>
         </View>
         <View style={styles.amountInfo}>
-           <Text style={styles.amountText}>{formatCurrency(item.tutar)}</Text>
-           <Text style={styles.adsNo}>{T.table}: {item.masano}</Text>
+          <Text style={styles.amountText}>{formatCurrency(item.tutar)}</Text>
         </View>
       </View>
-      {item.ack4 && (
-        <View style={styles.reasonBox}>
-            <Text style={styles.reasonText}>{T.description}: {item.ack4 === 'ODENMEZ' ? T.unpayable : item.ack4}</Text>
-        </View>
-      )}
     </View>
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-         <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <Feather name="arrow-left" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{T.unpayableReport}</Text>
-            <View style={{width: 24}} /> 
-         </View>
-         
-         <View style={styles.summaryContent}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Feather name="arrow-left" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{T.title}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <View style={styles.summaryContent}>
           {loading ? (
             <View style={styles.summarySkeleton} />
           ) : (
@@ -178,18 +178,18 @@ export default function UnpayableScreen({ navigation }) {
               <Text style={styles.summarySub}>{`${filteredData.length} ${T.records}`}</Text>
             </>
           )}
-         </View>
+        </View>
       </View>
 
       <View style={styles.controlsContainer}>
         <View style={styles.searchBox}>
-            <Feather name="search" size={18} color="#94a3b8" />
-            <TextInput
-                style={styles.searchInput}
-                placeholder={T.search}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-            />
+          <Feather name="search" size={18} color="#94a3b8" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={T.search}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
 
         <DateFilterComponent
@@ -200,37 +200,35 @@ export default function UnpayableScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
-          lang={lang}
         />
       </View>
       <ReportExportActions
-        title={T.unpayableReport}
+        title={T.title}
         rows={filteredData}
         columns={[
-          { key: 'adsno', label: 'Adisyon' },
-          { key: 'product_name', label: 'Ürün' },
-          { key: 'musteri_fullname', label: T.customer },
-          { key: 'tarih', label: 'Tarih' },
-          { key: 'saat', label: 'Saat' },
+          { key: 'urun_adi', label: T.product },
+          { key: 'personel_adi', label: T.staff },
+          { key: 'tarih', label: T.date },
+          { key: 'saat', label: T.time },
           { key: 'miktar', label: T.quantity },
-          { key: 'tutar', label: T.totalAmount, format: (value) => formatCurrency(Number(value || 0)) },
+          { key: 'tutar', label: T.amount, format: (value) => formatCurrency(Number(value || 0)) },
         ]}
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#ef4444" style={{marginTop: 50}} />
+        <ActivityIndicator size="large" color="#e11d48" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-            data={filteredData}
-            renderItem={renderItem}
-            keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                    <Feather name="check-circle" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>{T.noRecordsFound}</Text>
-                </View>
-            }
+          data={filteredData}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Feather name="inbox" size={48} color="#cbd5e1" />
+              <Text style={styles.emptyText}>{T.noRecordsFound}</Text>
+            </View>
+          }
         />
       )}
     </View>
@@ -243,12 +241,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    backgroundColor: '#ef4444',
+    backgroundColor: '#e11d48',
     padding: 20,
     paddingTop: 50,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#ef4444',
+    shadowColor: '#e11d48',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -276,10 +274,10 @@ const styles = StyleSheet.create({
     width: 160,
     height: 28,
     borderRadius: 999,
-    backgroundColor: 'rgba(254, 226, 226, 0.6)',
+    backgroundColor: 'rgba(255, 228, 230, 0.6)',
   },
   summaryLabel: {
-    color: '#fee2e2',
+    color: '#ffe4e6',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 8,
@@ -292,7 +290,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   summarySub: {
-    color: '#fef2f2',
+    color: '#fff1f2',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -316,30 +314,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 14,
     color: '#1e293b',
-  },
-  periodScroll: {
-    flexDirection: 'row',
-  },
-  periodButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginRight: 8,
-  },
-  periodButtonActive: {
-    backgroundColor: '#ef4444',
-    borderColor: '#ef4444',
-  },
-  periodText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  periodTextActive: {
-    color: '#fff',
   },
   listContent: {
     padding: 16,
@@ -365,7 +339,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#fff1f2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -373,7 +347,7 @@ const styles = StyleSheet.create({
   cardInfo: {
     flex: 1,
   },
-  customerName: {
+  productName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1e293b',
@@ -394,23 +368,7 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#b91c1c',
-  },
-  adsNo: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  reasonBox: {
-    marginTop: 10,
-    backgroundColor: '#f8fafc',
-    padding: 8,
-    borderRadius: 8,
-  },
-  reasonText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontStyle: 'italic',
+    color: '#be123c',
   },
   emptyContainer: {
     alignItems: 'center',
