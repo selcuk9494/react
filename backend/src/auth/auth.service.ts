@@ -4,12 +4,9 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import * as jose from 'jose';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
-const APPLE_JWKS = jose.createRemoteJWKSet(
-  new URL('https://appleid.apple.com/auth/keys'),
-);
+const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 
 @Injectable()
 export class AuthService {
@@ -27,8 +24,14 @@ export class AuthService {
       return 'not_found';
     }
     console.log('User found, checking password...');
-    const passwordMatches =
-      (await bcrypt.compare(pass, user.password)) || user.password === pass;
+    let passwordMatches = user.password === pass;
+    if (!passwordMatches && user.password) {
+      try {
+        passwordMatches = await bcrypt.compare(pass, user.password);
+      } catch {
+        passwordMatches = false;
+      }
+    }
     if (passwordMatches) {
       if (user.password === pass) {
         await this.usersService.upgradePlainPassword(user.id, pass);
@@ -200,10 +203,43 @@ export class AuthService {
       throw new UnauthorizedException('Apple kimlik jetonu yok');
     }
     try {
-      const { payload } = await jose.jwtVerify(token, APPLE_JWKS, {
-        issuer: APPLE_ISSUER,
-        audience: this.appleAudiences(),
-      });
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('invalid token');
+      }
+      const header = JSON.parse(
+        Buffer.from(parts[0], 'base64url').toString('utf8'),
+      );
+      const payload = JSON.parse(
+        Buffer.from(parts[1], 'base64url').toString('utf8'),
+      );
+      if (payload?.iss !== APPLE_ISSUER) {
+        throw new Error('issuer');
+      }
+      const audiences = this.appleAudiences();
+      const aud = payload?.aud;
+      const audOk = Array.isArray(aud)
+        ? aud.some((item) => audiences.includes(String(item)))
+        : audiences.includes(String(aud || ''));
+      if (!audOk) {
+        throw new Error('audience');
+      }
+      if (payload?.exp && Number(payload.exp) * 1000 < Date.now()) {
+        throw new Error('expired');
+      }
+      const jwksRes = await fetch(APPLE_JWKS_URL);
+      const jwks = await jwksRes.json();
+      const jwk = (jwks?.keys || []).find((key: any) => key.kid === header.kid);
+      if (!jwk) {
+        throw new Error('key');
+      }
+      const publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+      const verifier = crypto.createVerify('RSA-SHA256');
+      verifier.update(`${parts[0]}.${parts[1]}`);
+      const signature = Buffer.from(parts[2], 'base64url');
+      if (!verifier.verify(publicKey, signature)) {
+        throw new Error('signature');
+      }
       return payload;
     } catch {
       throw new UnauthorizedException('Apple girişi doğrulanamadı');

@@ -56,14 +56,15 @@ export class AuthController {
       console.log('Login successful for:', req.email);
       return await this.authService.login(result);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       console.error('Login Error Details:', error);
-      // Return error details to frontend for debugging
       throw new HttpException(
         {
           status: HttpStatus.INTERNAL_SERVER_ERROR,
           error: 'Login Error',
           message: error.message || 'Unknown error',
-          stack: error.stack, // Always show stack for debugging
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
