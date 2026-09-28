@@ -80,9 +80,9 @@ export default function DynamicMenuProductsPage() {
   const searched = rows.filter(matchesSearch);
   const filtered = includeMenu
     ? searched
-    : searched.filter((item) => !isMenuName(item) || asNumber(item.total) > 0);
+    : searched.filter((item) => !isMenuName(item));
 
-  const totalSales = filtered.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
   const totalQty = filtered.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportColumns = [

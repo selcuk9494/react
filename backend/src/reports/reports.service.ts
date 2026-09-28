@@ -3291,7 +3291,7 @@ export class ReportsService {
     ].join(', ')})`;
     const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
     const starMenuExpr = this.starMenuPredicate(productNameExpr);
-    const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
+    const menuExpr = `((${menuFlagExpr} OR ${starMenuExpr}) AND di.id IS NULL)`;
 
     const productJoin = await this.productJoinOnTicketPlu(
       pool,
@@ -3372,10 +3372,10 @@ export class ReportsService {
           CASE
             WHEN l.is_menu THEN
               CASE WHEN t.item_lines = 0 THEN l.tutar ELSE 0 END
-            WHEN t.item_tutar <= 0 AND t.menu_tutar > 0 AND t.item_qty > 0 THEN
-              t.menu_tutar * (GREATEST(l.miktar, 0) / t.item_qty)
-            WHEN t.item_tutar <= 0 AND t.menu_tutar > 0 AND t.item_lines > 0 THEN
-              t.menu_tutar / t.item_lines
+            WHEN t.menu_tutar > 0 AND t.item_qty > 0 THEN
+              l.tutar + t.menu_tutar * (GREATEST(l.miktar, 0) / t.item_qty)
+            WHEN t.menu_tutar > 0 AND t.item_lines > 0 THEN
+              l.tutar + t.menu_tutar / t.item_lines
             ELSE l.tutar
           END as adj_tutar
         FROM lined l
@@ -3401,7 +3401,7 @@ export class ReportsService {
       )
       SELECT *
       FROM agg
-      WHERE ($4::boolean OR NOT COALESCE(is_dynamic_menu, false) OR COALESCE(total, 0) > 0)
+      WHERE ($4::boolean OR NOT COALESCE(is_dynamic_menu, false))
       ORDER BY total DESC
     `;
 

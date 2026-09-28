@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Menü tutarı aynı adisyondaki ürünlere yazılır. Listedeki ürünleri toplayınca ciro çıkar.'
-        : 'Menu amounts are written onto the items on the same ticket. Adding the listed products equals revenue.',
+        ? 'Menü tutarı içindeki ürünlere yazılır. Ciro değişmez; filtre yalnızca menü adlarını gizler.'
+        : 'Menu amounts are written onto the items inside. Revenue stays the same; the filter only hides menu names.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -131,10 +131,10 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   const filteredData = useMemo(() => {
     return includeMenu
       ? searchedData
-      : searchedData.filter((item) => !isMenuName(item) || Number(item.total) > 0);
+      : searchedData.filter((item) => !isMenuName(item));
   }, [searchedData, includeMenu]);
 
-  const totalAmount = filteredData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
   const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   const exportColumns = [
