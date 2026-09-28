@@ -48,16 +48,9 @@ export default function DynamicMenuProductsPage() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
 
-  const isStarMenu = (item: MenuProductRow) => {
+  const isMenuName = (item: MenuProductRow) => {
     const name = String(item.product_name || '').trim();
-    const group = String(item.group_name || '').trim();
-    return (
-      Boolean(item.is_dynamic_menu) ||
-      name.startsWith('*') ||
-      name.endsWith('*') ||
-      group.startsWith('*') ||
-      group.endsWith('*')
-    );
+    return Boolean(item.is_dynamic_menu) || name.startsWith('*') || name.endsWith('*');
   };
 
   const rows: MenuProductRow[] = Array.isArray(data) ? data : [];
@@ -71,11 +64,10 @@ export default function DynamicMenuProductsPage() {
     );
   };
   const searched = rows.filter(matchesSearch);
-  const ciroRows = searched.filter((item) => !isStarMenu(item));
-  const filtered = includeMenu ? searched : ciroRows;
+  const filtered = includeMenu ? searched : searched.filter((item) => !isMenuName(item));
 
-  const totalSales = ciroRows.reduce((sum, item) => sum + asNumber(item.total), 0);
-  const totalQty = ciroRows.reduce((sum, item) => sum + asNumber(item.quantity), 0);
+  const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalQty = searched.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -168,8 +160,15 @@ export default function DynamicMenuProductsPage() {
                 minPx={24}
               />
               <p className="text-violet-100 text-base mt-4 font-semibold">
-                {ciroRows.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
+                {searched.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
               </p>
+              {!includeMenu && (
+                <p className="text-violet-100/90 text-xs mt-3 font-medium">
+                  {lang === 'tr'
+                    ? 'Menü adları listede gizli; tutarları ciroya dahil.'
+                    : 'Menu names are hidden in the list; their amounts are included in revenue.'}
+                </p>
+              )}
             </div>
 
             {filtered.length === 0 ? (
@@ -190,7 +189,7 @@ export default function DynamicMenuProductsPage() {
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                             PLU {item.plu}
                           </span>
-                          {(item.is_dynamic_menu || isStarMenu(item)) && (
+                          {(item.is_dynamic_menu || isMenuName(item)) && (
                             <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">
                               {lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu'}
                             </span>
@@ -200,16 +199,9 @@ export default function DynamicMenuProductsPage() {
                         <p className="text-xs text-gray-500">{item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-black text-gray-900">
-                          {isStarMenu(item)
-                            ? lang === 'tr'
-                              ? 'Fiyatsız'
-                              : 'No price'
-                            : formatCurrency(asNumber(item.total))}
-                        </p>
+                        <p className="font-black text-gray-900">{formatCurrency(asNumber(item.total))}</p>
                         <p className="text-xs text-gray-500">
-                          {asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'}
-                          {!isStarMenu(item) ? ` • ${formatCurrency(asNumber(item.price))}` : ''}
+                          {asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'} • {formatCurrency(asNumber(item.price))}
                         </p>
                       </div>
                     </div>

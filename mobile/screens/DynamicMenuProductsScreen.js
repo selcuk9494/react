@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Dinamik menünün kendi fiyatı yoktur; ciro içeride seçilen ürünlerden gelir. Filtre yalnızca menü adlarını listeler.'
-        : 'Dynamic menus have no price of their own; revenue comes from items added inside. The filter only lists menu names.',
+        ? 'Menü kartı 0 TL olsa da kasa seçilen ürün tutarını menü satırına yazıyor. Ciro tüm satış satırlarının toplamıdır; filtre sadece menü adını gizler.'
+        : 'The menu card is 0, but the register still writes the selected items’ amount on the menu line. Revenue is all sale lines; the filter only hides menu names.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -103,38 +103,28 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   const formatCurrency = (val) =>
     new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
 
-  const isStarMenu = (item) => {
+  const isMenuName = (item) => {
     const name = String(item.product_name || '').trim();
-    const group = String(item.group_name || '').trim();
-    return (
-      Boolean(item.is_dynamic_menu) ||
-      name.startsWith('*') ||
-      name.endsWith('*') ||
-      group.startsWith('*') ||
-      group.endsWith('*')
-    );
+    return Boolean(item.is_dynamic_menu) || name.startsWith('*') || name.endsWith('*');
   };
 
-  const filteredData = useMemo(() => {
+  const searchedData = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const searched = !q
-      ? data
-      : data.filter(
-          (item) =>
-            String(item.product_name || '').toLowerCase().includes(q) ||
-            String(item.group_name || '').toLowerCase().includes(q) ||
-            String(item.plu ?? '').toLowerCase().includes(q),
-        );
-    return includeMenu ? searched : searched.filter((item) => !isStarMenu(item));
-  }, [data, searchQuery, includeMenu]);
+    if (!q) return data;
+    return data.filter(
+      (item) =>
+        String(item.product_name || '').toLowerCase().includes(q) ||
+        String(item.group_name || '').toLowerCase().includes(q) ||
+        String(item.plu ?? '').toLowerCase().includes(q),
+    );
+  }, [data, searchQuery]);
 
-  const ciroRows = useMemo(
-    () => filteredData.filter((item) => !isStarMenu(item)),
-    [filteredData],
-  );
+  const filteredData = useMemo(() => {
+    return includeMenu ? searchedData : searchedData.filter((item) => !isMenuName(item));
+  }, [searchedData, includeMenu]);
 
-  const totalAmount = ciroRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-  const totalQty = ciroRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalQty = searchedData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -159,7 +149,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
         <View style={styles.pluBadge}>
           <Text style={styles.pluText}>PLU {item.plu}</Text>
         </View>
-        {!!(item.is_dynamic_menu || isStarMenu(item)) && (
+        {!!(item.is_dynamic_menu || isMenuName(item)) && (
           <View style={styles.menuBadge}>
             <Text style={styles.menuBadgeText}>{T.menuBadge}</Text>
           </View>
@@ -170,19 +160,10 @@ export default function DynamicMenuProductsScreen({ navigation }) {
           <Text style={styles.productName}>{item.product_name}</Text>
           <Text style={styles.groupName}>{item.group_name || T.noGroup}</Text>
           <Text style={styles.metaText}>
-            {Number(item.quantity) || 0} {T.qty}
-            {!(item.is_dynamic_menu || isStarMenu(item))
-              ? ` • ${formatCurrency(item.price)}`
-              : ''}
+            {Number(item.quantity) || 0} {T.qty} • {formatCurrency(item.price)}
           </Text>
         </View>
-        <Text style={styles.amount}>
-          {item.is_dynamic_menu || isStarMenu(item)
-            ? lang === 'tr'
-              ? 'Fiyatsız'
-              : 'No price'
-            : formatCurrency(item.total)}
-        </Text>
+        <Text style={styles.amount}>{formatCurrency(item.total)}</Text>
       </View>
     </View>
   );
@@ -204,7 +185,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
             <Text style={styles.summaryLabel}>{T.total}</Text>
             <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
             <Text style={styles.summarySub}>
-              {ciroRows.length} {T.products} • {totalQty} {T.qty}
+              {searchedData.length} {T.products} • {totalQty} {T.qty}
             </Text>
           </>
         )}
