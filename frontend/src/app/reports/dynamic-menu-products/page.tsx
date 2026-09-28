@@ -64,10 +64,12 @@ export default function DynamicMenuProductsPage() {
     );
   };
   const searched = rows.filter(matchesSearch);
-  const filtered = includeMenu ? searched : searched.filter((item) => !isMenuName(item));
+  const filtered = includeMenu
+    ? searched
+    : searched.filter((item) => !isMenuName(item) || asNumber(item.total) > 0);
 
-  const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
-  const totalQty = searched.reduce((sum, item) => sum + asNumber(item.quantity), 0);
+  const totalSales = filtered.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalQty = filtered.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -160,15 +162,8 @@ export default function DynamicMenuProductsPage() {
                 minPx={24}
               />
               <p className="text-violet-100 text-base mt-4 font-semibold">
-                {searched.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
+                {filtered.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
               </p>
-              {!includeMenu && (
-                <p className="text-violet-100/90 text-xs mt-3 font-medium">
-                  {lang === 'tr'
-                    ? 'Menü adları listede gizli; tutarları ciroya dahil.'
-                    : 'Menu names are hidden in the list; their amounts are included in revenue.'}
-                </p>
-              )}
             </div>
 
             {filtered.length === 0 ? (

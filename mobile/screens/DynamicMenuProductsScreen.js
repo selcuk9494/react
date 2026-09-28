@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Menü kartı 0 TL olsa da kasa seçilen ürün tutarını menü satırına yazıyor. Ciro tüm satış satırlarının toplamıdır; filtre sadece menü adını gizler.'
-        : 'The menu card is 0, but the register still writes the selected items’ amount on the menu line. Revenue is all sale lines; the filter only hides menu names.',
+        ? 'Menü tutarı aynı adisyondaki ürünlere yazılır. Listedeki ürünleri toplayınca ciro çıkar.'
+        : 'Menu amounts are written onto the items on the same ticket. Adding the listed products equals revenue.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -120,11 +120,13 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   }, [data, searchQuery]);
 
   const filteredData = useMemo(() => {
-    return includeMenu ? searchedData : searchedData.filter((item) => !isMenuName(item));
+    return includeMenu
+      ? searchedData
+      : searchedData.filter((item) => !isMenuName(item) || Number(item.total) > 0);
   }, [searchedData, includeMenu]);
 
-  const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-  const totalQty = searchedData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const totalAmount = filteredData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -185,7 +187,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
             <Text style={styles.summaryLabel}>{T.total}</Text>
             <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
             <Text style={styles.summarySub}>
-              {searchedData.length} {T.products} • {totalQty} {T.qty}
+              {filteredData.length} {T.products} • {totalQty} {T.qty}
             </Text>
           </>
         )}

@@ -1591,12 +1591,10 @@ export class ReportsService {
     return null;
   }
 
-  private starMenuPredicate(nameExpr: string, groupExpr: string) {
+  private starMenuPredicate(nameExpr: string) {
     return `(
       BTRIM(COALESCE(${nameExpr}, '')) LIKE '*%'
       OR BTRIM(COALESCE(${nameExpr}, '')) LIKE '%*'
-      OR BTRIM(COALESCE(${groupExpr}, '')) LIKE '*%'
-      OR BTRIM(COALESCE(${groupExpr}, '')) LIKE '%*'
     )`;
   }
 
@@ -3117,12 +3115,14 @@ export class ReportsService {
       `CAST(s.pluid AS VARCHAR)`,
     ].join(', ')})`;
     const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
-    const starMenuExpr = this.starMenuPredicate(productNameExpr, groupNameExpr);
+    const starMenuExpr = this.starMenuPredicate(productNameExpr);
     const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
 
     const query = `
       WITH sales AS (
         SELECT
+          COALESCE(a.adsno, 0) as adsno,
+          COALESCE(a.adtur, 0) as adtur,
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
@@ -3139,6 +3139,8 @@ export class ReportsService {
             ? `
         UNION ALL
         SELECT
+          COALESCE(a.adsno, 0) as adsno,
+          COALESCE(a.adtur, 0) as adtur,
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
@@ -3153,28 +3155,71 @@ export class ReportsService {
             : ''
         }
       ),
-      agg AS (
+      lined AS (
         SELECT
-          COALESCE(p.plu, s.pluid) as plu,
+          s.adsno,
+          s.adtur,
+          s.pluid,
+          s.miktar,
+          s.tutar,
+          s.bfiyat,
+          s.line_name,
+          s.line_group,
+          p.plu as p_plu,
+          p.tip,
           ${productNameExpr} as product_name,
           ${groupNameExpr} as group_name,
-          p.tip as group_id,
-          COALESCE(SUM(s.miktar), 0) as quantity,
-          COALESCE(SUM(s.tutar), 0) as total,
-          CASE
-            WHEN COALESCE(SUM(s.miktar), 0) > 0
-              THEN COALESCE(SUM(s.tutar), 0) / COALESCE(SUM(s.miktar), 0)
-            ELSE COALESCE(MAX(s.bfiyat), 0)
-          END as price,
-          BOOL_OR(${menuExpr}) as is_dynamic_menu
+          (${menuExpr}) as is_menu
         FROM sales s
         LEFT JOIN product p ON CAST(s.pluid AS TEXT) = CAST(p.plu AS TEXT)
         LEFT JOIN product_group pg ON p.tip = pg.id
-        GROUP BY COALESCE(p.plu, s.pluid), ${productNameExpr}, ${groupNameExpr}, p.tip
+      ),
+      ticket AS (
+        SELECT
+          adsno,
+          adtur,
+          COALESCE(SUM(CASE WHEN is_menu THEN tutar ELSE 0 END), 0) as menu_tutar,
+          COALESCE(SUM(CASE WHEN NOT is_menu THEN tutar ELSE 0 END), 0) as item_tutar,
+          COALESCE(SUM(CASE WHEN NOT is_menu THEN miktar ELSE 0 END), 0) as item_qty,
+          COUNT(*) FILTER (WHERE NOT is_menu) as item_lines
+        FROM lined
+        GROUP BY adsno, adtur
+      ),
+      adjusted AS (
+        SELECT
+          l.*,
+          CASE
+            WHEN l.is_menu THEN
+              CASE WHEN t.item_lines = 0 THEN l.tutar ELSE 0 END
+            WHEN t.item_tutar <= 0 AND t.menu_tutar > 0 AND t.item_qty > 0 THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.item_qty)
+            WHEN t.item_tutar <= 0 AND t.menu_tutar > 0 AND t.item_lines > 0 THEN
+              t.menu_tutar / t.item_lines
+            ELSE l.tutar
+          END as adj_tutar
+        FROM lined l
+        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur
+      ),
+      agg AS (
+        SELECT
+          COALESCE(p_plu, pluid) as plu,
+          product_name,
+          group_name,
+          tip as group_id,
+          COALESCE(SUM(miktar), 0) as quantity,
+          COALESCE(SUM(adj_tutar), 0) as total,
+          CASE
+            WHEN COALESCE(SUM(miktar), 0) > 0
+              THEN COALESCE(SUM(adj_tutar), 0) / COALESCE(SUM(miktar), 0)
+            ELSE COALESCE(MAX(bfiyat), 0)
+          END as price,
+          BOOL_OR(is_menu) as is_dynamic_menu
+        FROM adjusted
+        GROUP BY COALESCE(p_plu, pluid), product_name, group_name, tip
       )
       SELECT *
       FROM agg
-      WHERE ($4::boolean OR NOT COALESCE(is_dynamic_menu, false))
+      WHERE ($4::boolean OR NOT COALESCE(is_dynamic_menu, false) OR COALESCE(total, 0) > 0)
       ORDER BY total DESC
     `;
 
