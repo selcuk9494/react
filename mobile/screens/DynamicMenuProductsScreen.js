@@ -103,16 +103,29 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   const formatCurrency = (val) =>
     new Intl.NumberFormat(locale, { style: 'currency', currency: 'TRY' }).format(val || 0);
 
+  const isStarMenu = (item) => {
+    const name = String(item.product_name || '').trim();
+    const group = String(item.group_name || '').trim();
+    return (
+      Boolean(item.is_dynamic_menu) ||
+      name.startsWith('*') ||
+      name.endsWith('*') ||
+      group.startsWith('*') ||
+      group.endsWith('*')
+    );
+  };
+
   const filteredData = useMemo(() => {
+    const visible = includeMenu ? data : data.filter((item) => !isStarMenu(item));
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(
+    if (!q) return visible;
+    return visible.filter(
       (item) =>
         String(item.product_name || '').toLowerCase().includes(q) ||
         String(item.group_name || '').toLowerCase().includes(q) ||
         String(item.plu ?? '').toLowerCase().includes(q),
     );
-  }, [data, searchQuery]);
+  }, [data, searchQuery, includeMenu]);
 
   const totalAmount = filteredData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
   const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);

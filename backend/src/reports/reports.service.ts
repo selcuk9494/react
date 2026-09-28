@@ -1580,6 +1580,26 @@ export class ReportsService {
     return { predicate: `(${parts.join(' OR ')})`, hasFlag: true };
   }
 
+  private async resolveColumn(
+    pool: any,
+    table: string,
+    candidates: string[],
+  ): Promise<string | null> {
+    for (const col of candidates) {
+      if (await this.hasColumn(pool, table, col)) return col;
+    }
+    return null;
+  }
+
+  private starMenuPredicate(nameExpr: string, groupExpr: string) {
+    return `(
+      BTRIM(COALESCE(${nameExpr}, '')) LIKE '*%'
+      OR BTRIM(COALESCE(${nameExpr}, '')) LIKE '%*'
+      OR BTRIM(COALESCE(${groupExpr}, '')) LIKE '*%'
+      OR BTRIM(COALESCE(${groupExpr}, '')) LIKE '%*'
+    )`;
+  }
+
   private async hasColumn(
     pool: any,
     table: string,
@@ -1590,7 +1610,7 @@ export class ReportsService {
       `
       SELECT 1 
       FROM information_schema.columns 
-      WHERE table_name = $1 AND column_name = $2
+      WHERE lower(table_name) = lower($1) AND lower(column_name) = lower($2)
       LIMIT 1
     `,
       [table, column],
@@ -3050,7 +3070,55 @@ export class ReportsService {
 
     const { predicate, hasFlag } = await this.getDynamicMenuPredicate(pool, 'p');
     const includeOpen = period === 'today';
-    const menuExpr = hasFlag ? predicate : 'FALSE';
+    const menuFlagExpr = hasFlag ? predicate : 'FALSE';
+
+    const productNameCols: string[] = [];
+    for (const col of ['product_name', 'urun_adi', 'urunadi', 'adi', 'name']) {
+      if (await this.hasColumn(pool, 'product', col)) {
+        productNameCols.push(`NULLIF(BTRIM(p.${col}::text), '')`);
+      }
+    }
+    const closedLineNameCol = await this.resolveColumn(pool, 'ads_adisyon', [
+      'urunadi',
+      'urun_adi',
+      'product_name',
+      'adi',
+    ]);
+    const closedLineGroupCol = await this.resolveColumn(pool, 'ads_adisyon', [
+      'grup2',
+      'grup',
+    ]);
+    const openLineNameCol = includeOpen
+      ? await this.resolveColumn(pool, 'ads_acik', [
+          'urunadi',
+          'urun_adi',
+          'product_name',
+          'adi',
+        ])
+      : null;
+    const openLineGroupCol = includeOpen
+      ? await this.resolveColumn(pool, 'ads_acik', ['grup2', 'grup'])
+      : null;
+
+    const closedNameSql = closedLineNameCol
+      ? `a.${closedLineNameCol}`
+      : 'NULL::text';
+    const closedGroupSql = closedLineGroupCol
+      ? `a.${closedLineGroupCol}`
+      : 'NULL::text';
+    const openNameSql = openLineNameCol ? `a.${openLineNameCol}` : 'NULL::text';
+    const openGroupSql = openLineGroupCol
+      ? `a.${openLineGroupCol}`
+      : 'NULL::text';
+
+    const productNameExpr = `COALESCE(${[
+      ...productNameCols,
+      `NULLIF(BTRIM(s.line_name::text), '')`,
+      `CAST(s.pluid AS VARCHAR)`,
+    ].join(', ')})`;
+    const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
+    const starMenuExpr = this.starMenuPredicate(productNameExpr, groupNameExpr);
+    const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
 
     const query = `
       WITH sales AS (
@@ -3058,7 +3126,9 @@ export class ReportsService {
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
-          COALESCE(a.bfiyat, 0) as bfiyat
+          COALESCE(a.bfiyat, 0) as bfiyat,
+          ${closedNameSql} as line_name,
+          ${closedGroupSql} as line_group
         FROM ads_adisyon a
         WHERE a.kasa = ANY($1)
           AND a.raptar >= $2::date
@@ -3072,7 +3142,9 @@ export class ReportsService {
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
-          COALESCE(a.bfiyat, 0) as bfiyat
+          COALESCE(a.bfiyat, 0) as bfiyat,
+          ${openNameSql} as line_name,
+          ${openGroupSql} as line_group
         FROM ads_acik a
         WHERE a.kasa = ANY($1)
           AND a.actar = $2::date
@@ -3084,8 +3156,8 @@ export class ReportsService {
       agg AS (
         SELECT
           COALESCE(p.plu, s.pluid) as plu,
-          COALESCE(p.product_name, CAST(s.pluid AS VARCHAR)) as product_name,
-          COALESCE(pg.adi, '') as group_name,
+          ${productNameExpr} as product_name,
+          ${groupNameExpr} as group_name,
           p.tip as group_id,
           COALESCE(SUM(s.miktar), 0) as quantity,
           COALESCE(SUM(s.tutar), 0) as total,
@@ -3096,9 +3168,9 @@ export class ReportsService {
           END as price,
           BOOL_OR(${menuExpr}) as is_dynamic_menu
         FROM sales s
-        LEFT JOIN product p ON s.pluid = p.plu
+        LEFT JOIN product p ON CAST(s.pluid AS TEXT) = CAST(p.plu AS TEXT)
         LEFT JOIN product_group pg ON p.tip = pg.id
-        GROUP BY COALESCE(p.plu, s.pluid), COALESCE(p.product_name, CAST(s.pluid AS VARCHAR)), COALESCE(pg.adi, ''), p.tip
+        GROUP BY COALESCE(p.plu, s.pluid), ${productNameExpr}, ${groupNameExpr}, p.tip
       )
       SELECT *
       FROM agg

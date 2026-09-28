@@ -51,8 +51,21 @@ export default function DynamicMenuProductsPage() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val || 0);
 
+  const isStarMenu = (item: MenuProductRow) => {
+    const name = String(item.product_name || '').trim();
+    const group = String(item.group_name || '').trim();
+    return (
+      Boolean(item.is_dynamic_menu) ||
+      name.startsWith('*') ||
+      name.endsWith('*') ||
+      group.startsWith('*') ||
+      group.endsWith('*')
+    );
+  };
+
   const rows: MenuProductRow[] = Array.isArray(data) ? data : [];
   const filtered = rows.filter((item) => {
+    if (!includeMenu && isStarMenu(item)) return false;
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
     return (
