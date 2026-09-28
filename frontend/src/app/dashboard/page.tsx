@@ -778,7 +778,7 @@ export default function Dashboard() {
                     period === 'today' ? "bg-amber-500/90 text-white" : "bg-amber-400 text-amber-900"
                   )}>
                     <span>💰</span>
-                    {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam)}
+                    {lang === 'tr' ? 'Borca Atılan' : 'Added to Debt'}: {formatCurrency(data.borca_atilan_toplam || 0)}
                   </div>
                 )}
                 {(data?.odenmez_toplam || 0) > 0 && (

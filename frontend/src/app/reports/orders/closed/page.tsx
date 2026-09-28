@@ -166,14 +166,15 @@ function ClosedOrdersContent() {
 
   const handleDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchOrders(1);
-    setShowDateFilter(false);
+    setCustomStartDate(draftStartDate);
+    setCustomEndDate(draftEndDate);
+    setPeriod('custom');
   };
 
   const clearFilters = () => {
     setFilterMasa('');
-    setStartDate('');
-    setEndDate('');
+    setCustomStartDate('');
+    setCustomEndDate('');
     setAmountInput('');
     setAmountDir('gte');
     fetchOrders(1);
