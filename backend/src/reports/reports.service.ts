@@ -708,6 +708,10 @@ export class ReportsService {
       } catch {}
     }
 
+    const productJoin = await this.productJoinOnTicketPlu(pool, 'a.pluid', 'pr', 'di');
+    const itemNameSql = this.ticketResolvedNameSql('a.pluid', 'pr', 'di');
+    const itemPluSql = this.ticketResolvedPluSql('a.pluid', 'pr', 'di');
+
     if (status === 'open') {
       const query = `
             WITH order_info AS (
@@ -734,8 +738,8 @@ export class ReportsService {
                     MAX(COALESCE(a.adtur, 0)) as adtur,
                     json_agg(
                         json_build_object(
-                            'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
-                            'urun_adi', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
+                            'product_name', ${itemNameSql},
+                            'urun_adi', ${itemNameSql},
                             'quantity', COALESCE(a.miktar, 1),
                             'miktar', COALESCE(a.miktar, 1),
                             'price', COALESCE(a.bfiyat, 0),
@@ -748,7 +752,7 @@ export class ReportsService {
                             'ack2', a.ack2,
                             'ack3', a.ack3,
                             'sturu', COALESCE(a.sturu, 0),
-                            'pluid', a.pluid,
+                            'pluid', ${itemPluSql},
                             'row_id', a.ctid::text,
                             'kasa', a.kasa,
                             'adtur', COALESCE(a.adtur, 0)
@@ -756,7 +760,7 @@ export class ReportsService {
                         ORDER BY a.actar, a.acsaat
                     ) as items
                 FROM ads_acik a
-                LEFT JOIN product pr ON a.pluid = pr.plu
+                ${productJoin}
                 WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(a.adtur, 0) = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             )
@@ -824,8 +828,8 @@ export class ReportsService {
                     a.adsno,
                     json_agg(
                         json_build_object(
-                            'product_name', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
-                            'urun_adi', COALESCE(pr.product_name, CAST(a.pluid AS VARCHAR)),
+                            'product_name', ${itemNameSql},
+                            'urun_adi', ${itemNameSql},
                             'quantity', COALESCE(a.miktar, 1),
                             'miktar', COALESCE(a.miktar, 1),
                             'price', COALESCE(a.bfiyat, 0),
@@ -838,12 +842,12 @@ export class ReportsService {
                             'ack2', a.ack2,
                             'ack3', a.ack3,
                             'sturu', COALESCE(a.sturu, 0),
-                            'pluid', a.pluid
+                            'pluid', ${itemPluSql}
                         )
                         ORDER BY a.kaptar, a.kapsaat
                     ) as items
                 FROM ads_adisyon a
-                LEFT JOIN product pr ON a.pluid = pr.plu
+                ${productJoin}
                 WHERE a.kasa = ANY($1) AND a.adsno = $2 ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(a.adtur, 0) = $3' : ''} AND a.pluid IS NOT NULL
                 GROUP BY a.adsno
             ),
@@ -1602,6 +1606,115 @@ export class ReportsService {
     return `NULLIF(NULLIF(BTRIM(COALESCE(${expr}::text, '')), ''), BTRIM(${pluExpr}::text))`;
   }
 
+  private ticketResolvedPluSql(
+    ticketPluExpr: string,
+    productAlias = 'p',
+    dynaAlias = 'di',
+  ) {
+    return `COALESCE(${productAlias}.plu, ${dynaAlias}.sp_id, ${ticketPluExpr})`;
+  }
+
+  private ticketResolvedNameSql(
+    ticketPluExpr: string,
+    productAlias = 'p',
+    dynaAlias = 'di',
+  ) {
+    return `COALESCE(NULLIF(BTRIM(COALESCE(${productAlias}.product_name::text, '')), ''), NULLIF(BTRIM(COALESCE(${dynaAlias}.adi::text, '')), ''), CAST(${this.ticketResolvedPluSql(ticketPluExpr, productAlias, dynaAlias)} AS VARCHAR))`;
+  }
+
+  private async productJoinOnTicketPlu(
+    pool: any,
+    ticketPluExpr: string,
+    alias = 'p',
+    dynaAlias = 'di',
+  ) {
+    const hasId = await this.hasColumn(pool, 'product', 'id');
+    const hasKod = await this.hasColumn(pool, 'product', 'kod');
+    const hasDyna = await this.hasTable(pool, 'dyna_icerik');
+    const dynaAdiCol = hasDyna
+      ? await this.resolveColumn(pool, 'dyna_icerik', [
+          'adi',
+          'urunadi',
+          'product_name',
+          'name',
+        ])
+      : null;
+    const dynaSpCol = hasDyna
+      ? await this.resolveColumn(pool, 'dyna_icerik', [
+          'sp_id',
+          'plu',
+          'stokid',
+          'urunid',
+        ])
+      : null;
+
+    const dynaJoin = hasDyna
+      ? `
+      LEFT JOIN LATERAL (
+        SELECT
+          dx.id,
+          ${dynaAdiCol ? `dx.${dynaAdiCol}` : 'NULL::text'} as adi,
+          ${dynaSpCol ? `dx.${dynaSpCol}` : 'NULL::integer'} as sp_id
+        FROM dyna_icerik dx
+        WHERE CAST(dx.id AS TEXT) = CAST(${ticketPluExpr} AS TEXT)
+        LIMIT 1
+      ) ${dynaAlias} ON TRUE`
+      : `
+      LEFT JOIN (SELECT NULL::integer AS id, NULL::text AS adi, NULL::integer AS sp_id) ${dynaAlias} ON FALSE`;
+
+    const inner = `${alias}_x`;
+    const conds = [
+      `CAST(${inner}.plu AS TEXT) = CAST(${ticketPluExpr} AS TEXT)`,
+    ];
+    if (hasId) {
+      conds.push(`CAST(${inner}.id AS TEXT) = CAST(${ticketPluExpr} AS TEXT)`);
+    }
+    if (hasKod) {
+      conds.push(`CAST(${inner}.kod AS TEXT) = CAST(${ticketPluExpr} AS TEXT)`);
+    }
+    conds.push(
+      `CAST(${inner}.plu AS TEXT) = CAST(${dynaAlias}.sp_id AS TEXT)`,
+    );
+    if (hasId) {
+      conds.push(
+        `CAST(${inner}.id AS TEXT) = CAST(${dynaAlias}.sp_id AS TEXT)`,
+      );
+    }
+
+    const orderSql = `CASE
+          WHEN CAST(${inner}.plu AS TEXT) = CAST(${ticketPluExpr} AS TEXT) THEN 0
+          ${hasId ? `WHEN CAST(${inner}.id AS TEXT) = CAST(${ticketPluExpr} AS TEXT) THEN 1` : ''}
+          WHEN CAST(${inner}.plu AS TEXT) = CAST(${dynaAlias}.sp_id AS TEXT) THEN 2
+          ELSE 3
+        END`;
+
+    return `
+      ${dynaJoin}
+      LEFT JOIN LATERAL (
+        SELECT ${inner}.*
+        FROM product ${inner}
+        WHERE ${conds.join('\n           OR ')}
+        ORDER BY ${orderSql}
+        LIMIT 1
+      ) ${alias} ON TRUE
+    `;
+  }
+
+  private async hasTable(pool: any, table: string): Promise<boolean> {
+    const rows = await this.db.executeQuery(
+      pool,
+      `
+      SELECT 1
+      FROM information_schema.tables
+      WHERE lower(table_schema) = 'public'
+        AND lower(table_name) = lower($1)
+      LIMIT 1
+    `,
+      [table],
+    );
+    return Boolean(rows && rows.length > 0);
+  }
+
   private async hasColumn(
     pool: any,
     table: string,
@@ -2324,6 +2437,14 @@ export class ReportsService {
     const multiIndex = params.length + 1;
     const limitIndex = multiIndex + 1;
     const offsetIndex = multiIndex + 2;
+    const productJoin = await this.productJoinOnTicketPlu(
+      pool,
+      'a.pluid',
+      'p',
+      'di',
+    );
+    const nameSql = this.ticketResolvedNameSql('a.pluid');
+    const pluSql = this.ticketResolvedPluSql('a.pluid');
 
     const countQuery = `
       WITH pay_filtered AS (
@@ -2388,8 +2509,8 @@ export class ReportsService {
         pf.raptar as tarih,
         m.masa_no,
         m.sipyer,
-        COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
-        a.pluid,
+        ${nameSql} as product_name,
+        ${pluSql} as pluid,
         COALESCE(a.miktar, 1) as miktar,
         COALESCE(a.bfiyat, 0) as bfiyat,
         COALESCE(a.tutar, 0) as tutar,
@@ -2397,7 +2518,7 @@ export class ReportsService {
       FROM ads_adisyon a
       INNER JOIN pay_filtered pf ON pf.adsno = a.adsno AND pf.adtur = COALESCE(a.adtur, 0)
       LEFT JOIN adisyon_meta m ON m.adsno = a.adsno AND m.adtur = COALESCE(a.adtur, 0)
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       WHERE a.kasa = ANY($1)
         AND a.pluid IS NOT NULL
         AND ($${multiIndex}::boolean = false OR COALESCE(m.item_count, 0) > 1)
@@ -2562,10 +2683,13 @@ export class ReportsService {
       endDateOnly = biz;
     }
 
+    const productJoin = await this.productJoinOnTicketPlu(pool, 'a.pluid', 'p', 'di');
+    const nameSql = this.ticketResolvedNameSql('a.pluid');
+
     // Open - actar kullan
     const openQuery = `
       SELECT 
-          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
+          ${nameSql} as product_name,
           COALESCE(a.miktar, 0) as quantity,
           a.ack1 as reason,
           a.actar as date,
@@ -2575,7 +2699,7 @@ export class ReportsService {
           CASE a.sturu WHEN 1 THEN 'ikram' WHEN 2 THEN 'iade' WHEN 4 THEN 'iptal' ELSE 'diğer' END as type,
           'open' as status
       FROM ads_acik a
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.actar >= $1::date AND a.actar <= $2::date AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
@@ -2588,7 +2712,7 @@ export class ReportsService {
     // Closed - raptar kullan
     const closedQuery = `
       SELECT 
-          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
+          ${nameSql} as product_name,
           COALESCE(a.miktar, 0) as quantity,
           a.ack1 as reason,
           a.raptar as date,
@@ -2598,7 +2722,7 @@ export class ReportsService {
           CASE a.sturu WHEN 1 THEN 'ikram' WHEN 2 THEN 'iade' WHEN 4 THEN 'iptal' ELSE 'diğer' END as type,
           'closed' as status
       FROM ads_adisyon a
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       LEFT JOIN personel per ON a.garsonno = per.id
       WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3) AND a.sturu IN (1,2,4)
     `;
@@ -2781,15 +2905,18 @@ export class ReportsService {
     ]);
 
     // Products - raptar kullan
+    const productJoin = await this.productJoinOnTicketPlu(pool, 'a.pluid', 'p', 'di');
+    const nameSql = this.ticketResolvedNameSql('a.pluid');
+    const pluSql = this.ticketResolvedPluSql('a.pluid');
     const productsQuery = `
       SELECT 
-          COALESCE(p.product_name, CAST(a.pluid AS VARCHAR), 'Ürün') as product_name,
+          MAX(${nameSql}) as product_name,
           COALESCE(SUM(a.miktar), 0) as quantity,
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       WHERE a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day') AND a.kasa = ANY($3)
-      GROUP BY p.product_name, a.pluid
+      GROUP BY ${pluSql}
       ORDER BY total DESC
       LIMIT 10
     `;
@@ -2806,7 +2933,7 @@ export class ReportsService {
           COALESCE(SUM(a.miktar), 0) as quantity,
           COALESCE(SUM(a.tutar), 0) as total
       FROM ads_adisyon a
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       LEFT JOIN product_group pg ON p.tip = pg.id
       WHERE a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day') AND a.kasa = ANY($3)
       GROUP BY pg.adi
@@ -2872,6 +2999,22 @@ export class ReportsService {
     const params = [];
     const useArray = Array.isArray(groupIds) && groupIds.length > 0;
     const usePlu = typeof plu === 'number' && !isNaN(plu);
+    const productJoinCs = await this.productJoinOnTicketPlu(
+      pool,
+      'cs.pluid',
+      'p',
+      'di',
+    );
+    const productJoinA = await this.productJoinOnTicketPlu(
+      pool,
+      'a.pluid',
+      'p',
+      'di',
+    );
+    const nameSqlCs = this.ticketResolvedNameSql('cs.pluid');
+    const pluSqlCs = this.ticketResolvedPluSql('cs.pluid');
+    const nameSqlA = this.ticketResolvedNameSql('a.pluid');
+    const pluSqlA = this.ticketResolvedPluSql('a.pluid');
 
     if (period === 'today') {
       // Combine Open and Closed - raptar ve actar kullan
@@ -2886,24 +3029,26 @@ export class ReportsService {
                 WHERE a.actar = $3::date AND a.kasa = ANY($4)
             )
             SELECT 
-                p.product_name as product_name,
-                p.plu as plu,
-                p.tip as group_id,
-                pg.adi as group_name,
+                MAX(${nameSqlCs}) as product_name,
+                ${pluSqlCs} as plu,
+                MAX(p.tip) as group_id,
+                MAX(pg.adi) as group_name,
                 COALESCE(SUM(cs.miktar), 0) as quantity,
                 COALESCE(SUM(cs.tutar), 0) as total
             FROM combined_sales cs
-            LEFT JOIN product p ON cs.pluid = p.plu
+            ${productJoinCs}
             LEFT JOIN product_group pg ON p.tip = pg.id
+            WHERE cs.pluid IS NOT NULL
             ${(() => {
               const conds: string[] = [];
               if (useArray) conds.push('p.tip = ANY($5)');
               else if (groupId) conds.push('p.tip = $5');
               const nextIndex = 5 + (useArray || groupId ? 1 : 0);
-              if (usePlu) conds.push(`p.plu = $${nextIndex}`);
-              return conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+              if (usePlu)
+                conds.push(`CAST(${pluSqlCs} AS TEXT) = CAST($${nextIndex} AS TEXT)`);
+              return conds.length ? 'AND ' + conds.join(' AND ') : '';
             })()}
-            GROUP BY p.product_name, p.plu, p.tip, pg.adi
+            GROUP BY ${pluSqlCs}
             ORDER BY total DESC
         `;
       params.push(startDateOnly, kasa_nos, startDateOnly, kasa_nos);
@@ -2914,25 +3059,27 @@ export class ReportsService {
       // Only Closed - raptar kullan
       query = `
             SELECT 
-                p.product_name as product_name,
-                a.pluid as plu,
-                p.tip as group_id,
-                pg.adi as group_name,
+                MAX(${nameSqlA}) as product_name,
+                ${pluSqlA} as plu,
+                MAX(p.tip) as group_id,
+                MAX(pg.adi) as group_name,
                 COALESCE(SUM(a.miktar), 0) as quantity,
                 COALESCE(SUM(a.tutar), 0) as total
             FROM ads_adisyon a
-            LEFT JOIN product p ON a.pluid = p.plu
+            ${productJoinA}
             LEFT JOIN product_group pg ON p.tip = pg.id
             WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
+              AND a.pluid IS NOT NULL
             ${(() => {
               const conds: string[] = [];
               if (useArray) conds.push('p.tip = ANY($4)');
               else if (groupId) conds.push('p.tip = $4');
               const nextIndex = 4 + (useArray || groupId ? 1 : 0);
-              if (usePlu) conds.push(`p.plu = $${nextIndex}`);
+              if (usePlu)
+                conds.push(`CAST(${pluSqlA} AS TEXT) = CAST($${nextIndex} AS TEXT)`);
               return conds.length ? 'AND ' + conds.join(' AND ') : '';
             })()}
-            GROUP BY p.product_name, a.pluid, p.tip, pg.adi
+            GROUP BY ${pluSqlA}
             ORDER BY total DESC
         `;
       params.push(startDateOnly, endDateOnly, kasa_nos);
@@ -2976,6 +3123,20 @@ export class ReportsService {
       endDateOnly = biz;
     }
 
+    const productJoin = await this.productJoinOnTicketPlu(
+      pool,
+      'a.pluid',
+      'p',
+      'di',
+    );
+    const nameSql = this.ticketResolvedNameSql('a.pluid');
+    const pluSql = this.ticketResolvedPluSql('a.pluid');
+    const pluMatch = `(
+        CAST(a.pluid AS TEXT) = CAST($4 AS TEXT)
+        OR CAST(${pluSql} AS TEXT) = CAST($4 AS TEXT)
+        OR CAST(di.id AS TEXT) = CAST($4 AS TEXT)
+      )`;
+
     const closedQuery = `
       SELECT
         'closed' as status,
@@ -2986,14 +3147,14 @@ export class ReportsService {
         MAX(a.masano) as masano,
         COALESCE(SUM(a.miktar), 0) as quantity,
         COALESCE(SUM(a.tutar), 0) as total,
-        COALESCE(MAX(p.product_name), CAST(a.pluid AS VARCHAR)) as product_name
+        MAX(${nameSql}) as product_name
       FROM ads_adisyon a
-      LEFT JOIN product p ON a.pluid = p.plu
+      ${productJoin}
       WHERE a.raptar >= $1::date
         AND a.raptar <= $2::date
         AND a.kasa = ANY($3)
-        AND a.pluid = $4
-      GROUP BY a.adsno, COALESCE(a.adtur, 0), a.pluid
+        AND ${pluMatch}
+      GROUP BY a.adsno, COALESCE(a.adtur, 0)
     `;
 
     const params: any[] = [startDateOnly, endDateOnly, kasa_nos, plu];
@@ -3013,13 +3174,13 @@ export class ReportsService {
             MAX(a.masano) as masano,
             COALESCE(SUM(a.miktar), 0) as quantity,
             COALESCE(SUM(a.tutar), 0) as total,
-            COALESCE(MAX(p.product_name), CAST(a.pluid AS VARCHAR)) as product_name
+            MAX(${nameSql}) as product_name
           FROM ads_acik a
-          LEFT JOIN product p ON a.pluid = p.plu
+          ${productJoin}
           WHERE a.actar = $1::date
             AND a.kasa = ANY($3)
-            AND a.pluid = $4
-          GROUP BY a.adsno, COALESCE(a.adtur, 0), a.pluid
+            AND ${pluMatch}
+          GROUP BY a.adsno, COALESCE(a.adtur, 0)
         )
         SELECT * FROM product_orders
         ORDER BY tarih DESC, adsno DESC
@@ -3124,13 +3285,20 @@ export class ReportsService {
 
     const productNameExpr = `COALESCE(${[
       ...productNameCols,
+      this.meaningfulNameSql('di.adi', 's.pluid'),
       this.meaningfulNameSql('s.line_name', 's.pluid'),
-      `CAST(s.pluid AS VARCHAR)`,
+      `CAST(COALESCE(p.plu, di.sp_id, s.pluid) AS VARCHAR)`,
     ].join(', ')})`;
     const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
     const starMenuExpr = this.starMenuPredicate(productNameExpr);
     const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
 
+    const productJoin = await this.productJoinOnTicketPlu(
+      pool,
+      's.pluid',
+      'p',
+      'di',
+    );
     const query = `
       WITH sales AS (
         SELECT
@@ -3178,13 +3346,13 @@ export class ReportsService {
           s.bfiyat,
           s.line_name,
           s.line_group,
-          p.plu as p_plu,
+          COALESCE(p.plu, di.sp_id) as p_plu,
           p.tip,
           ${productNameExpr} as product_name,
           ${groupNameExpr} as group_name,
           (${menuExpr}) as is_menu
         FROM sales s
-        LEFT JOIN product p ON CAST(s.pluid AS TEXT) = CAST(p.plu AS TEXT)
+        ${productJoin}
         LEFT JOIN product_group pg ON p.tip = pg.id
       ),
       ticket AS (
@@ -3319,6 +3487,14 @@ export class ReportsService {
       dateFilter = this.unpayableDateFilter(period, w);
       params.push(w.startDateOnly, w.endDateOnly);
     }
+    const productJoin = await this.productJoinOnTicketPlu(
+      pool,
+      'a.pluid',
+      'p',
+      'di',
+    );
+    const nameSql = this.ticketResolvedNameSql('a.pluid');
+    const pluSql = this.ticketResolvedPluSql('a.pluid');
     const query = `
       SELECT 
         a.adtur,
@@ -3327,18 +3503,18 @@ export class ReportsService {
         a.acsaat,
         a.kaptar,
         a.masano,
-        a.pluid,
+        ${pluSql} as pluid,
         COALESCE(a.miktar, 0) as miktar,
         COALESCE(pf.fiyat, a.bfiyat, 0) as bfiyat,
         COALESCE(a.tutar, 0) as tutar,
         a.ack4,
         a.mustid,
-        COALESCE(p.product_name, CAST(a.pluid AS VARCHAR)) as product_name,
+        ${nameSql} as product_name,
         m.adi as musteri_adi,
         m.soyadi as musteri_soyadi
       FROM ads_adisyon a
-      LEFT JOIN product p ON a.pluid = p.plu
-      LEFT JOIN product_fiyat pf ON pf.plu = a.pluid
+      ${productJoin}
+      LEFT JOIN product_fiyat pf ON CAST(pf.plu AS TEXT) = CAST(${pluSql} AS TEXT)
       LEFT JOIN ads_musteri m ON a.mustid = m.mustid
       WHERE a.kasa = ANY($1)
         AND ${this.unpayableAck4Filter('a')}

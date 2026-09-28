@@ -57,7 +57,7 @@ export default function DynamicMenuProductsPage() {
   const isBarePluName = (item: MenuProductRow) => {
     const name = String(item.product_name || '').trim();
     const plu = String(item.plu ?? '').trim();
-    return Boolean(item.missing_product) || !name || name === plu;
+    return !name || name === plu;
   };
 
   const productTitle = (item: MenuProductRow) =>
