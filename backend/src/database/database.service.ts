@@ -344,11 +344,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
       for (const email of list) {
+        const existing = await client.query(
+          `SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [email],
+        );
+        if (existing.rows.length > 0) {
+          await client.query(
+            `UPDATE users SET is_admin = TRUE WHERE id = $1`,
+            [existing.rows[0].id],
+          );
+          continue;
+        }
         await client.query(
-          `UPDATE users
-           SET is_admin = TRUE,
-               password = $2
-           WHERE LOWER(email) = LOWER($1)`,
+          `INSERT INTO users (email, password, is_admin)
+           VALUES ($1, $2, TRUE)`,
           [email, adminPasswordHash],
         );
       }
