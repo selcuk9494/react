@@ -18,6 +18,7 @@ type MenuProductRow = {
   price: number;
   total: number;
   is_dynamic_menu?: boolean;
+  missing_product?: boolean;
 };
 
 export default function DynamicMenuProductsPage() {
@@ -52,6 +53,19 @@ export default function DynamicMenuProductsPage() {
     const name = String(item.product_name || '').trim();
     return Boolean(item.is_dynamic_menu) || name.startsWith('*') || name.endsWith('*');
   };
+
+  const isBarePluName = (item: MenuProductRow) => {
+    const name = String(item.product_name || '').trim();
+    const plu = String(item.plu ?? '').trim();
+    return Boolean(item.missing_product) || !name || name === plu;
+  };
+
+  const productTitle = (item: MenuProductRow) =>
+    isBarePluName(item)
+      ? lang === 'tr'
+        ? 'Ürün kartı yok'
+        : 'No product card'
+      : item.product_name;
 
   const rows: MenuProductRow[] = Array.isArray(data) ? data : [];
   const matchesSearch = (item: MenuProductRow) => {
@@ -190,8 +204,14 @@ export default function DynamicMenuProductsPage() {
                             </span>
                           )}
                         </div>
-                        <h3 className="font-bold text-gray-900 mt-1 truncate">{item.product_name}</h3>
-                        <p className="text-xs text-gray-500">{item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}</p>
+                        <h3 className="font-bold text-gray-900 mt-1 truncate">{productTitle(item)}</h3>
+                        <p className="text-xs text-gray-500">
+                          {isBarePluName(item)
+                            ? lang === 'tr'
+                              ? 'Satış kaydında var, ürün listesinde yok (silinmiş olabilir)'
+                              : 'On the ticket, missing from the product list (may be deleted)'
+                            : item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}
+                        </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-black text-gray-900">{formatCurrency(asNumber(item.total))}</p>

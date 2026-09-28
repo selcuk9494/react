@@ -3226,7 +3226,8 @@ export class ReportsService {
               THEN COALESCE(SUM(adj_tutar), 0) / COALESCE(SUM(miktar), 0)
             ELSE COALESCE(MAX(bfiyat), 0)
           END as price,
-          BOOL_OR(is_menu) as is_dynamic_menu
+          BOOL_OR(is_menu) as is_dynamic_menu,
+          BOOL_AND(p_plu IS NULL) as missing_product
         FROM adjusted
         GROUP BY COALESCE(p_plu, pluid), product_name, group_name, tip
       )
@@ -3251,6 +3252,7 @@ export class ReportsService {
       total: Number(r.total) || 0,
       price: Number(r.price) || 0,
       is_dynamic_menu: Boolean(r.is_dynamic_menu),
+      missing_product: Boolean(r.missing_product),
     }));
   }
 

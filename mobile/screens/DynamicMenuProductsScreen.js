@@ -108,6 +108,15 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     return Boolean(item.is_dynamic_menu) || name.startsWith('*') || name.endsWith('*');
   };
 
+  const isBarePluName = (item) => {
+    const name = String(item.product_name || '').trim();
+    const plu = String(item.plu ?? '').trim();
+    return Boolean(item.missing_product) || !name || name === plu;
+  };
+
+  const productTitle = (item) =>
+    isBarePluName(item) ? (lang === 'tr' ? 'Ürün kartı yok' : 'No product card') : item.product_name;
+
   const searchedData = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return data;
@@ -159,8 +168,14 @@ export default function DynamicMenuProductsScreen({ navigation }) {
       </View>
       <View style={styles.cardRow}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={styles.productName}>{item.product_name}</Text>
-          <Text style={styles.groupName}>{item.group_name || T.noGroup}</Text>
+          <Text style={styles.productName}>{productTitle(item)}</Text>
+          <Text style={styles.groupName}>
+            {isBarePluName(item)
+              ? lang === 'tr'
+                ? 'Satış kaydında var, ürün listesinde yok'
+                : 'On the ticket, missing from the product list'
+              : item.group_name || T.noGroup}
+          </Text>
           <Text style={styles.metaText}>
             {Number(item.quantity) || 0} {T.qty} • {formatCurrency(item.price)}
           </Text>
