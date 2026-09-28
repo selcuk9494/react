@@ -245,6 +245,34 @@ export class StockService {
     return columns.find((c) => wanted.includes(c.lower));
   }
 
+  private isTruthyDbFlag(value: any): boolean {
+    if (value === true || value === 1) return true;
+    const s = String(value ?? '').trim().toLowerCase();
+    return s === '1' || s === 't' || s === 'true' || s === 'yes' || s === 'evet';
+  }
+
+  private isFalsyDbFlag(value: any): boolean {
+    if (value === false || value === 0) return true;
+    const s = String(value ?? '').trim().toLowerCase();
+    return (
+      s === '0' ||
+      s === 'f' ||
+      s === 'false' ||
+      s === 'no' ||
+      s === 'hayir' ||
+      s === 'hayır'
+    );
+  }
+
+  private isInactiveProductRow(row: any): boolean {
+    if (row?.silindi != null && this.isTruthyDbFlag(row.silindi)) return true;
+    if (row?.deleted != null && this.isTruthyDbFlag(row.deleted)) return true;
+    if (row?.pasif != null && this.isTruthyDbFlag(row.pasif)) return true;
+    if (row?.aktif != null && this.isFalsyDbFlag(row.aktif)) return true;
+    if (row?.active != null && this.isFalsyDbFlag(row.active)) return true;
+    return false;
+  }
+
   private getProductColumnMap(columns: any[]) {
     return {
       pluCol: this.pickColumn(columns, ['plu', 'pluid', 'urun_id']),
@@ -792,6 +820,7 @@ export class StockService {
           kitchen_printer_id: 1,
           fiyat: 250,
           onceki_fiyat: 225,
+          aktif: true,
         },
         {
           id: 102,
@@ -800,6 +829,7 @@ export class StockService {
           kitchen_printer_id: 1,
           fiyat: 240,
           onceki_fiyat: 220,
+          aktif: true,
         },
         {
           id: 201,
@@ -808,6 +838,7 @@ export class StockService {
           kitchen_printer_id: 2,
           fiyat: 50,
           onceki_fiyat: 45,
+          aktif: true,
         },
       ];
     }
@@ -832,6 +863,26 @@ export class StockService {
       number,
       { urun_adi: string; grup2: string; kitchen_printer_id?: number | null }
     >();
+    const inactivePlus = new Set<number>();
+
+    let statusSelect = '';
+    try {
+      const colRes = await pool.query(
+        `
+        SELECT lower(column_name) as col
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND lower(table_name) = 'product'
+          AND lower(column_name) IN ('silindi', 'deleted', 'pasif', 'aktif', 'active')
+      `,
+      );
+      const statusCols = (colRes.rows || [])
+        .map((r: any) => String(r.col || '').trim())
+        .filter(Boolean);
+      if (statusCols.length > 0) {
+        statusSelect = ', ' + statusCols.join(', ');
+      }
+    } catch {}
 
     const tryProductQueries: Array<{
       sql: string;
@@ -840,10 +891,10 @@ export class StockService {
       printerField?: string;
     }> =
       [
-        { sql: 'SELECT plu, product_name as name, tip as tip, myazici_tip as printer_id FROM product', nameField: 'name', tipField: 'tip', printerField: 'printer_id' },
-        { sql: 'SELECT plu, product_name as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
-        { sql: 'SELECT plu, urun_adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
-        { sql: 'SELECT plu, adi as name, tip as tip FROM product', nameField: 'name', tipField: 'tip' },
+        { sql: `SELECT plu, product_name as name, tip as tip, myazici_tip as printer_id${statusSelect} FROM product`, nameField: 'name', tipField: 'tip', printerField: 'printer_id' },
+        { sql: `SELECT plu, product_name as name, tip as tip${statusSelect} FROM product`, nameField: 'name', tipField: 'tip' },
+        { sql: `SELECT plu, urun_adi as name, tip as tip${statusSelect} FROM product`, nameField: 'name', tipField: 'tip' },
+        { sql: `SELECT plu, adi as name, tip as tip${statusSelect} FROM product`, nameField: 'name', tipField: 'tip' },
       ];
 
     let productTipByPlu: Map<number, number> | null = null;
@@ -859,6 +910,7 @@ export class StockService {
           const tip = Number(r[q.tipField]);
           const printerId = q.printerField ? Number(r[q.printerField]) : NaN;
           if (!Number.isFinite(plu) || plu <= 0) continue;
+          if (this.isInactiveProductRow(r)) inactivePlus.add(plu);
           if (name) {
             metaByPlu.set(plu, {
               urun_adi: name,
@@ -1052,6 +1104,7 @@ export class StockService {
         kitchen_printer_id: meta?.kitchen_printer_id ?? null,
         fiyat: prices?.fiyat ?? null,
         onceki_fiyat: prices?.onceki_fiyat ?? null,
+        aktif: !inactivePlus.has(plu),
       };
     });
 

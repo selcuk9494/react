@@ -79,7 +79,7 @@ const dict: Record<Lang, Record<string, string>> = {
     dynamic_menu_products_desc: 'Satılan ürünler ve menü filtresi',
     dynamic_menu_show_on: 'Dinamik menü ürünleri gösteriliyor',
     dynamic_menu_show_off: 'Dinamik menü ürünleri gizli',
-    dynamic_menu_filter_hint: 'Menü içindeki ürünler zaten fiyatlarıyla gelir. Gizli tutunca ürün toplamı ciroyu verir.',
+    dynamic_menu_filter_hint: 'Filtre yalnızca listeyi değiştirir. Ciro menü ana satırları hariç ürün toplamıdır.',
     daily_sales_chart: 'Günlük Satış Grafiği',
     daily_details: 'Günlük Detaylar',
     no_data_selected_range: 'Seçili tarih aralığında veri bulunamadı',
@@ -213,6 +213,9 @@ const dict: Record<Lang, Record<string, string>> = {
     view_details: 'Detayları Gör',
     product_prices_title: 'Ürün Fiyatları',
     product_prices_desc: 'Hızlı fiyat güncelle',
+    show_inactive_products: 'Pasif ürünleri göster',
+    hide_inactive_products: 'Pasif ürünler gizli',
+    inactive_product: 'Pasif',
   },
   en: {
     app_title: 'Reports App',
@@ -288,7 +291,7 @@ const dict: Record<Lang, Record<string, string>> = {
     dynamic_menu_products_desc: 'Sold products with menu filter',
     dynamic_menu_show_on: 'Dynamic menu products visible',
     dynamic_menu_show_off: 'Dynamic menu products hidden',
-    dynamic_menu_filter_hint: 'Items sold inside menus already include prices. Hide menu products so totals match revenue.',
+    dynamic_menu_filter_hint: 'The filter only changes the list. Revenue is always the product total without menu parent rows.',
     daily_sales_chart: 'Daily Sales Chart',
     daily_details: 'Daily Details',
     no_data_selected_range: 'No data in selected date range',
@@ -422,6 +425,9 @@ const dict: Record<Lang, Record<string, string>> = {
     view_details: 'View Details',
     product_prices_title: 'Product Prices',
     product_prices_desc: 'Quick price edit',
+    show_inactive_products: 'Show inactive products',
+    hide_inactive_products: 'Inactive products hidden',
+    inactive_product: 'Inactive',
   }
 };
 

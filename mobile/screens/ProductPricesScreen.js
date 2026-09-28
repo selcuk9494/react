@@ -57,6 +57,7 @@ export default function ProductPricesScreen({ navigation }) {
   const [productGroups, setProductGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
+  const [showInactive, setShowInactive] = useState(false);
   const [priceMap, setPriceMap] = useState({});
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -205,21 +206,36 @@ export default function ProductPricesScreen({ navigation }) {
     };
   }, []);
 
-  const groups = useMemo(() => {
-    const groupNames = productGroups
+  const visibleItems = useMemo(() => {
+    if (showInactive) return items;
+    return items.filter((p) => p.aktif !== false);
+  }, [items, showInactive]);
+
+  const formGroups = useMemo(() => {
+    const fromApi = productGroups
       .map((g) => g?.name || g?.adi || g?.grup_adi)
       .filter(Boolean);
-    const uniqueGroups = [
-      ...new Set([
-        ...groupNames,
-        ...items.map((p) => p.grup2 || 'Diğer').filter(Boolean),
-      ]),
-    ];
-    return ['Tümü', ...uniqueGroups.sort((a, b) => String(a).localeCompare(String(b), 'tr'))];
+    const fromItems = items.map((p) => p.grup2 || 'Diğer').filter(Boolean);
+    return [...new Set([...fromApi, ...fromItems])].sort((a, b) =>
+      String(a).localeCompare(String(b), 'tr'),
+    );
   }, [items, productGroups]);
 
+  const groups = useMemo(() => {
+    const uniqueGroups = [
+      ...new Set(visibleItems.map((p) => p.grup2 || 'Diğer').filter(Boolean)),
+    ];
+    return ['Tümü', ...uniqueGroups.sort((a, b) => String(a).localeCompare(String(b), 'tr'))];
+  }, [visibleItems]);
+
+  useEffect(() => {
+    if (selectedGroup !== 'Tümü' && !groups.includes(selectedGroup)) {
+      setSelectedGroup('Tümü');
+    }
+  }, [groups, selectedGroup]);
+
   const filteredItems = useMemo(() => {
-    let filtered = items;
+    let filtered = visibleItems;
     const q = String(searchQuery || '').trim().toLowerCase();
     if (q) {
       filtered = filtered.filter((p) => String(p.urun_adi || '').toLowerCase().includes(q));
@@ -228,7 +244,7 @@ export default function ProductPricesScreen({ navigation }) {
       filtered = filtered.filter((p) => (p.grup2 || 'Diğer') === selectedGroup);
     }
     return filtered;
-  }, [items, searchQuery, selectedGroup]);
+  }, [visibleItems, searchQuery, selectedGroup]);
 
   const sections = useMemo(() => {
     const grouped = {};
@@ -464,7 +480,14 @@ export default function ProductPricesScreen({ navigation }) {
     return (
       <View style={[styles.itemRow, hasChange && styles.itemRowChanged]}>
         <View style={{ flex: 1, paddingRight: 10 }}>
-          <Text style={styles.itemName} numberOfLines={2}>{p.urun_adi}</Text>
+          <View style={styles.itemNameRow}>
+            <Text style={styles.itemName} numberOfLines={2}>{p.urun_adi}</Text>
+            {p.aktif === false ? (
+              <View style={styles.inactiveBadge}>
+                <Text style={styles.inactiveBadgeText}>Pasif</Text>
+              </View>
+            ) : null}
+          </View>
           {typeof p.onceki_fiyat === 'number' ? (
             <Text style={styles.prevPrice}>Önceki: {p.onceki_fiyat}</Text>
           ) : null}
@@ -559,6 +582,18 @@ export default function ProductPricesScreen({ navigation }) {
           </TouchableOpacity>
         ) : null}
       </View>
+
+      <TouchableOpacity
+        style={[styles.inactiveToggle, showInactive && styles.inactiveToggleOn]}
+        onPress={() => setShowInactive((v) => !v)}
+      >
+        <Text style={[styles.inactiveToggleText, showInactive && styles.inactiveToggleTextOn]}>
+          {showInactive ? 'Pasif ürünleri göster' : 'Pasif ürünler gizli'}
+        </Text>
+        <Text style={[styles.inactiveToggleState, showInactive && styles.inactiveToggleTextOn]}>
+          {showInactive ? 'Açık' : 'Kapalı'}
+        </Text>
+      </TouchableOpacity>
 
       {!keyboardVisible && (
         <ScrollView
@@ -669,7 +704,7 @@ export default function ProductPricesScreen({ navigation }) {
                 style={styles.modalGroupScroll}
                 contentContainerStyle={styles.modalGroupScrollContent}
               >
-                {groups.filter((g) => g !== 'Tümü').map((g) => {
+                {formGroups.map((g) => {
                   const active = productForm.group_name === g;
                   return (
                     <TouchableOpacity
@@ -888,6 +923,53 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0f172a',
     marginLeft: 8,
+  },
+  inactiveToggle: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inactiveToggleOn: {
+    backgroundColor: '#0f172a',
+    borderColor: '#0f172a',
+  },
+  inactiveToggleText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  inactiveToggleTextOn: {
+    color: '#fff',
+  },
+  inactiveToggleState: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748b',
+  },
+  itemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  inactiveBadge: {
+    backgroundColor: '#e2e8f0',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  inactiveBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
   },
   groupScroll: {
     paddingHorizontal: 16,

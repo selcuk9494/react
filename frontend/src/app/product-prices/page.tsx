@@ -17,6 +17,7 @@ type PriceItem = {
   kitchen_printer_id?: number | null;
   fiyat: number | null;
   onceki_fiyat?: number | null;
+  aktif?: boolean;
 };
 
 type KitchenPrinter = {
@@ -26,7 +27,7 @@ type KitchenPrinter = {
 
 export default function ProductPricesPage() {
   const { token, user, loading } = useAuth();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
 
   const [items, setItems] = useState<PriceItem[]>([]);
@@ -35,6 +36,7 @@ export default function ProductPricesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [groups, setGroups] = useState<string[]>(['Tümü']);
   const [selectedGroup, setSelectedGroup] = useState('Tümü');
+  const [showInactive, setShowInactive] = useState(false);
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -188,11 +190,26 @@ export default function ProductPricesPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return items.filter((p) => {
+      if (!showInactive && p.aktif === false) return false;
       const matchesSearch = !q || (p.urun_adi || '').toLowerCase().includes(q);
       const matchesGroup = selectedGroup === 'Tümü' || p.grup2 === selectedGroup;
       return matchesSearch && matchesGroup;
     });
-  }, [items, searchQuery, selectedGroup]);
+  }, [items, searchQuery, selectedGroup, showInactive]);
+
+  const filterGroups = useMemo(() => {
+    const source = showInactive ? items : items.filter((p) => p.aktif !== false);
+    return [
+      'Tümü',
+      ...Array.from(new Set(source.map((p) => p.grup2).filter(Boolean) as string[])),
+    ];
+  }, [items, showInactive]);
+
+  useEffect(() => {
+    if (selectedGroup !== 'Tümü' && !filterGroups.includes(selectedGroup)) {
+      setSelectedGroup('Tümü');
+    }
+  }, [filterGroups, selectedGroup]);
 
   const grouped = useMemo(() => {
     const map: Record<string, PriceItem[]> = {};
@@ -532,7 +549,7 @@ export default function ProductPricesPage() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-            {groups.map((g) => (
+            {filterGroups.map((g) => (
               <button
                 key={g}
                 onClick={() => setSelectedGroup(g)}
@@ -547,6 +564,21 @@ export default function ProductPricesPage() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => setShowInactive((v) => !v)}
+            className={clsx(
+              'mt-3 w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-colors',
+              showInactive
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-slate-50 text-slate-700 border-slate-200',
+            )}
+          >
+            <span>{showInactive ? t('show_inactive_products') : t('hide_inactive_products')}</span>
+            <span className="text-xs opacity-80">
+              {showInactive ? (lang === 'tr' ? 'Açık' : 'On') : lang === 'tr' ? 'Kapalı' : 'Off'}
+            </span>
+          </button>
         </div>
 
         {loadingList ? (
@@ -569,7 +601,14 @@ export default function ProductPricesPage() {
                   {groupItems.map((p) => (
                     <div key={p.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-all">
                       <div className="flex-1 min-w-0 mr-4">
-                        <div className="font-semibold truncate text-gray-900">{p.urun_adi}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="font-semibold truncate text-gray-900">{p.urun_adi}</div>
+                          {p.aktif === false && (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-600">
+                              {t('inactive_product')}
+                            </span>
+                          )}
+                        </div>
                         {typeof p.onceki_fiyat === 'number' && (
                           <div className="text-[11px] text-gray-500 font-semibold mt-0.5">
                             Önceki: {p.onceki_fiyat}

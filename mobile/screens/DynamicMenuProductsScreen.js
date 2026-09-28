@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Menü içindeki ürünler zaten fiyatlarıyla gelir. Gizli tutunca toplam ciroyu verir.'
-        : 'Items inside menus already include prices. Hide menus to match revenue.',
+        ? 'Filtre yalnızca listeyi değiştirir. Ciro menü ana satırları hariç ürün toplamıdır.'
+        : 'The filter only changes the list. Revenue is always the product total without menu parent rows.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -55,7 +55,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
 
   useEffect(() => {
     fetchData();
-  }, [period, includeMenu]);
+  }, [period]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -69,7 +69,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
       const token = await AsyncStorage.getItem('token');
       const params = new URLSearchParams({
         period,
-        include_menu: includeMenu ? '1' : '0',
+        include_menu: '1',
       });
       if (period === 'custom') {
         params.set('start_date', startDate.toISOString().split('T')[0]);
@@ -116,19 +116,25 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   };
 
   const filteredData = useMemo(() => {
-    const visible = includeMenu ? data : data.filter((item) => !isStarMenu(item));
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return visible;
-    return visible.filter(
-      (item) =>
-        String(item.product_name || '').toLowerCase().includes(q) ||
-        String(item.group_name || '').toLowerCase().includes(q) ||
-        String(item.plu ?? '').toLowerCase().includes(q),
-    );
+    const searched = !q
+      ? data
+      : data.filter(
+          (item) =>
+            String(item.product_name || '').toLowerCase().includes(q) ||
+            String(item.group_name || '').toLowerCase().includes(q) ||
+            String(item.plu ?? '').toLowerCase().includes(q),
+        );
+    return includeMenu ? searched : searched.filter((item) => !isStarMenu(item));
   }, [data, searchQuery, includeMenu]);
 
-  const totalAmount = filteredData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-  const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const ciroRows = useMemo(
+    () => filteredData.filter((item) => !isStarMenu(item)),
+    [filteredData],
+  );
+
+  const totalAmount = ciroRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalQty = ciroRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -153,7 +159,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
         <View style={styles.pluBadge}>
           <Text style={styles.pluText}>PLU {item.plu}</Text>
         </View>
-        {!!item.is_dynamic_menu && (
+        {!!(item.is_dynamic_menu || isStarMenu(item)) && (
           <View style={styles.menuBadge}>
             <Text style={styles.menuBadgeText}>{T.menuBadge}</Text>
           </View>
@@ -189,7 +195,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
             <Text style={styles.summaryLabel}>{T.total}</Text>
             <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
             <Text style={styles.summarySub}>
-              {filteredData.length} {T.products} • {totalQty} {T.qty}
+              {ciroRows.length} {T.products} • {totalQty} {T.qty}
             </Text>
           </>
         )}

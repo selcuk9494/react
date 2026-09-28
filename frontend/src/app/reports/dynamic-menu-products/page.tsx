@@ -29,10 +29,7 @@ export default function DynamicMenuProductsPage() {
   const [includeMenu, setIncludeMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const additionalParams = useMemo(
-    () => ({ include_menu: includeMenu ? '1' : '0' }),
-    [includeMenu],
-  );
+  const additionalParams = useMemo(() => ({ include_menu: '1' }), []);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/dynamic-menu-products',
@@ -64,8 +61,7 @@ export default function DynamicMenuProductsPage() {
   };
 
   const rows: MenuProductRow[] = Array.isArray(data) ? data : [];
-  const filtered = rows.filter((item) => {
-    if (!includeMenu && isStarMenu(item)) return false;
+  const matchesSearch = (item: MenuProductRow) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -73,10 +69,13 @@ export default function DynamicMenuProductsPage() {
       String(item.group_name || '').toLowerCase().includes(q) ||
       String(item.plu ?? '').toLowerCase().includes(q)
     );
-  });
+  };
+  const searched = rows.filter(matchesSearch);
+  const ciroRows = searched.filter((item) => !isStarMenu(item));
+  const filtered = includeMenu ? searched : ciroRows;
 
-  const totalSales = filtered.reduce((sum, item) => sum + asNumber(item.total), 0);
-  const totalQty = filtered.reduce((sum, item) => sum + asNumber(item.quantity), 0);
+  const totalSales = ciroRows.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalQty = ciroRows.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -169,7 +168,7 @@ export default function DynamicMenuProductsPage() {
                 minPx={24}
               />
               <p className="text-violet-100 text-base mt-4 font-semibold">
-                {filtered.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
+                {ciroRows.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
               </p>
             </div>
 
@@ -191,7 +190,7 @@ export default function DynamicMenuProductsPage() {
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                             PLU {item.plu}
                           </span>
-                          {item.is_dynamic_menu && (
+                          {(item.is_dynamic_menu || isStarMenu(item)) && (
                             <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">
                               {lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu'}
                             </span>
