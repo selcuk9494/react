@@ -78,47 +78,23 @@ export default function DynamicMenuProductsPage() {
     );
   };
   const searched = rows.filter(matchesSearch);
-  const filtered = includeMenu
-    ? searched
-    : searched.filter((item) => !isMenuName(item));
+  const productRows = searched.filter((item) => !isMenuName(item));
+  const filtered = includeMenu ? searched : productRows;
 
-  const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
-  const totalQty = filtered.reduce((sum, item) => sum + asNumber(item.quantity), 0);
-  const hiddenMenuTotal = includeMenu
-    ? 0
-    : searched
-        .filter((item) => isMenuName(item))
-        .reduce((sum, item) => sum + asNumber(item.total), 0);
-  const hiddenMenuQty = includeMenu
-    ? 0
-    : searched
-        .filter((item) => isMenuName(item))
-        .reduce((sum, item) => sum + asNumber(item.quantity), 0);
+  const totalSales = productRows.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalQty = productRows.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportRows = [
     ...filtered.map((item) => ({
       ...item,
       product_name: productTitle(item),
     })),
-    ...(hiddenMenuTotal > 0.009
-      ? [
-          {
-            plu: '',
-            product_name:
-              lang === 'tr' ? 'Dinamik menü tutarı' : 'Dynamic menu amount',
-            group_name: '',
-            price: hiddenMenuQty > 0 ? hiddenMenuTotal / hiddenMenuQty : 0,
-            quantity: hiddenMenuQty,
-            total: hiddenMenuTotal,
-          },
-        ]
-      : []),
     {
       plu: '',
       product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
       group_name: '',
       price: '',
-      quantity: totalQty + hiddenMenuQty,
+      quantity: totalQty,
       total: totalSales,
     },
   ];

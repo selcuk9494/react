@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Menü tutarı içindeki ürünlere yazılır. Ciro değişmez; filtre yalnızca menü adlarını gizler.'
-        : 'Menu amounts are written onto the items inside. Revenue stays the same; the filter only hides menu names.',
+        ? 'Menü kılıfı ayrı satış değildir; ciro içindeki ürünlerden gelir. Filtre yalnızca menü adını gizler.'
+        : 'The menu wrapper is not a separate sale; revenue comes from the items inside. The filter only hides the menu name.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -128,40 +128,28 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     );
   }, [data, searchQuery]);
 
-  const filteredData = useMemo(() => {
-    return includeMenu
-      ? searchedData
-      : searchedData.filter((item) => !isMenuName(item));
-  }, [searchedData, includeMenu]);
+  const productRows = useMemo(
+    () => searchedData.filter((item) => !isMenuName(item)),
+    [searchedData],
+  );
 
-  const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-  const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
-  const hiddenMenuRows = includeMenu ? [] : searchedData.filter((item) => isMenuName(item));
-  const hiddenMenuTotal = hiddenMenuRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-  const hiddenMenuQty = hiddenMenuRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const filteredData = useMemo(() => {
+    return includeMenu ? searchedData : productRows;
+  }, [searchedData, includeMenu, productRows]);
+
+  const totalAmount = productRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalQty = productRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
   const exportRows = [
     ...filteredData.map((item) => ({
       ...item,
       product_name: productTitle(item),
     })),
-    ...(hiddenMenuTotal > 0.009
-      ? [
-          {
-            plu: '',
-            product_name: lang === 'tr' ? 'Dinamik menü tutarı' : 'Dynamic menu amount',
-            group_name: '',
-            price: hiddenMenuQty > 0 ? hiddenMenuTotal / hiddenMenuQty : 0,
-            quantity: hiddenMenuQty,
-            total: hiddenMenuTotal,
-          },
-        ]
-      : []),
     {
       plu: '',
       product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
       group_name: '',
       price: '',
-      quantity: totalQty + hiddenMenuQty,
+      quantity: totalQty,
       total: totalAmount,
     },
   ];
