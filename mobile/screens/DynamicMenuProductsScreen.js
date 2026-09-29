@@ -39,8 +39,8 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     menuOff: lang === 'tr' ? 'Dinamik menü ürünleri gizli' : 'Dynamic menu products hidden',
     menuHint:
       lang === 'tr'
-        ? 'Menü kılıfı ayrı satış değildir; ciro içindeki ürünlerden gelir. Filtre yalnızca menü adını gizler.'
-        : 'The menu wrapper is not a separate sale; revenue comes from the items inside. The filter only hides the menu name.',
+        ? 'Ciro her iki filtrede aynıdır. Menü tutarı içindeki ürünlere yazılır; filtre yalnızca menü adını gizler.'
+        : 'Revenue is the same with either filter. Menu amounts are written onto the items inside; the filter only hides the menu name.',
     menuBadge: lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu',
     noGroup: lang === 'tr' ? 'Grup yok' : 'No group',
   };
@@ -137,7 +137,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     return includeMenu ? searchedData : productRows;
   }, [searchedData, includeMenu, productRows]);
 
-  const totalAmount = productRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
   const totalQty = productRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
   const exportRows = [
     ...filteredData.map((item) => ({
@@ -149,7 +149,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
       product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
       group_name: '',
       price: '',
-      quantity: totalQty,
+      quantity: searchedData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0),
       total: totalAmount,
     },
   ];

@@ -81,7 +81,7 @@ export default function DynamicMenuProductsPage() {
   const productRows = searched.filter((item) => !isMenuName(item));
   const filtered = includeMenu ? searched : productRows;
 
-  const totalSales = productRows.reduce((sum, item) => sum + asNumber(item.total), 0);
+  const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
   const totalQty = productRows.reduce((sum, item) => sum + asNumber(item.quantity), 0);
 
   const exportRows = [
@@ -94,7 +94,7 @@ export default function DynamicMenuProductsPage() {
       product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
       group_name: '',
       price: '',
-      quantity: totalQty,
+      quantity: searched.reduce((sum, item) => sum + asNumber(item.quantity), 0),
       total: totalSales,
     },
   ];
