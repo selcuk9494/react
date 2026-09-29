@@ -84,6 +84,44 @@ export default function DynamicMenuProductsPage() {
 
   const totalSales = searched.reduce((sum, item) => sum + asNumber(item.total), 0);
   const totalQty = filtered.reduce((sum, item) => sum + asNumber(item.quantity), 0);
+  const hiddenMenuTotal = includeMenu
+    ? 0
+    : searched
+        .filter((item) => isMenuName(item))
+        .reduce((sum, item) => sum + asNumber(item.total), 0);
+  const hiddenMenuQty = includeMenu
+    ? 0
+    : searched
+        .filter((item) => isMenuName(item))
+        .reduce((sum, item) => sum + asNumber(item.quantity), 0);
+
+  const exportRows = [
+    ...filtered.map((item) => ({
+      ...item,
+      product_name: productTitle(item),
+    })),
+    ...(hiddenMenuTotal > 0.009
+      ? [
+          {
+            plu: '',
+            product_name:
+              lang === 'tr' ? 'Dinamik menü tutarı' : 'Dynamic menu amount',
+            group_name: '',
+            price: hiddenMenuQty > 0 ? hiddenMenuTotal / hiddenMenuQty : 0,
+            quantity: hiddenMenuQty,
+            total: hiddenMenuTotal,
+          },
+        ]
+      : []),
+    {
+      plu: '',
+      product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
+      group_name: '',
+      price: '',
+      quantity: totalQty + hiddenMenuQty,
+      total: totalSales,
+    },
+  ];
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -92,13 +130,23 @@ export default function DynamicMenuProductsPage() {
     {
       key: 'price',
       label: lang === 'tr' ? 'Fiyat' : 'Price',
-      format: (value: any) => formatCurrency(asNumber(value)),
+      format: (value: any) =>
+        value === '' || value === null || typeof value === 'undefined'
+          ? ''
+          : formatCurrency(asNumber(value)),
+      excelRaw: true,
     },
-    { key: 'quantity', label: lang === 'tr' ? 'Satış Adeti' : 'Qty', format: (value: any) => asNumber(value) },
+    {
+      key: 'quantity',
+      label: lang === 'tr' ? 'Satış Adeti' : 'Qty',
+      format: (value: any) => asNumber(value),
+      excelRaw: true,
+    },
     {
       key: 'total',
       label: lang === 'tr' ? 'Toplam' : 'Total',
       format: (value: any) => formatCurrency(asNumber(value)),
+      excelRaw: true,
     },
   ];
 
@@ -116,7 +164,7 @@ export default function DynamicMenuProductsPage() {
           <ReportExportButtons
             title={t('dynamic_menu_products')}
             columns={exportColumns}
-            rows={filtered}
+            rows={exportRows}
           />
         }
       />

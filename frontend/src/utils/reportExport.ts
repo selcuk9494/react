@@ -4,6 +4,7 @@ export type ExportColumn = {
   key: string;
   label: string;
   format?: (value: any, row: any) => string | number;
+  excelRaw?: boolean;
 };
 
 const escapeCell = (value: any) => {
@@ -11,8 +12,13 @@ const escapeCell = (value: any) => {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 };
 
-const getValue = (row: any, column: ExportColumn) => {
+const getValue = (row: any, column: ExportColumn, forExcel = false) => {
   const raw = row?.[column.key];
+  if (forExcel && column.excelRaw) {
+    if (raw === '' || raw === null || typeof raw === 'undefined') return '';
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : raw ?? '';
+  }
   return column.format ? column.format(raw, row) : raw;
 };
 
@@ -21,7 +27,7 @@ export function exportRowsAsExcel(title: string, columns: ExportColumn[], rows: 
     .map(
       (row) =>
         `<tr>${columns
-          .map((column) => `<td>${escapeCell(getValue(row, column))}</td>`)
+          .map((column) => `<td>${escapeCell(getValue(row, column, true))}</td>`)
           .join('')}</tr>`,
     )
     .join('');

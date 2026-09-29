@@ -136,6 +136,35 @@ export default function DynamicMenuProductsScreen({ navigation }) {
 
   const totalAmount = searchedData.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
   const totalQty = filteredData.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const hiddenMenuRows = includeMenu ? [] : searchedData.filter((item) => isMenuName(item));
+  const hiddenMenuTotal = hiddenMenuRows.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  const hiddenMenuQty = hiddenMenuRows.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  const exportRows = [
+    ...filteredData.map((item) => ({
+      ...item,
+      product_name: productTitle(item),
+    })),
+    ...(hiddenMenuTotal > 0.009
+      ? [
+          {
+            plu: '',
+            product_name: lang === 'tr' ? 'Dinamik menü tutarı' : 'Dynamic menu amount',
+            group_name: '',
+            price: hiddenMenuQty > 0 ? hiddenMenuTotal / hiddenMenuQty : 0,
+            quantity: hiddenMenuQty,
+            total: hiddenMenuTotal,
+          },
+        ]
+      : []),
+    {
+      plu: '',
+      product_name: lang === 'tr' ? 'TOPLAM' : 'TOTAL',
+      group_name: '',
+      price: '',
+      quantity: totalQty + hiddenMenuQty,
+      total: totalAmount,
+    },
+  ];
 
   const exportColumns = [
     { key: 'plu', label: 'PLU' },
@@ -144,13 +173,11 @@ export default function DynamicMenuProductsScreen({ navigation }) {
     {
       key: 'price',
       label: lang === 'tr' ? 'Fiyat' : 'Price',
-      format: (value) => formatCurrency(Number(value || 0)),
     },
     { key: 'quantity', label: lang === 'tr' ? 'Satış Adeti' : 'Qty' },
     {
       key: 'total',
       label: lang === 'tr' ? 'Toplam' : 'Total',
-      format: (value) => formatCurrency(Number(value || 0)),
     },
   ];
 
@@ -237,7 +264,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
         <Text style={styles.hint}>{T.menuHint}</Text>
-        <ReportExportActions title={T.title} rows={filteredData} columns={exportColumns} />
+        <ReportExportActions title={T.title} rows={exportRows} columns={exportColumns} />
       </View>
 
       {loading ? (
