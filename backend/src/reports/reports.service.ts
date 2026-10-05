@@ -1834,6 +1834,146 @@ export class ReportsService {
     `;
   }
 
+  private async menuRevenueFoldParts(pool: any) {
+    const canPair =
+      (await this.hasTable(pool, 'dyna_menu')) &&
+      (await this.hasTable(pool, 'dyna_icerik')) &&
+      (await this.hasColumn(pool, 'dyna_menu', 'dmproductid')) &&
+      (await this.hasColumn(pool, 'dyna_icerik', 'sp_id'));
+    const hasFiyat = canPair && (await this.hasTable(pool, 'product_fiyat'));
+    const fiyatPlu = hasFiyat && (await this.hasColumn(pool, 'product_fiyat', 'plu'));
+    const fiyatPid = hasFiyat && (await this.hasColumn(pool, 'product_fiyat', 'p_id'));
+    const productId = await this.hasColumn(pool, 'product', 'id');
+    const fiyatConds: string[] = [];
+    if (fiyatPid && productId) fiyatConds.push('pf.p_id = p.id');
+    if (fiyatPlu) {
+      fiyatConds.push('pf.plu = p.plu');
+      fiyatConds.push('pf.plu = s.pluid');
+    }
+    const hasBastar = hasFiyat && (await this.hasColumn(pool, 'product_fiyat', 'bastar'));
+    const catalogJoin =
+      hasFiyat && fiyatConds.length
+        ? `
+        LEFT JOIN LATERAL (
+          SELECT pf.fiyat as catalog_price
+          FROM product_fiyat pf
+          WHERE ${fiyatConds.join(' OR ')}
+          ORDER BY ${hasBastar ? 'pf.bastar DESC NULLS LAST,' : ''} pf.fiyat DESC
+          LIMIT 1
+        ) pf ON TRUE`
+        : '';
+    const catalogSelect =
+      hasFiyat && fiyatConds.length
+        ? 'COALESCE(pf.catalog_price, 0) as catalog_price'
+        : '0::numeric as catalog_price';
+    const pairCtes = canPair
+      ? `,
+      menu_members AS (
+        SELECT DISTINCT
+          CAST(COALESCE(mp.plu, dm.dmproductid) AS TEXT) as menu_plu,
+          CAST(i.sp_id AS TEXT) as inner_plu
+        FROM dyna_menu dm
+        JOIN dyna_icerik i ON i.menu_id = dm.id
+        LEFT JOIN product mp ON mp.id = dm.dmproductid
+        UNION
+        SELECT DISTINCT
+          CAST(dm.dmproductid AS TEXT),
+          CAST(i.sp_id AS TEXT)
+        FROM dyna_menu dm
+        JOIN dyna_icerik i ON i.menu_id = dm.id
+      ),
+      menus AS (
+        SELECT
+          line_id, adsno, adtur,
+          CAST(COALESCE(p_plu, pluid) AS TEXT) as menu_plu,
+          miktar, tutar,
+          CASE WHEN miktar > 0 THEN tutar / miktar ELSE tutar END as unit
+        FROM lined
+        WHERE is_menu AND tutar > 0
+      ),
+      inners AS (
+        SELECT
+          line_id, adsno, adtur,
+          CAST(COALESCE(p_plu, pluid) AS TEXT) as inner_plu,
+          miktar, catalog_price
+        FROM lined
+        WHERE NOT is_menu AND NOT is_addon AND tutar <= 0
+      ),
+      candidates AS (
+        SELECT
+          i.line_id as inner_id,
+          m.line_id as menu_id,
+          i.adsno,
+          i.adtur,
+          m.tutar as menu_tutar,
+          ABS(COALESCE(m.unit, 0) - COALESCE(i.catalog_price, 0)) as dist
+        FROM inners i
+        JOIN menus m ON m.adsno = i.adsno AND m.adtur = i.adtur
+        JOIN menu_members mb
+          ON mb.menu_plu = m.menu_plu AND mb.inner_plu = i.inner_plu
+      ),
+      picked AS (
+        SELECT adsno, adtur, inner_id, menu_id, menu_tutar
+        FROM (
+          SELECT c.*,
+            ROW_NUMBER() OVER (PARTITION BY adsno, adtur, menu_id ORDER BY dist, inner_id) as r_menu,
+            ROW_NUMBER() OVER (PARTITION BY adsno, adtur, inner_id ORDER BY dist, menu_id) as r_inner
+          FROM candidates c
+        ) x
+        WHERE r_menu = 1 AND r_inner = 1
+      ),
+      matched_inner AS (
+        SELECT inner_id, SUM(menu_tutar) as matched_tutar
+        FROM picked
+        GROUP BY inner_id
+      ),
+      leftover_ticket AS (
+        SELECT m.adsno, m.adtur,
+          COALESCE(SUM(m.tutar) FILTER (WHERE p.menu_id IS NULL), 0) as leftover
+        FROM menus m
+        LEFT JOIN picked p ON p.menu_id = m.line_id
+        GROUP BY m.adsno, m.adtur
+      ),
+      unmatched_qty AS (
+        SELECT i.adsno, i.adtur,
+          COALESCE(SUM(GREATEST(i.miktar, 0)), 0) as qty
+        FROM inners i
+        LEFT JOIN matched_inner mi ON mi.inner_id = i.line_id
+        WHERE mi.inner_id IS NULL
+        GROUP BY i.adsno, i.adtur
+      )`
+      : '';
+    const adjCase = canPair
+      ? `CASE
+            WHEN l.is_menu THEN
+              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
+            WHEN l.tutar > 0 THEN l.tutar
+            WHEN mi.matched_tutar IS NOT NULL THEN mi.matched_tutar
+            WHEN COALESCE(lt.leftover, 0) > 0 AND COALESCE(uq.qty, 0) > 0
+                 AND l.tutar <= 0 AND NOT l.is_addon THEN
+              lt.leftover * (GREATEST(l.miktar, 0) / uq.qty)
+            ELSE l.tutar
+          END`
+      : `CASE
+            WHEN l.is_menu THEN
+              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
+            WHEN t.menu_tutar > 0 AND t.fold_qty > 0 AND l.tutar <= 0 AND NOT l.is_addon THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.fold_qty)
+            WHEN t.menu_tutar > 0 AND t.fold_qty = 0 AND t.zero_qty > 0 AND l.tutar <= 0 THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.zero_qty)
+            ELSE l.tutar
+          END`;
+    const adjFrom = canPair
+      ? `FROM lined l
+        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur
+        LEFT JOIN matched_inner mi ON mi.inner_id = l.line_id
+        LEFT JOIN leftover_ticket lt ON lt.adsno = l.adsno AND lt.adtur = l.adtur
+        LEFT JOIN unmatched_qty uq ON uq.adsno = l.adsno AND uq.adtur = l.adtur`
+      : `FROM lined l
+        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur`;
+    return { catalogSelect, catalogJoin, pairCtes, adjCase, adjFrom };
+  }
+
   private async hasTable(pool: any, table: string): Promise<boolean> {
     const rows = await this.db.executeQuery(
       pool,
@@ -3133,6 +3273,7 @@ export class ReportsService {
     const useArray = Array.isArray(groupIds) && groupIds.length > 0;
     const usePlu = typeof plu === 'number' && !isNaN(plu);
     const menuFlagExpr = await this.dynamicMenuFlagSql(pool, 'p');
+    const fold = await this.menuRevenueFoldParts(pool);
     const productJoin = await this.productJoinOnTicketPlu(
       pool,
       's.pluid',
@@ -3226,6 +3367,7 @@ export class ReportsService {
     const query = `
       WITH sales AS (
         SELECT
+          'c-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
           a.pluid,
@@ -3242,6 +3384,7 @@ export class ReportsService {
             ? `
         UNION ALL
         SELECT
+          'o-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
           a.pluid,
@@ -3259,6 +3402,7 @@ export class ReportsService {
       ),
       lined AS (
         SELECT
+          s.line_id,
           s.adsno,
           s.adtur,
           s.pluid,
@@ -3270,10 +3414,12 @@ export class ReportsService {
           ${productNameExpr} as product_name,
           ${groupNameExpr} as group_name,
           (${menuExpr}) as is_menu,
-          (${addonExpr}) as is_addon
+          (${addonExpr}) as is_addon,
+          ${fold.catalogSelect}
         FROM sales s
         ${productJoin}
         LEFT JOIN product_group pg ON p.tip = pg.id
+        ${fold.catalogJoin}
       ),
       ticket AS (
         SELECT
@@ -3286,21 +3432,12 @@ export class ReportsService {
           COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0) as zero_lines
         FROM lined
         GROUP BY adsno, adtur
-      ),
+      )${fold.pairCtes},
       adjusted AS (
         SELECT
           l.*,
-          CASE
-            WHEN l.is_menu THEN
-              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
-            WHEN t.menu_tutar > 0 AND t.fold_qty > 0 AND l.tutar <= 0 AND NOT l.is_addon THEN
-              t.menu_tutar * (GREATEST(l.miktar, 0) / t.fold_qty)
-            WHEN t.menu_tutar > 0 AND t.fold_qty = 0 AND t.zero_qty > 0 AND l.tutar <= 0 THEN
-              t.menu_tutar * (GREATEST(l.miktar, 0) / t.zero_qty)
-            ELSE l.tutar
-          END as adj_tutar
-        FROM lined l
-        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur
+          ${fold.adjCase} as adj_tutar
+        ${fold.adjFrom}
       )
       SELECT
           MAX(product_name) as product_name,
@@ -3524,6 +3661,7 @@ export class ReportsService {
       groupNameExpr,
     );
 
+    const fold = await this.menuRevenueFoldParts(pool);
     const productJoin = await this.productJoinOnTicketPlu(
       pool,
       's.pluid',
@@ -3533,6 +3671,7 @@ export class ReportsService {
     const query = `
       WITH sales AS (
         SELECT
+          'c-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
           a.pluid,
@@ -3551,6 +3690,7 @@ export class ReportsService {
             ? `
         UNION ALL
         SELECT
+          'o-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
           a.pluid,
@@ -3569,6 +3709,7 @@ export class ReportsService {
       ),
       lined AS (
         SELECT
+          s.line_id,
           s.adsno,
           s.adtur,
           s.pluid,
@@ -3582,10 +3723,12 @@ export class ReportsService {
           ${productNameExpr} as product_name,
           ${groupNameExpr} as group_name,
           (${menuExpr}) as is_menu,
-          (${addonExpr}) as is_addon
+          (${addonExpr}) as is_addon,
+          ${fold.catalogSelect}
         FROM sales s
         ${productJoin}
         LEFT JOIN product_group pg ON p.tip = pg.id
+        ${fold.catalogJoin}
       ),
       ticket AS (
         SELECT
@@ -3598,21 +3741,12 @@ export class ReportsService {
           COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0) as zero_lines
         FROM lined
         GROUP BY adsno, adtur
-      ),
+      )${fold.pairCtes},
       adjusted AS (
         SELECT
           l.*,
-          CASE
-            WHEN l.is_menu THEN
-              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
-            WHEN t.menu_tutar > 0 AND t.fold_qty > 0 AND l.tutar <= 0 AND NOT l.is_addon THEN
-              t.menu_tutar * (GREATEST(l.miktar, 0) / t.fold_qty)
-            WHEN t.menu_tutar > 0 AND t.fold_qty = 0 AND t.zero_qty > 0 AND l.tutar <= 0 THEN
-              t.menu_tutar * (GREATEST(l.miktar, 0) / t.zero_qty)
-            ELSE l.tutar
-          END as adj_tutar
-        FROM lined l
-        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur
+          ${fold.adjCase} as adj_tutar
+        ${fold.adjFrom}
       ),
       agg AS (
         SELECT
