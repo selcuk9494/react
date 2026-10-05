@@ -173,6 +173,15 @@ export class ReportsService {
   }
 
   private async pickExistingColumn(pool: any, table: string, columns: string[]) {
+    const found = await this.pickExistingColumns(pool, table, columns);
+    return found[0] || null;
+  }
+
+  private async pickExistingColumns(
+    pool: any,
+    table: string,
+    columns: string[],
+  ) {
     const rows = await this.db.executeQuery(
       pool,
       `
@@ -182,48 +191,77 @@ export class ReportsService {
         AND table_name = $1
         AND lower(column_name) = ANY($2::text[])
       ORDER BY array_position($2::text[], lower(column_name))
-      LIMIT 1
     `,
       [table, columns.map((c) => c.toLowerCase())],
     );
-    return rows?.[0]?.column_name ? String(rows[0].column_name) : null;
+    return (rows || [])
+      .map((row: any) => String(row?.column_name || ''))
+      .filter(Boolean);
+  }
+
+  private customerTextExpr(alias: string, column: string | null) {
+    return column
+      ? `NULLIF(BTRIM(CAST(${alias}.${this.quoteIdent(column)} AS text)), '')`
+      : 'NULL::text';
   }
 
   private async getCustomerExtraSelects(pool: any, alias = 'm') {
     try {
-      const [phoneCol, addressCol] = await Promise.all([
-        this.pickExistingColumn(pool, 'ads_musteri', [
-          'telefon',
-          'tel',
-          'phone',
-          'gsm',
-          'cep',
-          'ceptel',
-          'cep_tel',
-          'mobile',
-          'telefon1',
-          'tel1',
-        ]),
-        this.pickExistingColumn(pool, 'ads_musteri', [
-          'adres',
-          'address',
-          'adres1',
-          'adres_1',
-          'adr1',
-          'acik_adres',
-          'musteri_adres',
-          'full_address',
-        ]),
-      ]);
+      const [phoneCol, primaryAddressCols, noteCol, structuredCols] =
+        await Promise.all([
+          this.pickExistingColumn(pool, 'ads_musteri', [
+            'telefon',
+            'tel',
+            'phone',
+            'gsm',
+            'cep',
+            'ceptel',
+            'cep_tel',
+            'mobile',
+            'telefon1',
+            'tel1',
+          ]),
+          this.pickExistingColumns(pool, 'ads_musteri', [
+            'adres1',
+            'adres',
+            'address',
+            'adres_1',
+            'adr1',
+            'acik_adres',
+            'musteri_adres',
+            'full_address',
+            'adres2',
+            'adres3',
+          ]),
+          this.pickExistingColumn(pool, 'ads_musteri', [
+            'adres_aciklama',
+            'adresaciklama',
+            'tarif',
+            'teslimat_notu',
+          ]),
+          this.pickExistingColumns(pool, 'ads_musteri', [
+            'cadde',
+            'sokak',
+            'mahalle',
+            'semt',
+            'sehir',
+          ]),
+        ]);
 
-      const textExpr = (column: string | null) =>
-        column
-          ? `NULLIF(TRIM(CAST(${alias}.${this.quoteIdent(column)} AS text)), '')`
-          : 'NULL::text';
+      const primaryAddress = primaryAddressCols.length
+        ? `COALESCE(${primaryAddressCols
+            .map((column) => this.customerTextExpr(alias, column))
+            .join(', ')})`
+        : 'NULL::text';
+      const structuredAddress = structuredCols.length
+        ? `NULLIF(BTRIM(CONCAT_WS(' ', ${structuredCols
+            .map((column) => this.customerTextExpr(alias, column))
+            .join(', ')})), '')`
+        : 'NULL::text';
 
       return {
-        phone: textExpr(phoneCol),
-        address: textExpr(addressCol),
+        phone: this.customerTextExpr(alias, phoneCol),
+        address: `COALESCE(${primaryAddress}, ${structuredAddress}, ${this.customerTextExpr(alias, noteCol)})`,
       };
     } catch {
       return {
@@ -231,6 +269,39 @@ export class ReportsService {
         address: 'NULL::text',
       };
     }
+  }
+
+  private async customerJoinOnMustid(
+    pool: any,
+    mustidExpr: string,
+    alias = 'm',
+  ) {
+    const hasMustid = await this.hasColumn(pool, 'ads_musteri', 'mustid');
+    const hasId = await this.hasColumn(pool, 'ads_musteri', 'id');
+    const conds: string[] = [];
+    if (hasMustid) {
+      conds.push(
+        `CAST(mx.mustid AS TEXT) = CAST(${mustidExpr} AS TEXT)`,
+      );
+    }
+    if (hasId) {
+      conds.push(`CAST(mx.id AS TEXT) = CAST(${mustidExpr} AS TEXT)`);
+    }
+    if (!conds.length) {
+      return `LEFT JOIN ads_musteri ${alias} ON FALSE`;
+    }
+    const orderSql = hasMustid
+      ? `CASE WHEN CAST(mx.mustid AS TEXT) = CAST(${mustidExpr} AS TEXT) THEN 0 ELSE 1 END`
+      : '1';
+    return `
+      LEFT JOIN LATERAL (
+        SELECT mx.*
+        FROM ads_musteri mx
+        WHERE ${conds.join('\n           OR ')}
+        ORDER BY ${orderSql}
+        LIMIT 1
+      ) ${alias} ON TRUE
+    `;
   }
 
   private async getCountryLookupSql(
@@ -406,6 +477,12 @@ export class ReportsService {
     type?: 'adisyon' | 'paket',
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
+    const customerExtra = await this.getCustomerExtraSelects(pool);
+    const customerJoinOpen = await this.customerJoinOnMustid(
+      pool,
+      'a.mustid',
+      'm',
+    );
     const countryLookup = await this.getCountryLookupSql(
       pool,
       'orders',
@@ -466,9 +543,11 @@ export class ReportsService {
                 MAX(a.mustid) as mustid,
                 MAX(COALESCE(a.mustcnt, 0)) as person_count,
                 MAX(a.country) as country_code,
-                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name
+                MAX(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))) as customer_name,
+                MAX(${customerExtra.phone}) as customer_phone,
+                MAX(${customerExtra.address}) as customer_address
             FROM ads_acik a
-            LEFT JOIN ads_musteri m ON a.mustid = m.mustid
+            ${customerJoinOpen}
             WHERE a.kasa = ANY($1) ${typeCondition}
         `;
       const params: any[] = [kasa_nos];
@@ -647,13 +726,15 @@ export class ReportsService {
                 COALESCE(p.payment_mustid, a.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
                 CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name,
+                ${customerExtra.phone} as customer_phone,
+                ${customerExtra.address} as customer_address,
                 a.person_count,
                 a.country_code,
                 ${countryLookup.name} as country_name
             FROM adisyon_agg a
             LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
             LEFT JOIN personel per ON a.garsonno = per.id
-            LEFT JOIN ads_musteri m ON COALESCE(p.payment_mustid, a.mustid) = m.mustid
+            ${await this.customerJoinOnMustid(pool, 'COALESCE(p.payment_mustid, a.mustid)', 'm')}
             ${countryLookup.join.replace(/orders\./g, 'a.')}
             ${outerDateFilter}
             ORDER BY a.adsno DESC
@@ -672,6 +753,12 @@ export class ReportsService {
   ) {
     const { pool, kasa_nos } = await this.getBranchPool(user);
     const customerExtra = await this.getCustomerExtraSelects(pool);
+    const customerJoin = await this.customerJoinOnMustid(pool, 'oi.mustid', 'm');
+    const customerJoinClosed = await this.customerJoinOnMustid(
+      pool,
+      'COALESCE(oi.mustid, pi.payment_mustid, 0)',
+      'm',
+    );
     const countryLookup = await this.getCountryLookupSql(pool, 'oi', 'country_ref');
     let resolvedAdtur = typeof adtur !== 'undefined' ? adtur : undefined;
     if (typeof resolvedAdtur === 'undefined') {
@@ -793,7 +880,7 @@ export class ReportsService {
                 COALESCE(items.items, '[]'::json) as items
             FROM order_info oi
             LEFT JOIN personel p ON oi.garsonno = p.id
-            LEFT JOIN ads_musteri m ON oi.mustid = m.mustid
+            ${customerJoin}
             ${countryLookup.join}
             LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
@@ -892,7 +979,7 @@ export class ReportsService {
             FROM order_info oi
             LEFT JOIN payment_info pi ON pi.adsno = oi.adsno
             LEFT JOIN personel p ON oi.garsonno = p.id
-            LEFT JOIN ads_musteri m ON COALESCE(oi.mustid, pi.payment_mustid, 0) = m.mustid
+            ${customerJoinClosed}
             ${countryLookup.join}
             LEFT JOIN ads_odeme o ON o.adsno = oi.adsno AND o.kasa = ANY($1) ${typeof resolvedAdtur !== 'undefined' ? 'AND COALESCE(o.adtur, 0) = $3' : ''}
             LEFT JOIN ads_odmsekli od ON o.otip = od.odmno
@@ -1532,10 +1619,23 @@ export class ReportsService {
 
   async getCustomerById(user: any, id: number) {
     const { pool } = await this.getBranchPool(user);
+    const extra = await this.getCustomerExtraSelects(pool, 'm');
+    const hasId = await this.hasColumn(pool, 'ads_musteri', 'id');
+    const hasMustid = await this.hasColumn(pool, 'ads_musteri', 'mustid');
+    const idExpr = hasId ? 'm.id' : hasMustid ? 'm.mustid' : 'NULL';
+    const where = [
+      hasMustid ? 'm.mustid = $1' : null,
+      hasId ? 'm.id = $1' : null,
+    ]
+      .filter(Boolean)
+      .join(' OR ');
+    if (!where) return null;
     const q = `
-      SELECT id, adi, COALESCE(soyadi, '') as soyadi
-      FROM ads_musteri
-      WHERE id = $1
+      SELECT ${idExpr} as id, m.adi, COALESCE(m.soyadi, '') as soyadi,
+             ${extra.phone} as phone,
+             ${extra.address} as address
+      FROM ads_musteri m
+      WHERE ${where}
       LIMIT 1
     `;
     const rows = await this.db.executeQuery(pool, q, [id]);
@@ -1546,7 +1646,19 @@ export class ReportsService {
       first_name: r.adi,
       last_name: r.soyadi,
       full_name: `${r.adi}${r.soyadi ? ' ' + r.soyadi : ''}`,
+      phone: r.phone || null,
+      address: r.address || null,
     };
+  }
+
+  private async dynamicMenuFlagSql(pool: any, alias = 'p') {
+    const { predicate, hasFlag } = await this.getDynamicMenuPredicate(pool, alias);
+    const parts: string[] = [];
+    if (hasFlag) parts.push(predicate);
+    if (await this.hasColumn(pool, 'product', 'pr_isdynamic')) {
+      parts.push(`COALESCE(${alias}.pr_isdynamic, false) = true`);
+    }
+    return parts.length ? `(${parts.join(' OR ')})` : 'FALSE';
   }
 
   private async getDynamicMenuPredicate(pool: any, alias = 'p') {
@@ -1599,6 +1711,20 @@ export class ReportsService {
     return `(
       BTRIM(COALESCE(${nameExpr}, '')) LIKE '*%'
       OR BTRIM(COALESCE(${nameExpr}, '')) LIKE '%*'
+    )`;
+  }
+
+  private menuIncludedAddonPredicate(nameExpr: string, groupExpr: string) {
+    const name = `LOWER(BTRIM(COALESCE(${nameExpr}, '')))`;
+    const group = `LOWER(BTRIM(COALESCE(${groupExpr}, '')))`;
+    return `(
+      ${name} LIKE '%sos%' OR ${group} LIKE '%sos%'
+      OR ${name} LIKE '%ayran%' OR ${group} LIKE '%ayran%'
+      OR ${name} LIKE '%içecek%' OR ${name} LIKE '%icecek%'
+      OR ${group} LIKE '%içecek%' OR ${group} LIKE '%icecek%'
+      OR ${name} LIKE '%orijinal%' OR ${name} LIKE '%original%'
+      OR ${name} LIKE '%cola%' OR ${name} LIKE '%fanta%' OR ${name} LIKE '%sprite%'
+      OR ${name} IN ('su', 'su d') OR ${name} LIKE 'su %'
     )`;
   }
 
@@ -2995,98 +3121,192 @@ export class ReportsService {
       endDateOnly = biz;
     }
 
-    let query = '';
-    const params = [];
+    const includeOpen = period === 'today';
     const useArray = Array.isArray(groupIds) && groupIds.length > 0;
     const usePlu = typeof plu === 'number' && !isNaN(plu);
-    const productJoinCs = await this.productJoinOnTicketPlu(
+    const menuFlagExpr = await this.dynamicMenuFlagSql(pool, 'p');
+    const productJoin = await this.productJoinOnTicketPlu(
       pool,
-      'cs.pluid',
+      's.pluid',
       'p',
       'di',
     );
-    const productJoinA = await this.productJoinOnTicketPlu(
-      pool,
-      'a.pluid',
-      'p',
-      'di',
-    );
-    const nameSqlCs = this.ticketResolvedNameSql('cs.pluid');
-    const pluSqlCs = this.ticketResolvedPluSql('cs.pluid');
-    const nameSqlA = this.ticketResolvedNameSql('a.pluid');
-    const pluSqlA = this.ticketResolvedPluSql('a.pluid');
 
-    if (period === 'today') {
-      // Combine Open and Closed - raptar ve actar kullan
-      query = `
-            WITH combined_sales AS (
-                SELECT a.pluid, a.miktar, a.tutar
-                FROM ads_adisyon a
-                WHERE a.raptar = $1::date AND a.kasa = ANY($2)
-                UNION ALL
-                SELECT a.pluid, a.miktar, a.tutar
-                FROM ads_acik a
-                WHERE a.actar = $3::date AND a.kasa = ANY($4)
-            )
-            SELECT 
-                MAX(${nameSqlCs}) as product_name,
-                ${pluSqlCs} as plu,
-                MAX(p.tip) as group_id,
-                MAX(pg.adi) as group_name,
-                COALESCE(SUM(cs.miktar), 0) as quantity,
-                COALESCE(SUM(cs.tutar), 0) as total
-            FROM combined_sales cs
-            ${productJoinCs}
-            LEFT JOIN product_group pg ON p.tip = pg.id
-            WHERE cs.pluid IS NOT NULL
-            ${(() => {
-              const conds: string[] = [];
-              if (useArray) conds.push('p.tip = ANY($5)');
-              else if (groupId) conds.push('p.tip = $5');
-              const nextIndex = 5 + (useArray || groupId ? 1 : 0);
-              if (usePlu)
-                conds.push(`CAST(${pluSqlCs} AS TEXT) = CAST($${nextIndex} AS TEXT)`);
-              return conds.length ? 'AND ' + conds.join(' AND ') : '';
-            })()}
-            GROUP BY ${pluSqlCs}
-            ORDER BY total DESC
-        `;
-      params.push(startDateOnly, kasa_nos, startDateOnly, kasa_nos);
-      if (useArray) params.push(groupIds);
-      else if (groupId) params.push(groupId);
-      if (usePlu) params.push(plu);
-    } else {
-      // Only Closed - raptar kullan
-      query = `
-            SELECT 
-                MAX(${nameSqlA}) as product_name,
-                ${pluSqlA} as plu,
-                MAX(p.tip) as group_id,
-                MAX(pg.adi) as group_name,
-                COALESCE(SUM(a.miktar), 0) as quantity,
-                COALESCE(SUM(a.tutar), 0) as total
-            FROM ads_adisyon a
-            ${productJoinA}
-            LEFT JOIN product_group pg ON p.tip = pg.id
-            WHERE a.raptar >= $1::date AND a.raptar <= $2::date AND a.kasa = ANY($3)
-              AND a.pluid IS NOT NULL
-            ${(() => {
-              const conds: string[] = [];
-              if (useArray) conds.push('p.tip = ANY($4)');
-              else if (groupId) conds.push('p.tip = $4');
-              const nextIndex = 4 + (useArray || groupId ? 1 : 0);
-              if (usePlu)
-                conds.push(`CAST(${pluSqlA} AS TEXT) = CAST($${nextIndex} AS TEXT)`);
-              return conds.length ? 'AND ' + conds.join(' AND ') : '';
-            })()}
-            GROUP BY ${pluSqlA}
-            ORDER BY total DESC
-        `;
-      params.push(startDateOnly, endDateOnly, kasa_nos);
-      if (useArray) params.push(groupIds);
-      else if (groupId) params.push(groupId);
-      if (usePlu) params.push(plu);
+    const productNameCols: string[] = [];
+    for (const col of [
+      'product_name',
+      'urun_adi',
+      'urunadi',
+      'stokadi',
+      'adi',
+      'name',
+    ]) {
+      if (await this.hasColumn(pool, 'product', col)) {
+        productNameCols.push(this.meaningfulNameSql(`p.${col}`, 's.pluid'));
+      }
     }
+    const closedLineNameCol = await this.resolveColumn(pool, 'ads_adisyon', [
+      'urunadi',
+      'urun_adi',
+      'product_name',
+      'stokadi',
+      'adi',
+    ]);
+    const closedLineGroupCol = await this.resolveColumn(pool, 'ads_adisyon', [
+      'grup2',
+      'grup',
+    ]);
+    const openLineNameCol = includeOpen
+      ? await this.resolveColumn(pool, 'ads_acik', [
+          'urunadi',
+          'urun_adi',
+          'product_name',
+          'stokadi',
+          'adi',
+        ])
+      : null;
+    const openLineGroupCol = includeOpen
+      ? await this.resolveColumn(pool, 'ads_acik', ['grup2', 'grup'])
+      : null;
+    const closedNameSql = closedLineNameCol
+      ? `a.${closedLineNameCol}`
+      : 'NULL::text';
+    const closedGroupSql = closedLineGroupCol
+      ? `a.${closedLineGroupCol}`
+      : 'NULL::text';
+    const openNameSql = openLineNameCol ? `a.${openLineNameCol}` : 'NULL::text';
+    const openGroupSql = openLineGroupCol
+      ? `a.${openLineGroupCol}`
+      : 'NULL::text';
+    const productNameExpr = `COALESCE(${[
+      ...productNameCols,
+      this.meaningfulNameSql('di.adi', 's.pluid'),
+      this.meaningfulNameSql('s.line_name', 's.pluid'),
+      `CAST(COALESCE(p.plu, di.sp_id, s.pluid) AS VARCHAR)`,
+    ].join(', ')})`;
+    const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
+    const starMenuExpr = `(${this.starMenuPredicate('p.product_name')} OR ${this.starMenuPredicate('s.line_name')} OR ${this.starMenuPredicate(productNameExpr)})`;
+    const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
+    const addonExpr = this.menuIncludedAddonPredicate(
+      productNameExpr,
+      groupNameExpr,
+    );
+    const pluSql = `COALESCE(p.plu, di.sp_id, s.pluid)`;
+
+    const params: any[] = [kasa_nos, startDateOnly];
+    let extraFilter = '';
+    if (!includeOpen) {
+      params.push(endDateOnly);
+    }
+    if (useArray) {
+      params.push(groupIds);
+      extraFilter += ` AND l.tip = ANY($${params.length})`;
+    } else if (groupId) {
+      params.push(groupId);
+      extraFilter += ` AND l.tip = $${params.length}`;
+    }
+    if (usePlu) {
+      params.push(plu);
+      extraFilter += ` AND CAST(COALESCE(l.p_plu, l.pluid) AS TEXT) = CAST($${params.length} AS TEXT)`;
+    }
+
+    const dateClosed = includeOpen
+      ? `AND a.raptar = $2::date`
+      : `AND a.raptar >= $2::date AND a.raptar <= $3::date`;
+    const dateOpen = `AND a.actar = $2::date`;
+
+    const query = `
+      WITH sales AS (
+        SELECT
+          COALESCE(a.adsno, 0) as adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          a.pluid,
+          COALESCE(a.miktar, 0) as miktar,
+          COALESCE(a.tutar, 0) as tutar,
+          ${closedNameSql} as line_name,
+          ${closedGroupSql} as line_group
+        FROM ads_adisyon a
+        WHERE a.kasa = ANY($1)
+          ${dateClosed}
+          AND a.pluid IS NOT NULL
+        ${
+          includeOpen
+            ? `
+        UNION ALL
+        SELECT
+          COALESCE(a.adsno, 0) as adsno,
+          COALESCE(a.adtur, 0) as adtur,
+          a.pluid,
+          COALESCE(a.miktar, 0) as miktar,
+          COALESCE(a.tutar, 0) as tutar,
+          ${openNameSql} as line_name,
+          ${openGroupSql} as line_group
+        FROM ads_acik a
+        WHERE a.kasa = ANY($1)
+          ${dateOpen}
+          AND a.pluid IS NOT NULL
+        `
+            : ''
+        }
+      ),
+      lined AS (
+        SELECT
+          s.adsno,
+          s.adtur,
+          s.pluid,
+          s.miktar,
+          s.tutar,
+          s.line_name,
+          ${pluSql} as p_plu,
+          p.tip,
+          ${productNameExpr} as product_name,
+          ${groupNameExpr} as group_name,
+          (${menuExpr}) as is_menu,
+          (${addonExpr}) as is_addon
+        FROM sales s
+        ${productJoin}
+        LEFT JOIN product_group pg ON p.tip = pg.id
+      ),
+      ticket AS (
+        SELECT
+          adsno,
+          adtur,
+          COALESCE(SUM(CASE WHEN is_menu THEN tutar ELSE 0 END), 0) as menu_tutar,
+          COALESCE(SUM(CASE WHEN NOT is_menu AND tutar <= 0 AND NOT is_addon THEN GREATEST(miktar, 0) ELSE 0 END), 0) as fold_qty,
+          COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0 AND NOT is_addon) as fold_lines,
+          COALESCE(SUM(CASE WHEN NOT is_menu AND tutar <= 0 THEN GREATEST(miktar, 0) ELSE 0 END), 0) as zero_qty,
+          COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0) as zero_lines
+        FROM lined
+        GROUP BY adsno, adtur
+      ),
+      adjusted AS (
+        SELECT
+          l.*,
+          CASE
+            WHEN l.is_menu THEN
+              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
+            WHEN t.menu_tutar > 0 AND t.fold_qty > 0 AND l.tutar <= 0 AND NOT l.is_addon THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.fold_qty)
+            WHEN t.menu_tutar > 0 AND t.fold_qty = 0 AND t.zero_qty > 0 AND l.tutar <= 0 THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.zero_qty)
+            ELSE l.tutar
+          END as adj_tutar
+        FROM lined l
+        JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur
+      )
+      SELECT
+          MAX(product_name) as product_name,
+          COALESCE(p_plu, pluid) as plu,
+          MAX(tip) as group_id,
+          MAX(group_name) as group_name,
+          COALESCE(SUM(miktar), 0) as quantity,
+          COALESCE(SUM(adj_tutar), 0) as total
+      FROM adjusted l
+      WHERE NOT COALESCE(l.is_menu, false)
+        ${extraFilter}
+      GROUP BY COALESCE(p_plu, pluid)
+      ORDER BY total DESC
+    `;
 
     const rows = await this.db.executeQuery(pool, query, params);
     return rows;
@@ -3231,9 +3451,8 @@ export class ReportsService {
       endDateOnly = startDateOnly;
     }
 
-    const { predicate, hasFlag } = await this.getDynamicMenuPredicate(pool, 'p');
     const includeOpen = period === 'today';
-    const menuFlagExpr = hasFlag ? predicate : 'FALSE';
+    const menuFlagExpr = await this.dynamicMenuFlagSql(pool, 'p');
 
     const productNameCols: string[] = [];
     for (const col of [
@@ -3290,8 +3509,12 @@ export class ReportsService {
       `CAST(COALESCE(p.plu, di.sp_id, s.pluid) AS VARCHAR)`,
     ].join(', ')})`;
     const groupNameExpr = `COALESCE(NULLIF(BTRIM(pg.adi::text), ''), NULLIF(BTRIM(s.line_group::text), ''), '')`;
-    const starMenuExpr = this.starMenuPredicate(productNameExpr);
-    const menuExpr = `((${menuFlagExpr} OR ${starMenuExpr}) AND di.id IS NULL)`;
+    const starMenuExpr = `(${this.starMenuPredicate('p.product_name')} OR ${this.starMenuPredicate('s.line_name')} OR ${this.starMenuPredicate(productNameExpr)})`;
+    const menuExpr = `(${menuFlagExpr} OR ${starMenuExpr})`;
+    const addonExpr = this.menuIncludedAddonPredicate(
+      productNameExpr,
+      groupNameExpr,
+    );
 
     const productJoin = await this.productJoinOnTicketPlu(
       pool,
@@ -3350,7 +3573,8 @@ export class ReportsService {
           p.tip,
           ${productNameExpr} as product_name,
           ${groupNameExpr} as group_name,
-          (${menuExpr}) as is_menu
+          (${menuExpr}) as is_menu,
+          (${addonExpr}) as is_addon
         FROM sales s
         ${productJoin}
         LEFT JOIN product_group pg ON p.tip = pg.id
@@ -3360,9 +3584,10 @@ export class ReportsService {
           adsno,
           adtur,
           COALESCE(SUM(CASE WHEN is_menu THEN tutar ELSE 0 END), 0) as menu_tutar,
-          COALESCE(SUM(CASE WHEN NOT is_menu THEN tutar ELSE 0 END), 0) as item_tutar,
-          COALESCE(SUM(CASE WHEN NOT is_menu THEN miktar ELSE 0 END), 0) as item_qty,
-          COUNT(*) FILTER (WHERE NOT is_menu) as item_lines
+          COALESCE(SUM(CASE WHEN NOT is_menu AND tutar <= 0 AND NOT is_addon THEN GREATEST(miktar, 0) ELSE 0 END), 0) as fold_qty,
+          COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0 AND NOT is_addon) as fold_lines,
+          COALESCE(SUM(CASE WHEN NOT is_menu AND tutar <= 0 THEN GREATEST(miktar, 0) ELSE 0 END), 0) as zero_qty,
+          COUNT(*) FILTER (WHERE NOT is_menu AND tutar <= 0) as zero_lines
         FROM lined
         GROUP BY adsno, adtur
       ),
@@ -3371,11 +3596,11 @@ export class ReportsService {
           l.*,
           CASE
             WHEN l.is_menu THEN
-              CASE WHEN t.item_lines = 0 THEN l.tutar ELSE 0 END
-            WHEN t.menu_tutar > 0 AND t.item_qty > 0 THEN
-              l.tutar + t.menu_tutar * (GREATEST(l.miktar, 0) / t.item_qty)
-            WHEN t.menu_tutar > 0 AND t.item_lines > 0 THEN
-              l.tutar + t.menu_tutar / t.item_lines
+              CASE WHEN t.fold_lines > 0 OR t.zero_lines > 0 THEN 0 ELSE l.tutar END
+            WHEN t.menu_tutar > 0 AND t.fold_qty > 0 AND l.tutar <= 0 AND NOT l.is_addon THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.fold_qty)
+            WHEN t.menu_tutar > 0 AND t.fold_qty = 0 AND t.zero_qty > 0 AND l.tutar <= 0 THEN
+              t.menu_tutar * (GREATEST(l.miktar, 0) / t.zero_qty)
             ELSE l.tutar
           END as adj_tutar
         FROM lined l
