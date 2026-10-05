@@ -1722,9 +1722,17 @@ export class ReportsService {
       OR ${name} LIKE '%ayran%' OR ${group} LIKE '%ayran%'
       OR ${name} LIKE '%içecek%' OR ${name} LIKE '%icecek%'
       OR ${group} LIKE '%içecek%' OR ${group} LIKE '%icecek%'
+      OR ${group} LIKE '%free%'
+      OR ${group} LIKE '%salata%'
       OR ${name} LIKE '%orijinal%' OR ${name} LIKE '%original%'
       OR ${name} LIKE '%cola%' OR ${name} LIKE '%fanta%' OR ${name} LIKE '%sprite%'
+      OR ${name} LIKE '%cappy%' OR ${name} LIKE '%gazoz%'
+      OR ${name} LIKE '%limonata%' OR ${name} LIKE '%ice tea%' OR ${name} LIKE '%icetea%'
       OR ${name} IN ('su', 'su d') OR ${name} LIKE 'su %'
+      OR ${name} LIKE '%domates%' OR ${name} LIKE '%soğan%' OR ${name} LIKE '%sogan%'
+      OR ${name} LIKE '%turşu%' OR ${name} LIKE '%tursu%'
+      OR ${name} LIKE '%maydanoz%' OR ${name} LIKE '%jalapeno%'
+      OR ${name} LIKE '%lahana%' OR ${name} LIKE '%marul%'
     )`;
   }
 
