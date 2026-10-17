@@ -1,0 +1,18 @@
+<service>
+  <id>FrRaporBridge</id>
+  <name>FR Rapor Bridge</name>
+  <description>FR Rapor yerel FastRest Postgres koprusu</description>
+  <executable>%BASE%\node\node.exe</executable>
+  <arguments>agent.js</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <logmode>rotate</logmode>
+  <logpath>%ProgramData%\FrRaporBridge</logpath>
+  <onfailure action="restart" delay="2 sec"/>
+  <onfailure action="restart" delay="2 sec"/>
+  <onfailure action="restart" delay="5 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>10 sec</stoptimeout>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>false</delayedAutoStart>
+  <env name="FR_RAPOR_DATA" value="%ProgramData%\FrRaporBridge"/>
+</service>

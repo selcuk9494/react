@@ -1,25 +1,34 @@
-FR Rapor Bridge — Kurulum
-=========================
+FR Rapor Bridge - Musteri Kurulumu
+==================================
 
-1) POS bilgisayarinda (Windows, Yonetici):
-   - branch-agent klasorunu kopyalayin
-   - PowerShell (Yonetici) acin:
-     cd ...\branch-agent
-     powershell -ExecutionPolicy Bypass -File .\install.ps1
-   - Postgres host/port/db/user/sifre sorun (genelde 127.0.0.1, 5432, fastrest, begum)
-   - Ekranda XXX-XXX esleme kodu cikar
-     Ayrica: C:\ProgramData\FrRaporBridge\PAIR-CODE.txt
-     Masaustu: FR-RAPOR-KOD.txt
+1) FrRaporBridge-Kurulum.zip dosyasini POS bilgisayara kopyalayin
+2) Zip'i acin
+3) KUR.bat dosyasina CIFT TIKLAYIN
+4) UAC penceresinde Evet deyin
+5) Postgres sifresini IKI KEZ girin (begum)
+   Host/port icin Enter = varsayilan (127.0.0.1 / 5432 / fastrest)
+   Kurulum sifreyi kaydeder ve Postgres baglantisini test eder.
+   Test basarisizsa servis KURULMAZ (sifre kaybolmaz).
+6) "Sifre kaydedildi (N karakter)" ve "Postgres OK" satirlarini gorun
+7) Ekranda XXX-XXX esleme kodu cikar
+8) FR Rapor > Admin > Subeler > Yeni Sube > "Kod ile bagla"
+   Kodu bir kez yazin. Baglanti KALICIDIR.
 
-2) FR Rapor (telefon / web):
-   - Sube Ekle > "Kod ile bagla"
-   - Sube adi + kodu yazin > Bagla
+ONEMLI - Sifre nerede?
+- Gercek sifre: C:\ProgramData\FrRaporBridge\config.json  (pgPassword)
+- FR Rapor Admin ekranindaki "DB sifre" alani agent subelerde BOS kalir = normal
+- Bos gorunuyorsa Admin formuna bakmayin; config.json'da Length > 0 olmali
 
-3) Otomatik yeniden baslatma:
-   - Windows Service: FrRaporBridge (baslangicta acilir)
-   - Crash olursa ~1 sn icinde yeniden baslar (sc failure)
-   - run.cmd dongusu ek koruma
-   - Her dakika watchdog servisi kontrol eder
+Gereksinimler:
+- Windows 10/11 (64-bit)
+- FastRest Postgres ayni PC'de (veya erisilebilir)
+- Internet (FR Rapor bulutuna cikis)
 
-Kaldirma: uninstall.ps1 (Yonetici)
-Log: C:\ProgramData\FrRaporBridge\bridge.log
+Sorun giderme:
+- Log: C:\ProgramData\FrRaporBridge\bridge.log
+- Kod: C:\ProgramData\FrRaporBridge\PAIR-CODE.txt
+- Servis: services.msc > FR Rapor Bridge
+- Sifre degistir: set-password.ps1 (Yonetici)
+- Kaldir: uninstall.ps1 (Yonetici)
+
+Not: Kod 45 dk sadece ILK esleme icindir. Esledikten sonra tekrar kod gerekmez.
