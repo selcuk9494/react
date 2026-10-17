@@ -6,12 +6,6 @@
       "destination": "/api/index"
     }
   ],
-  "crons": [
-    {
-      "path": "/api/cron/warm-dashboards",
-      "schedule": "*/2 * * * *"
-    }
-  ],
   "env": {
     "NODE_ENV": "production"
   }
