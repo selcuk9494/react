@@ -155,6 +155,8 @@ export default function AdminManagePage() {
     is_admin: false,
   });
   const [branchForm, setBranchForm] = useState<Branch>(emptyBranch);
+  const [branchConnectMode, setBranchConnectMode] = useState<'direct' | 'pair'>('direct');
+  const [pairCode, setPairCode] = useState('');
   const [reportsForm, setReportsForm] = useState<string[]>(
     AVAILABLE_REPORTS.map((report) => report.id),
   );
@@ -258,6 +260,8 @@ export default function AdminManagePage() {
   const resetBranchForm = () => {
     setSelectedBranchId('');
     setBranchForm(emptyBranch);
+    setBranchConnectMode('direct');
+    setPairCode('');
   };
 
   const selectUser = (item: AdminUser) => {
@@ -274,6 +278,11 @@ export default function AdminManagePage() {
 
   const selectBranch = (item: Branch) => {
     setSelectedBranchId(item.id || '');
+    const isAgent =
+      String(item.db_host || '').startsWith('agent:') ||
+      (item as any).connection_mode === 'agent';
+    setBranchConnectMode(isAgent ? 'pair' : 'direct');
+    setPairCode('');
     setBranchForm({
       ...emptyBranch,
       ...item,
@@ -340,6 +349,46 @@ export default function AdminManagePage() {
 
   const saveBranch = async () => {
     if (!token || saving) return;
+
+    if (!selectedBranchId && branchConnectMode === 'pair') {
+      if (!branchForm.name.trim()) {
+        showMessage('Şube adı girin.');
+        return;
+      }
+      if (!pairCode.trim()) {
+        showMessage('POS eşleme kodunu girin (PAIR-CODE.txt).');
+        return;
+      }
+      setSaving(true);
+      try {
+        const kasalar = normalizeKasalar(
+          branchForm.kasalar_input ?? branchForm.kasalar ?? branchForm.kasa_no,
+          parseInteger(branchForm.kasa_no, 1),
+        );
+        const created = await axios.post(
+          `${getApiUrl()}/branches/pair`,
+          {
+            code: pairCode.trim(),
+            name: branchForm.name.trim(),
+            kasa_no: kasalar[0] ?? 1,
+            closing_hour: Math.max(0, Math.min(23, parseInteger(branchForm.closing_hour, 6))),
+            kasalar,
+          },
+          authHeaders,
+        );
+        setSelectedBranchId(created.data?.id || '');
+        setPairCode('');
+        setBranchConnectMode('direct');
+        await refreshAfterSave('Şube kod ile bağlandı.');
+      } catch (error: any) {
+        console.error(error);
+        showMessage(error.response?.data?.message || 'Kod ile bağlama başarısız.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const payload = branchPayload(branchForm);
     if (!payload.name || !payload.db_host || !payload.db_name || !payload.db_user || !payload.db_password) {
       showMessage('Şube için tüm bağlantı alanlarını doldurun.');
@@ -684,16 +733,54 @@ export default function AdminManagePage() {
                 <h2 className="flex items-center gap-2 text-lg font-bold"><Building className="h-5 w-5 text-teal-600" /> Şube Bilgileri</h2>
               </div>
               <div className="grid gap-3 p-4">
+                {!selectedBranchId && (
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setBranchConnectMode('direct')}
+                      className={`rounded-md py-2 text-sm font-semibold ${branchConnectMode === 'direct' ? 'bg-white shadow text-slate-900' : 'text-slate-600'}`}
+                    >
+                      IP ile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBranchConnectMode('pair')}
+                      className={`rounded-md py-2 text-sm font-semibold ${branchConnectMode === 'pair' ? 'bg-white shadow text-slate-900' : 'text-slate-600'}`}
+                    >
+                      Kod ile bağla
+                    </button>
+                  </div>
+                )}
                 <label className="text-sm font-semibold text-slate-600">Şube adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.name} onChange={(event) => setBranchForm({ ...branchForm, name: event.target.value })} /></label>
-                <div className="grid grid-cols-[1fr_92px] gap-2">
-                  <label className="text-sm font-semibold text-slate-600">IP / Host<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_host} onChange={(event) => setBranchForm({ ...branchForm, db_host: event.target.value })} /></label>
-                  <label className="text-sm font-semibold text-slate-600">Port<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" value={branchForm.db_port} onChange={(event) => setBranchForm({ ...branchForm, db_port: parseInteger(event.target.value, 5432) })} /></label>
-                </div>
-                <label className="text-sm font-semibold text-slate-600">Veritabanı adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_name} onChange={(event) => setBranchForm({ ...branchForm, db_name: event.target.value })} /></label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="text-sm font-semibold text-slate-600">DB kullanıcı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_user} onChange={(event) => setBranchForm({ ...branchForm, db_user: event.target.value })} /></label>
-                  <label className="text-sm font-semibold text-slate-600">DB şifre<input className="mt-1 w-full rounded-md border px-3 py-2" type="password" value={branchForm.db_password} onChange={(event) => setBranchForm({ ...branchForm, db_password: event.target.value })} /></label>
-                </div>
+                {!selectedBranchId && branchConnectMode === 'pair' ? (
+                  <>
+                    <p className="text-xs text-slate-500">
+                      POS&apos;ta FR Rapor Bridge kurulumundan gelen kodu yazın.
+                      Dosya: C:\ProgramData\FrRaporBridge\PAIR-CODE.txt
+                    </p>
+                    <label className="text-sm font-semibold text-slate-600">
+                      Eşleme kodu
+                      <input
+                        className="mt-1 w-full rounded-md border px-3 py-2 uppercase tracking-widest"
+                        placeholder="ABC-123"
+                        value={pairCode}
+                        onChange={(event) => setPairCode(event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[1fr_92px] gap-2">
+                      <label className="text-sm font-semibold text-slate-600">IP / Host<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_host} onChange={(event) => setBranchForm({ ...branchForm, db_host: event.target.value })} /></label>
+                      <label className="text-sm font-semibold text-slate-600">Port<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" value={branchForm.db_port} onChange={(event) => setBranchForm({ ...branchForm, db_port: parseInteger(event.target.value, 5432) })} /></label>
+                    </div>
+                    <label className="text-sm font-semibold text-slate-600">Veritabanı adı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_name} onChange={(event) => setBranchForm({ ...branchForm, db_name: event.target.value })} /></label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-sm font-semibold text-slate-600">DB kullanıcı<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.db_user} onChange={(event) => setBranchForm({ ...branchForm, db_user: event.target.value })} /></label>
+                      <label className="text-sm font-semibold text-slate-600">DB şifre<input className="mt-1 w-full rounded-md border px-3 py-2" type="password" value={branchForm.db_password} onChange={(event) => setBranchForm({ ...branchForm, db_password: event.target.value })} /></label>
+                    </div>
+                  </>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <label className="text-sm font-semibold text-slate-600">Kasalar<input className="mt-1 w-full rounded-md border px-3 py-2" value={branchForm.kasalar_input || ''} onChange={(event) => setBranchForm({ ...branchForm, kasalar_input: event.target.value, kasa_no: normalizeKasalar(event.target.value, branchForm.kasa_no)[0] ?? 1 })} /></label>
                   <label className="text-sm font-semibold text-slate-600">Kapanış<input className="mt-1 w-full rounded-md border px-3 py-2" type="number" min={0} max={23} value={branchForm.closing_hour} onChange={(event) => setBranchForm({ ...branchForm, closing_hour: parseInteger(event.target.value, 6) })} /></label>
@@ -706,7 +793,11 @@ export default function AdminManagePage() {
                 </button>
                 <button onClick={saveBranch} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
                   <Save className="h-4 w-4" />
-                  {selectedBranchId ? 'Şubeyi Kaydet' : 'Şube Oluştur'}
+                  {selectedBranchId
+                    ? 'Şubeyi Kaydet'
+                    : branchConnectMode === 'pair'
+                      ? 'Kod ile bağla'
+                      : 'Şube Oluştur'}
                 </button>
               </div>
             </aside>

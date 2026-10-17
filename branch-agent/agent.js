@@ -38,9 +38,14 @@ function writeConfig(cfg) {
 
 function writePairCode(code) {
   const body =
-    `FR Rapor esleme kodu\n\n${code}\n\n` +
-    `FR Rapor > Sube Ekle > Kod ile bagla alanina yazin.\n` +
-    `Kod 45 dakika gecerlidir.\n`;
+    `FR Rapor esleme kodu (TEK SEFERLIK)\n\n${code}\n\n` +
+    `FR Rapor > Admin > Subeler > Yeni Sube > "Kod ile bagla"\n` +
+    `veya Sube Ekle > Kod ile bagla alanina yazin.\n\n` +
+    `ONEMLI:\n` +
+    `- Bu kod sadece ILK esleme icindir (45 dk).\n` +
+    `- Bir kez bagladiktan sonra baglanti KALICIDIR.\n` +
+    `- Servis (FrRaporBridge) arka planda calisir; tekrar kod gerekmez.\n` +
+    `- Kod suresi dolarse servisi yeniden baslatin, yeni kod uretilir.\n`;
   fs.writeFileSync(CODE_PATH, body);
   try {
     const desktop = path.join(os.homedir(), 'Desktop', 'FR-RAPOR-KOD.txt');
@@ -162,13 +167,17 @@ async function mainLoop() {
       }
       await new Promise((r) => setTimeout(r, (poll.jobs || []).length ? 80 : 600));
     } catch (err) {
-      log('dongu hata: ' + (err.message || err));
+      const detail =
+        (err && err.cause && (err.cause.message || String(err.cause))) ||
+        (err && err.message) ||
+        String(err);
+      log('dongu hata: ' + detail);
       try {
         await pool.end();
       } catch (_) {}
       cfg = Object.assign(cfg, readConfig());
       pool = makePool(cfg);
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 3000));
     }
   }
   try {
