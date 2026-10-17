@@ -2110,13 +2110,15 @@ export class ReportsService {
     options?: { fast?: boolean; forceLive?: boolean },
   ) {
     const fast = !!options?.fast;
+    const branchHint =
+      user?.selected_branch_id || user?.selected_branch || 0;
     const cacheKey = this.cache.generateKey(
       fast ? 'dashboard_v5_fast' : 'dashboard_v5',
       user.id,
       period,
       startDate || 'none',
       endDate || 'none',
-      user.selected_branch || 0,
+      branchHint,
     );
     // Fast cevap kisa cache; tam cevap daha uzun
     const cacheTTL = fast
@@ -2578,6 +2580,37 @@ export class ReportsService {
       .map((b: any) => Number(b?.id))
       .filter((id: number) => id > 0)
       .slice(0, limit);
+    return this.warmBranchIds(ids);
+  }
+
+  /** JWT lite tek sube getirdigi icin email'den full liste coz. */
+  async warmUserBranchesFromEmail(email?: string, limit = 8) {
+    if (!email) return { warmed: 0, results: [] };
+    const pool = this.db.getMainPool();
+    const urows = await this.db.executeQuery(
+      pool,
+      `SELECT id, selected_branch FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [email],
+    );
+    const u = urows[0];
+    if (!u) return { warmed: 0, results: [] };
+    await this.db.ensureUserBranchAssignmentsSchema();
+    const brows = await this.db.executeQuery(
+      pool,
+      `SELECT b.id
+       FROM branches b
+       JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       WHERE uba.user_id = $1
+       ORDER BY uba.created_at ASC, b.id ASC`,
+      [u.id],
+    );
+    const sel = Math.max(0, Number(u.selected_branch) || 0);
+    const ids = brows.map((b: any) => Number(b.id)).filter((id: number) => id > 0);
+    const ordered = [...ids.slice(sel), ...ids.slice(0, sel)].slice(0, limit);
+    return this.warmBranchIds(ordered);
+  }
+
+  private async warmBranchIds(ids: number[]) {
     const results: any[] = [];
     for (const id of ids) {
       try {

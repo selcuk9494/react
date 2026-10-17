@@ -4,10 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import {
-  invalidateUserCache,
-  patchUserCacheSelectedBranch,
-} from './jwt.strategy';
+import { invalidateUserCache } from './jwt.strategy';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
@@ -124,20 +121,25 @@ export class AuthService {
     return this.login(newUser);
   }
 
+  async getFullProfile(email?: string) {
+    if (!email) return null;
+    const user = await this.usersService.findOne(email);
+    if (!user) return null;
+    const { password: _pw, ...safe } = user;
+    return safe;
+  }
+
   async selectBranch(userId: string, branchIndex: number, email?: string) {
-    await this.usersService.updateSelectedBranch(userId, branchIndex);
-    // Tam user reload (~2sn) yapma — cache'teki branches listesini koru, sadece index patch
-    const patched = email
-      ? patchUserCacheSelectedBranch(email, branchIndex)
-      : null;
-    if (!patched && email) {
-      // Cache yoksa bir sonraki istek DB'den dogru index alsin
-      invalidateUserCache(email);
-    }
+    const branchId = await this.usersService.updateSelectedBranch(
+      userId,
+      branchIndex,
+    );
+    // Lite cache'te tek sube var — invalidate, sonraki istek dogru subeyi yukler
+    if (email) invalidateUserCache(email);
     return {
       success: true,
       selected_branch: branchIndex,
-      selected_branch_id: patched?.selected_branch_id ?? null,
+      selected_branch_id: branchId,
     };
   }
 

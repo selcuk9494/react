@@ -61,7 +61,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return cached.user;
     }
 
-    const user = await this.usersService.findOne(email);
+    // Full branches sadece /auth/me ve login'de — her API isteginde 29 sube cekme
+    const user = await this.usersService.findOneLite(email);
     if (!user) {
       throw new UnauthorizedException();
     }

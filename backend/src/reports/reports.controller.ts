@@ -32,9 +32,10 @@ export class ReportsController {
   @UseGuards(JwtAuthGuard)
   @Post('dashboard/warm-mine')
   async warmMine(@Request() req) {
-    // Yaniti hemen don; isitma arka planda
-    void this.reportsService.warmUserBranches(req.user, 8).catch(() => {});
-    return { ok: true, queued: (req.user?.branches || []).length };
+    void this.reportsService
+      .warmUserBranchesFromEmail(req.user?.email, 8)
+      .catch(() => {});
+    return { ok: true, queued: true };
   }
 
   @UseGuards(JwtAuthGuard)

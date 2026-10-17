@@ -120,8 +120,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@Request() req) {
-    return req.user;
+  async getProfile(@Request() req) {
+    // Sube listesi UI icin full; JWT validate lite kullanir
+    const full = await this.authService.getFullProfile(req.user?.email);
+    return full || req.user;
   }
 
   @UseGuards(JwtAuthGuard)

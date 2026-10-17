@@ -99,6 +99,47 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * JWT her istekte cagrilir — 29 sube cekmek ~1.5-2sn.
+   * Sadece secili subeyi yukler; /auth/me ve login full findOne kullanir.
+   */
+  async findOneLite(email: string): Promise<any> {
+    if (this.db.isMockMode()) {
+      return this.findOne(email);
+    }
+    const pool = this.db.getMainPool();
+    const cleanEmail = email.trim().toLowerCase();
+    const res = await pool.query(
+      `
+      SELECT *,
+             EXTRACT(DAY FROM (expiry_date - CURRENT_DATE))::INTEGER as days_left
+      FROM users
+      WHERE LOWER(email) = $1
+    `,
+      [cleanEmail],
+    );
+    if (res.rows.length === 0) return null;
+    const user = res.rows[0];
+    const idx = Math.max(0, Number(user.selected_branch) || 0);
+    await this.db.ensureUserBranchAssignmentsSchema();
+    const branchesRes = await pool.query(
+      `SELECT b.*
+       FROM branches b
+       JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       WHERE uba.user_id = $1
+       ORDER BY uba.created_at ASC, b.id ASC
+       OFFSET $2 LIMIT 1`,
+      [user.id, idx],
+    );
+    const branch = branchesRes.rows[0] || null;
+    // resolveUserBranch branches[selected_branch] kullandigi icin tek elemanli dizi
+    user.branches = branch ? [branch] : [];
+    user.selected_branch = 0;
+    user.selected_branch_id = branch?.id ?? null;
+    user._auth_lite = true;
+    return user;
+  }
+
   async findByAppleId(appleId: string): Promise<any> {
     const id = String(appleId || '').trim();
     if (!id) return null;
@@ -261,10 +302,23 @@ export class UsersService {
 
   async updateSelectedBranch(userId: string, branchIndex: number) {
     const pool = this.db.getMainPool();
+    await this.db.ensureUserBranchAssignmentsSchema();
+    const idx = Math.max(0, Number(branchIndex) || 0);
+    const branchRes = await pool.query(
+      `SELECT b.id
+       FROM branches b
+       JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       WHERE uba.user_id = $1
+       ORDER BY uba.created_at ASC, b.id ASC
+       OFFSET $2 LIMIT 1`,
+      [userId, idx],
+    );
+    const branchId = branchRes.rows[0]?.id ?? null;
     await pool.query('UPDATE users SET selected_branch = $1 WHERE id = $2', [
-      branchIndex,
+      idx,
       userId,
     ]);
+    return branchId;
   }
 
   async findAll(): Promise<any[]> {
