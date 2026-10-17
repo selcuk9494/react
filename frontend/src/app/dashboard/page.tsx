@@ -307,12 +307,12 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
-        // 1) Hizli ilk boya (~2sn hedef)
+        // Sadece hizli yol — tam rapor arka planda, UI'yi bekletmez
         console.log('[Dashboard] Fast fetch');
         const fastRes = await axios.get(buildUrl(true), {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
-          timeout: 20000,
+          timeout: 25000,
         });
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
           applyPayload(fastRes.data);
@@ -321,16 +321,20 @@ export default function Dashboard() {
           window.clearTimeout(slowTimer);
         }
 
-        // 2) Tam veri (iptal/borc/odenmez) arka planda
-        if (reqIdRef.current !== myId || abortController.signal.aborted) return;
-        const fullRes = await axios.get(buildUrl(false), {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortController.signal,
-          timeout: 45000,
-        });
-        if (reqIdRef.current === myId && !abortController.signal.aborted) {
-          applyPayload(fullRes.data);
-        }
+        // Tam veri: 2sn sonra, sessiz (ilk boyayi uzatmaz)
+        window.setTimeout(async () => {
+          if (reqIdRef.current !== myId || abortController.signal.aborted) return;
+          try {
+            const fullRes = await axios.get(buildUrl(false), {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: abortController.signal,
+              timeout: 45000,
+            });
+            if (reqIdRef.current === myId && !abortController.signal.aborted) {
+              applyPayload(fullRes.data);
+            }
+          } catch {}
+        }, 2000);
       } catch (e: any) {
         if (e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
           return;

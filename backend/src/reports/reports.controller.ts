@@ -19,6 +19,15 @@ export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
   @UseGuards(JwtAuthGuard)
+  @Get('cron/warm-dashboards')
+  async warmDashboards(@Request() req) {
+    if (!req.user?.is_admin) {
+      return { ok: false, error: 'admin only' };
+    }
+    return this.reportsService.warmDashboardSnapshots(12);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('dashboard')
   async getDashboard(
     @Request() req,

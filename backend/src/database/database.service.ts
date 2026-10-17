@@ -430,9 +430,23 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private async ensureDashboardSnapshotsTable() {
+    if (!this.mainPool || this.isMock) return;
+    await this.mainPool.query(`
+      CREATE TABLE IF NOT EXISTS dashboard_snapshots (
+        branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+        period VARCHAR(32) NOT NULL DEFAULT 'today',
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (branch_id, period)
+      )
+    `);
+  }
+
   async getDashboardSnapshot(branchId: number, period = 'today') {
     if (!branchId || this.isMock) return null;
     try {
+      await this.ensureDashboardSnapshotsTable();
       const res = await this.mainPool.query(
         `SELECT payload, updated_at FROM dashboard_snapshots
          WHERE branch_id = $1 AND period = $2`,
@@ -446,7 +460,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         updatedAt: row.updated_at,
         ageMs,
       };
-    } catch {
+    } catch (e) {
+      console.warn('getDashboardSnapshot', (e as any)?.message || e);
       return null;
     }
   }
@@ -454,12 +469,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async saveDashboardSnapshot(branchId: number, period: string, payload: any) {
     if (!branchId || this.isMock || !payload) return;
     try {
+      await this.ensureDashboardSnapshotsTable();
+      const clean = { ...payload };
+      delete clean._snapshot;
+      delete clean._snapshot_age_ms;
+      delete clean._snapshot_stale;
       await this.mainPool.query(
         `INSERT INTO dashboard_snapshots (branch_id, period, payload, updated_at)
          VALUES ($1, $2, $3::jsonb, NOW())
          ON CONFLICT (branch_id, period)
          DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-        [branchId, period || 'today', JSON.stringify(payload)],
+        [branchId, period || 'today', JSON.stringify(clean)],
       );
     } catch (e) {
       console.warn('saveDashboardSnapshot', (e as any)?.message || e);

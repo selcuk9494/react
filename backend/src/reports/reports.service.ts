@@ -2125,30 +2125,30 @@ export class ReportsService {
         ? 90
         : 600;
 
-    const cached = await this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // KESIN COZUM: buluttaki snapshot'tan oku — kullanici uzak POS DB beklemez
     const branch = this.resolveUserBranch(user);
     const branchId = Number(branch?.id) || 0;
     const snapPeriod =
       period === 'custom' && startDate && endDate
         ? `custom:${startDate}:${endDate}`
         : period || 'today';
+
+    // 1) PG snapshot once (instance'lar arasi paylasilir) — hedef <800ms
     if (branchId > 0) {
       const snap = await this.db.getDashboardSnapshot(branchId, snapPeriod);
-      // 10 dk icindeki snapshot aninda doner (hedef <1sn)
-      if (snap?.payload && snap.ageMs < 10 * 60 * 1000) {
+      if (snap?.payload && snap.ageMs < 15 * 60 * 1000) {
         const payload = {
           ...snap.payload,
           _snapshot: true,
           _snapshot_age_ms: snap.ageMs,
         };
-        await this.cache.set(cacheKey, payload, Math.min(cacheTTL, 60));
+        await this.cache.set(cacheKey, payload, Math.min(cacheTTL, 45));
         return payload;
       }
+    }
+
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const result = {
@@ -2532,6 +2532,27 @@ export class ReportsService {
       await this.db.saveDashboardSnapshot(branchId, snapPeriod, result);
     }
     return result;
+  }
+
+  async warmDashboardSnapshots(limit = 15) {
+    const pool = this.db.getMainPool();
+    const rows = await this.db.executeQuery(
+      pool,
+      `SELECT id FROM branches ORDER BY id DESC LIMIT $1`,
+      [limit],
+    );
+    const results: any[] = [];
+    for (const row of rows) {
+      const id = Number(row.id);
+      try {
+        const started = Date.now();
+        await this.refreshDashboardSnapshotForBranch(id, 'today');
+        results.push({ id, ok: true, ms: Date.now() - started });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || String(e) });
+      }
+    }
+    return { warmed: results.length, results };
   }
 
   /** Cron / agent: snapshot'i canli hesaplayip buluta yazar. */
