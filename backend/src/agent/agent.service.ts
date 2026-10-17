@@ -90,15 +90,68 @@ export class AgentService {
       [agent.id],
     );
 
+    let snapshotMeta: any = null;
+    if (agent.status === 'paired' && agent.branch_id) {
+      const kasalar = await this.db.executeQuery(
+        pool,
+        `SELECT kasa_no FROM branch_kasas WHERE branch_id = $1 ORDER BY kasa_no`,
+        [agent.branch_id],
+      );
+      const branchRows = await this.db.executeQuery(
+        pool,
+        `SELECT kasa_no, closing_hour FROM branches WHERE id = $1`,
+        [agent.branch_id],
+      );
+      const b = branchRows[0] || {};
+      const kasaNos = Array.from(
+        new Set(
+          [
+            Number(b.kasa_no) || 1,
+            ...kasalar.map((r: any) => Number(r.kasa_no)),
+          ].filter((n) => Number.isFinite(n) && n > 0),
+        ),
+      );
+      snapshotMeta = {
+        branchId: agent.branch_id,
+        kasaNos: kasaNos.length ? kasaNos : [1],
+        closingHour: Number.isFinite(Number(b.closing_hour))
+          ? Number(b.closing_hour)
+          : 6,
+        period: 'today',
+      };
+    }
+
     return {
       paired: agent.status === 'paired' && !!agent.branch_id,
       pairCode: agent.status === 'pending_pair' ? agent.pair_code : null,
+      snapshot: snapshotMeta,
       jobs: claimed.map((job: any) => ({
         id: job.id,
         sql: job.sql,
         params: job.params || [],
       })),
     };
+  }
+
+  async saveDashboardSnapshotFromAgent(
+    agentId: string,
+    secret: string,
+    period: string,
+    payload: any,
+  ) {
+    const agent = await this.authAgent(agentId, secret);
+    if (!agent.branch_id) {
+      throw new BadRequestException('Önce şube ile eşleyin');
+    }
+    if (!payload || typeof payload !== 'object') {
+      throw new BadRequestException('payload gerekli');
+    }
+    await this.db.saveDashboardSnapshot(
+      Number(agent.branch_id),
+      period || 'today',
+      payload,
+    );
+    return { ok: true };
   }
 
   async completeJob(

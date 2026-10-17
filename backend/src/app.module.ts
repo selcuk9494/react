@@ -10,6 +10,7 @@ import { StockModule } from './stock/stock.module';
 import { AdminModule } from './admin/admin.module';
 import { BackupsModule } from './backups/backups.module';
 import { AgentModule } from './agent/agent.module';
+import { CronModule } from './cron/cron.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -26,6 +27,7 @@ import { AppService } from './app.service';
     AdminModule,
     BackupsModule,
     AgentModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -416,6 +416,54 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await client.query(
       `CREATE INDEX IF NOT EXISTS ix_agent_jobs_pending ON agent_jobs (agent_id, status, created_at)`,
     );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dashboard_snapshots (
+        branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+        period VARCHAR(32) NOT NULL DEFAULT 'today',
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (branch_id, period)
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ix_dashboard_snapshots_updated ON dashboard_snapshots (updated_at DESC)`,
+    );
+  }
+
+  async getDashboardSnapshot(branchId: number, period = 'today') {
+    if (!branchId || this.isMock) return null;
+    try {
+      const res = await this.mainPool.query(
+        `SELECT payload, updated_at FROM dashboard_snapshots
+         WHERE branch_id = $1 AND period = $2`,
+        [branchId, period],
+      );
+      const row = res.rows[0];
+      if (!row) return null;
+      const ageMs = Date.now() - new Date(row.updated_at).getTime();
+      return {
+        payload: row.payload,
+        updatedAt: row.updated_at,
+        ageMs,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async saveDashboardSnapshot(branchId: number, period: string, payload: any) {
+    if (!branchId || this.isMock || !payload) return;
+    try {
+      await this.mainPool.query(
+        `INSERT INTO dashboard_snapshots (branch_id, period, payload, updated_at)
+         VALUES ($1, $2, $3::jsonb, NOW())
+         ON CONFLICT (branch_id, period)
+         DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+        [branchId, period || 'today', JSON.stringify(payload)],
+      );
+    } catch (e) {
+      console.warn('saveDashboardSnapshot', (e as any)?.message || e);
+    }
   }
 
   private sleep(ms: number) {

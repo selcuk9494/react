@@ -2091,6 +2091,17 @@ export class ReportsService {
     return ` AND a.kaptar >= $${startParam}::date AND a.kaptar < ($${endParam}::date + interval '1 day')`;
   }
 
+  private resolveUserBranch(user: any) {
+    const branchIndex = user.selected_branch || 0;
+    const branch =
+      user?.selected_branch_id && Array.isArray(user?.branches)
+        ? user.branches.find(
+            (b: any) => String(b?.id) === String(user.selected_branch_id),
+          ) || user.branches[branchIndex]
+        : user.branches?.[branchIndex];
+    return branch || null;
+  }
+
   async getDashboard(
     user: any,
     period: string,
@@ -2117,6 +2128,27 @@ export class ReportsService {
     const cached = await this.cache.get(cacheKey);
     if (cached) {
       return cached;
+    }
+
+    // KESIN COZUM: buluttaki snapshot'tan oku — kullanici uzak POS DB beklemez
+    const branch = this.resolveUserBranch(user);
+    const branchId = Number(branch?.id) || 0;
+    const snapPeriod =
+      period === 'custom' && startDate && endDate
+        ? `custom:${startDate}:${endDate}`
+        : period || 'today';
+    if (branchId > 0) {
+      const snap = await this.db.getDashboardSnapshot(branchId, snapPeriod);
+      // 10 dk icindeki snapshot aninda doner (hedef <1sn)
+      if (snap?.payload && snap.ageMs < 10 * 60 * 1000) {
+        const payload = {
+          ...snap.payload,
+          _snapshot: true,
+          _snapshot_age_ms: snap.ageMs,
+        };
+        await this.cache.set(cacheKey, payload, Math.min(cacheTTL, 60));
+        return payload;
+      }
     }
 
     const result = {
@@ -2496,7 +2528,58 @@ export class ReportsService {
     } catch {}
 
     await this.cache.set(cacheKey, result, cacheTTL);
+    if (branchId > 0) {
+      await this.db.saveDashboardSnapshot(branchId, snapPeriod, result);
+    }
     return result;
+  }
+
+  /** Cron / agent: snapshot'i canli hesaplayip buluta yazar. */
+  async refreshDashboardSnapshotForBranch(
+    branchId: number,
+    period = 'today',
+  ) {
+    const pool = this.db.getMainPool();
+    const rows = await this.db.executeQuery(
+      pool,
+      `SELECT b.*,
+              COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+       FROM branches b
+       LEFT JOIN branch_kasas k ON k.branch_id = b.id
+       WHERE b.id = $1
+       GROUP BY b.id`,
+      [branchId],
+    );
+    const branch = rows[0];
+    if (!branch) return null;
+    const fakeUser = {
+      id: branch.user_id,
+      selected_branch: 0,
+      selected_branch_id: branchId,
+      branches: [branch],
+    };
+    // Snapshot yokmus gibi zorla canli hesap: cache'i atla
+    const cacheKey = this.cache.generateKey(
+      'dashboard_v5_fast',
+      `warm:${branchId}`,
+      period,
+      'none',
+      'none',
+      0,
+    );
+    try {
+      await this.cache.del(cacheKey);
+    } catch {}
+    try {
+      await this.db.executeQuery(
+        pool,
+        `DELETE FROM dashboard_snapshots WHERE branch_id = $1 AND period = $2`,
+        [branchId, period],
+      );
+    } catch {}
+    return this.getDashboard(fakeUser, period, undefined, undefined, {
+      fast: true,
+    });
   }
 
   async getSalesChart(

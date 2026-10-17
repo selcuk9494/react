@@ -28,6 +28,16 @@ export class AgentController {
     );
   }
 
+  @Post('agent/dashboard-snapshot')
+  saveSnapshot(@Body() body: any) {
+    return this.agentService.saveDashboardSnapshotFromAgent(
+      body?.agentId,
+      body?.secret,
+      body?.period || 'today',
+      body?.payload,
+    );
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('branches/pair')
   pair(@Request() req, @Body() body: any) {

@@ -126,6 +126,111 @@ async function ensureEnrolled(cfg) {
   return next;
 }
 
+async function buildDashboardSnapshot(pool, meta) {
+  const kasaNos = meta.kasaNos || [1];
+  const emptyDagilim = () => ({
+    acik_adet: 0,
+    acik_toplam: 0,
+    kapali_adet: 0,
+    kapali_toplam: 0,
+    kapali_iskonto: 0,
+    toplam_adet: 0,
+    toplam_tutar: 0,
+    acik_yuzde: 0,
+    kapali_yuzde: 0,
+  });
+  const result = {
+    acik_adisyon_toplam: 0,
+    kapali_adisyon_toplam: 0,
+    kapali_iskonto_toplam: 0,
+    iptal_toplam: 0,
+    borca_atilan_toplam: 0,
+    borca_atilan_adet: 0,
+    odenmez_toplam: 0,
+    odenmez_adet: 0,
+    acik_adisyon_adet: 0,
+    kapali_adisyon_adet: 0,
+    iptal_adet: 0,
+    kasa_raporu: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: 0 },
+    dagilim: { paket: emptyDagilim(), adisyon: emptyDagilim(), hizli: emptyDagilim() },
+    _from_agent: true,
+  };
+
+  const openSql = `
+    WITH per_ads AS (
+      SELECT a.adsno,
+        CASE
+          WHEN COALESCE(a.adtur, 0) = 1 OR COALESCE(a.masano, 0) = 99999 OR COALESCE(a.sipyer, 0) = 2 THEN 'paket'
+          WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
+          ELSE 'adisyon'
+        END as type,
+        COALESCE(SUM(CASE WHEN COALESCE(a.sturu, 0) IN (1, 2, 4) THEN 0 ELSE COALESCE(a.tutar, 0) END), 0) as tutar
+      FROM ads_acik a
+      WHERE a.kasa = ANY($1)
+      GROUP BY a.adsno, type
+    )
+    SELECT type, COUNT(*)::int as adet, COALESCE(SUM(tutar), 0) as toplam
+    FROM per_ads GROUP BY type`;
+  const closedSql = `
+    SELECT
+      CASE
+        WHEN COALESCE(o.adtur, 0) = 1 THEN 'paket'
+        WHEN COALESCE(o.adtur, 0) = 3 THEN 'hizli'
+        ELSE 'adisyon'
+      END as type,
+      COUNT(DISTINCT o.adsno)::int as adet,
+      COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as net_toplam,
+      COALESCE(SUM(COALESCE(o.iskonto, 0)), 0) as iskonto_toplam
+    FROM ads_odeme o
+    WHERE o.kasa = ANY($1)
+      AND o.raptar >= CURRENT_DATE
+      AND o.raptar < (CURRENT_DATE + interval '1 day')
+    GROUP BY 1`;
+  const cashSql = `
+    SELECT COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as toplam
+    FROM ads_odeme o
+    WHERE o.kasa = ANY($1)
+      AND o.raptar >= CURRENT_DATE
+      AND o.raptar < (CURRENT_DATE + interval '1 day')`;
+
+  const [openRows, closedRows, cashRows] = await Promise.all([
+    pool.query(openSql, [kasaNos]),
+    pool.query(closedSql, [kasaNos]),
+    pool.query(cashSql, [kasaNos]),
+  ]);
+
+  for (const r of openRows.rows || []) {
+    const g = result.dagilim[r.type];
+    if (!g) continue;
+    const adet = Number(r.adet) || 0;
+    const toplam = Number(r.toplam) || 0;
+    result.acik_adisyon_adet += adet;
+    result.acik_adisyon_toplam += toplam;
+    g.acik_adet += adet;
+    g.acik_toplam += toplam;
+  }
+  for (const r of closedRows.rows || []) {
+    const g = result.dagilim[r.type];
+    if (!g) continue;
+    const adet = Number(r.adet) || 0;
+    const net = Number(r.net_toplam) || 0;
+    const isk = Number(r.iskonto_toplam) || 0;
+    result.kapali_adisyon_adet += adet;
+    result.kapali_adisyon_toplam += net;
+    result.kapali_iskonto_toplam += isk;
+    g.kapali_adet += adet;
+    g.kapali_toplam += net;
+    g.kapali_iskonto += isk;
+  }
+  result.kasa_raporu.toplam = Number(cashRows.rows?.[0]?.toplam) || 0;
+  for (const key of ['adisyon', 'paket', 'hizli']) {
+    const g = result.dagilim[key];
+    g.toplam_adet = g.acik_adet + g.kapali_adet;
+    g.toplam_tutar = g.acik_toplam + g.kapali_toplam;
+  }
+  return result;
+}
+
 async function mainLoop() {
   let cfg = Object.assign(
     {
@@ -142,6 +247,7 @@ async function mainLoop() {
   let pool = makePool(cfg);
   let pairedLogged = false;
   let fastUntil = 0;
+  let lastSnapshotAt = 0;
 
   while (!stopping) {
     try {
@@ -195,7 +301,24 @@ async function mainLoop() {
           }
         }),
       );
-      // Hizli poll: is varken 30ms, bossa 120ms (sunucuyu kilitlemeden)
+
+      // Her 15 sn'de bir ozet buluta yaz — kullanici uzak DB beklemez
+      if (poll.paired && poll.snapshot && Date.now() - lastSnapshotAt > 15000) {
+        try {
+          const payload = await buildDashboardSnapshot(pool, poll.snapshot);
+          await postJson(`${cloud}/api/agent/dashboard-snapshot`, {
+            agentId: cfg.agentId,
+            secret: cfg.secret,
+            period: poll.snapshot.period || 'today',
+            payload,
+          });
+          lastSnapshotAt = Date.now();
+          log('dashboard snapshot gonderildi');
+        } catch (snapErr) {
+          log('snapshot hata: ' + (snapErr.message || snapErr));
+        }
+      }
+
       const delay = jobs.length ? 30 : Date.now() < fastUntil ? 80 : 150;
       await new Promise((r) => setTimeout(r, delay));
     } catch (err) {
