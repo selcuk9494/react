@@ -457,7 +457,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
        WHERE id = $1 AND status IN ('pending', 'processing')`,
       [jobId],
     );
-    throw new Error('Şube köprüsü zaman aşımı. POS açık mı kontrol edin.');
+    throw new Error(
+      'Şube köprüsü yanıt vermiyor (zaman aşımı). POS bilgisayarda FrRaporBridge servisi çalışıyor mu ve internete (react-delta-bice-16.vercel.app) çıkabiliyor mu kontrol edin.',
+    );
   }
 
   getMainPool(): any {
@@ -481,7 +483,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.isMock) return {}; // Return empty object, executeQuery handles it
 
     if (this.isAgentBranch(config)) {
-      const agentId = String(config.agent_id || '').trim();
+      const fromHost = String(config.db_host || '').startsWith('agent:')
+        ? String(config.db_host).slice('agent:'.length).trim()
+        : '';
+      const agentId = String(config.agent_id || fromHost || '').trim();
+      if (!agentId) {
+        throw new Error(
+          'Şube köprüsü tanımlı değil. POS’ta FrRaporBridge kurup kod ile yeniden eşleyin.',
+        );
+      }
       const query = async (text: string, params: any[] = []) => ({
         rows: await this.relayViaAgent(agentId, text, params),
       });
