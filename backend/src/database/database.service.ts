@@ -135,6 +135,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           `UPDATE branches SET closing_hour = 6 WHERE closing_hour IS NULL`,
         );
       }
+      await this.ensureAgentSchema(client);
       await client.query(`
         CREATE TABLE IF NOT EXISTS branch_kasas (
           id SERIAL PRIMARY KEY,
@@ -370,6 +371,95 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async ensureAgentSchema(client: any) {
+    const branchColCheck = async (col: string) => {
+      const r = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name='branches' AND column_name=$1`,
+        [col],
+      );
+      return r.rows.length > 0;
+    };
+    if (!(await branchColCheck('connection_mode'))) {
+      await client.query(
+        `ALTER TABLE branches ADD COLUMN connection_mode VARCHAR(20) NOT NULL DEFAULT 'direct'`,
+      );
+    }
+    if (!(await branchColCheck('agent_id'))) {
+      await client.query(`ALTER TABLE branches ADD COLUMN agent_id UUID`);
+    }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS branch_agents (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        secret_hash VARCHAR(128) NOT NULL,
+        pair_code VARCHAR(16) UNIQUE,
+        pair_expires_at TIMESTAMP,
+        branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'pending_pair',
+        machine_name VARCHAR(128),
+        last_seen_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agent_jobs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id UUID NOT NULL REFERENCES branch_agents(id) ON DELETE CASCADE,
+        sql TEXT NOT NULL,
+        params JSONB NOT NULL DEFAULT '[]',
+        status VARCHAR(16) NOT NULL DEFAULT 'pending',
+        result JSONB,
+        error TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ix_agent_jobs_pending ON agent_jobs (agent_id, status, created_at)`,
+    );
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async relayViaAgent(
+    agentId: string,
+    text: string,
+    params: any[] = [],
+  ): Promise<any> {
+    if (!agentId) {
+      throw new Error('Şube köprüsü bağlı değil. POS uygulamasını açın ve kod ile eşleyin.');
+    }
+    const inserted = await this.mainPool.query(
+      `INSERT INTO agent_jobs (agent_id, sql, params, status)
+       VALUES ($1, $2, $3::jsonb, 'pending')
+       RETURNING id`,
+      [agentId, text, JSON.stringify(params ?? [])],
+    );
+    const jobId = inserted.rows[0].id;
+    const deadline = Date.now() + 18000;
+    while (Date.now() < deadline) {
+      const job = await this.mainPool.query(
+        `SELECT status, result, error FROM agent_jobs WHERE id = $1`,
+        [jobId],
+      );
+      const row = job.rows[0];
+      if (row?.status === 'done') {
+        return row.result?.rows ?? [];
+      }
+      if (row?.status === 'error') {
+        throw new Error(row.error || 'Şube köprüsü sorguyu çalıştıramadı');
+      }
+      await this.sleep(150);
+    }
+    await this.mainPool.query(
+      `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()
+       WHERE id = $1 AND status IN ('pending', 'processing')`,
+      [jobId],
+    );
+    throw new Error('Şube köprüsü zaman aşımı. POS açık mı kontrol edin.');
+  }
+
   getMainPool(): any {
     if (this.isMock) {
       return {
@@ -379,8 +469,31 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.mainPool;
   }
 
+  isAgentBranch(config: any): boolean {
+    return (
+      !!config?.agent_id ||
+      config?.connection_mode === 'agent' ||
+      String(config?.db_host || '').startsWith('agent:')
+    );
+  }
+
   getBranchPool(config: any): any {
     if (this.isMock) return {}; // Return empty object, executeQuery handles it
+
+    if (this.isAgentBranch(config)) {
+      const agentId = String(config.agent_id || '').trim();
+      const query = async (text: string, params: any[] = []) => ({
+        rows: await this.relayViaAgent(agentId, text, params),
+      });
+      return {
+        __agentId: agentId,
+        query,
+        connect: async () => ({
+          query,
+          release: () => undefined,
+        }),
+      };
+    }
 
     // Password changes must create a fresh pool; otherwise the old pool
     // keeps trying the previous credentials for the same branch.
@@ -424,6 +537,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.isMock) {
       const res = await this.mockQuery(text, params);
       return res.rows;
+    }
+
+    if (pool?.__agentId) {
+      return this.relayViaAgent(pool.__agentId, text, params);
     }
 
     const client = await pool.connect();

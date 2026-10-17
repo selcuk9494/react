@@ -1,0 +1,13 @@
+{
+  "name": "fr-rapor-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FR Rapor şube köprüsü — yerel Postgres'i kod ile buluta bağlar",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

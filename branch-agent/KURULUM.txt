@@ -1,0 +1,25 @@
+FR Rapor Bridge — Kurulum
+=========================
+
+1) POS bilgisayarinda (Windows, Yonetici):
+   - branch-agent klasorunu kopyalayin
+   - PowerShell (Yonetici) acin:
+     cd ...\branch-agent
+     powershell -ExecutionPolicy Bypass -File .\install.ps1
+   - Postgres host/port/db/user/sifre sorun (genelde 127.0.0.1, 5432, fastrest, begum)
+   - Ekranda XXX-XXX esleme kodu cikar
+     Ayrica: C:\ProgramData\FrRaporBridge\PAIR-CODE.txt
+     Masaustu: FR-RAPOR-KOD.txt
+
+2) FR Rapor (telefon / web):
+   - Sube Ekle > "Kod ile bagla"
+   - Sube adi + kodu yazin > Bagla
+
+3) Otomatik yeniden baslatma:
+   - Windows Service: FrRaporBridge (baslangicta acilir)
+   - Crash olursa ~1 sn icinde yeniden baslar (sc failure)
+   - run.cmd dongusu ek koruma
+   - Her dakika watchdog servisi kontrol eder
+
+Kaldirma: uninstall.ps1 (Yonetici)
+Log: C:\ProgramData\FrRaporBridge\bridge.log

@@ -426,6 +426,8 @@ export class ReportsService {
       db_name: branch.db_name,
       db_user: branch.db_user,
       db_password: this.decryptPassword(branch.db_password),
+      connection_mode: branch.connection_mode,
+      agent_id: branch.agent_id,
     });
     const resolvedKasas = await this.expandKasaNosIfStale(pool, kasa_nos);
 
@@ -2239,8 +2241,13 @@ export class ReportsService {
         GROUP BY type
       `;
 
+      const closedAdisyonFilter = period === 'all'
+        ? ''
+        : w.isBusinessPeriod
+          ? ` AND a.raptar >= ($2::timestamp)::date AND a.raptar < ($3::timestamp)::date`
+          : ` AND a.raptar >= $2::date AND a.raptar < ($3::date + interval '1 day')`;
       const closedQuery = `
-        WITH per_ads AS (
+        WITH paid AS (
           SELECT
             o.adsno,
             COALESCE(o.adtur, 0) as adtur,
@@ -2249,6 +2256,29 @@ export class ReportsService {
           FROM ads_odeme o
           WHERE o.kasa = ANY($1) ${closedFilter}
           GROUP BY o.adsno, COALESCE(o.adtur, 0)
+        ),
+        unpaid AS (
+          SELECT
+            a.adsno,
+            COALESCE(a.adtur, 0) as adtur,
+            COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as net_tutar,
+            0::float8 as iskonto
+          FROM ads_adisyon a
+          WHERE a.kasa = ANY($1)
+            ${closedAdisyonFilter}
+            AND NOT EXISTS (
+              SELECT 1 FROM ads_odeme o
+              WHERE o.kasa = a.kasa
+                AND o.adsno = a.adsno
+                AND COALESCE(o.adtur, 0) = COALESCE(a.adtur, 0)
+                AND o.raptar IS NOT DISTINCT FROM a.raptar
+            )
+          GROUP BY a.adsno, COALESCE(a.adtur, 0)
+        ),
+        per_ads AS (
+          SELECT * FROM paid
+          UNION ALL
+          SELECT * FROM unpaid
         )
         SELECT
           CASE
@@ -4261,10 +4291,31 @@ export class ReportsService {
           (acc, r) => acc + (Number(r.toplam) || 0),
           0,
         );
+        let missingClosed = 0;
+        try {
+          const missingRows = await this.db.executeQuery(
+            pool,
+            `
+              SELECT COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as tutar
+              FROM ads_adisyon a
+              WHERE a.kasa = ANY($3)
+                AND a.raptar >= $1::date AND a.raptar < ($2::date + interval '1 day')
+                AND NOT EXISTS (
+                  SELECT 1 FROM ads_odeme o
+                  WHERE o.kasa = a.kasa
+                    AND o.adsno = a.adsno
+                    AND COALESCE(o.adtur, 0) = COALESCE(a.adtur, 0)
+                    AND o.raptar IS NOT DISTINCT FROM a.raptar
+                )
+            `,
+            [startDateOnly, endDateOnly, kasa_nos],
+          );
+          missingClosed = Number(missingRows?.[0]?.tutar) || 0;
+        } catch {}
         return {
           period: { start: startDateOnly, end: endDateOnly },
           count: paymentRows.length,
-          totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: total },
+          totals: { nakit: 0, kredi_karti: 0, yemek_karti: 0, diger: 0, toplam: total + missingClosed },
           rows: paymentRows.map((r) => ({
             id: `${startDateOnly}:${r.kasa}`,
             tarih: startDateOnly,
