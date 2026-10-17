@@ -127,6 +127,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('select-branch')
   async selectBranch(@Request() req, @Body() body) {
-    return this.authService.selectBranch(req.user.id, body.index);
+    return this.authService.selectBranch(
+      req.user.id,
+      body.index,
+      req.user.email,
+    );
   }
 }

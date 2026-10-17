@@ -196,18 +196,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const selectBranch = async (index: number) => {
     if (!user) return;
+    const prev = user;
+    // Aninda UI guncelle — tam ekran overlay yok (takili kalma hissi vermesin)
+    setUser({
+      ...user,
+      selected_branch: index,
+      selected_branch_id: user.branches?.[index]?.id,
+    });
     try {
-      dispatchStart();
-      await axios.post(`${API_URL}/auth/select-branch`, { index });
-      const updatedUser = { ...user, selected_branch: index };
-      setUser(updatedUser);
-      if (token) {
-        await fetchUser(token);
+      const res = await axios.post(`${API_URL}/auth/select-branch`, { index });
+      if (res.data?.id || res.data?.email) {
+        setUser(res.data);
       }
-      dispatchEnd();
     } catch (e) {
       console.error('Failed to select branch', e);
-      dispatchEnd();
+      setUser(prev);
     }
   };
 

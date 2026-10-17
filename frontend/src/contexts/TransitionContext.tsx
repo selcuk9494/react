@@ -16,11 +16,21 @@ export const TransitionProvider = ({ children }: { children: React.ReactNode }) 
   const hide = () => setActive(false);
 
   useEffect(() => {
-    const onStart = () => setActive(true);
-    const onEnd = () => setActive(false);
+    let safety: ReturnType<typeof setTimeout> | null = null;
+    const onStart = () => {
+      setActive(true);
+      if (safety) clearTimeout(safety);
+      // Overlay asla sonsuza kadar kalmasin (sube gecisi vs.)
+      safety = setTimeout(() => setActive(false), 8000);
+    };
+    const onEnd = () => {
+      setActive(false);
+      if (safety) clearTimeout(safety);
+    };
     window.addEventListener('app:transition:start', onStart as EventListener);
     window.addEventListener('app:transition:end', onEnd as EventListener);
     return () => {
+      if (safety) clearTimeout(safety);
       window.removeEventListener('app:transition:start', onStart as EventListener);
       window.removeEventListener('app:transition:end', onEnd as EventListener);
     };

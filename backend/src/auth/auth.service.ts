@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { invalidateUserCache } from './jwt.strategy';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
@@ -120,9 +121,18 @@ export class AuthService {
     return this.login(newUser);
   }
 
-  async selectBranch(userId: string, branchIndex: number) {
+  async selectBranch(userId: string, branchIndex: number, email?: string) {
     await this.usersService.updateSelectedBranch(userId, branchIndex);
-    return { success: true };
+    // JWT user cache selected_branch tutuyordu — sube gecisi eski subede kaliyordu
+    invalidateUserCache(email);
+    if (email) {
+      const user = await this.usersService.findOne(email);
+      if (user) {
+        const { password: _pw, ...safe } = user;
+        return safe;
+      }
+    }
+    return { success: true, selected_branch: branchIndex };
   }
 
   async checkConnection() {

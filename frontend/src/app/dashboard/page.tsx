@@ -344,10 +344,14 @@ export default function Dashboard() {
           setIsOffline(true);
           if (!hadSnap) setData(null);
           setSlowInitialLoad(true);
+          setLoading(false);
+          setIsDataLoading(false);
         }
       } finally {
         window.clearTimeout(slowTimer);
-        if (reqIdRef.current === myId && !abortController.signal.aborted) {
+        // Sube degisiminde eski istek abort edilir; yeni effect state'i yonetir.
+        // Abort disinda her zaman loading'i kapat.
+        if (reqIdRef.current === myId) {
           setLoading(false);
           setIsDataLoading(false);
         }

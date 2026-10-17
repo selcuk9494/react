@@ -7,6 +7,16 @@ import { UsersService } from '../users/users.service';
 const USER_CACHE_TTL_MS = 60_000;
 const userCache = new Map<string, { user: any; expires: number }>();
 
+/** Sube degisimi / profil guncellemesi sonrasi cache'i dusur. */
+export function invalidateUserCache(email?: string) {
+  if (!email) {
+    userCache.clear();
+    return;
+  }
+  userCache.delete(String(email).toLowerCase());
+  userCache.delete(String(email));
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -24,7 +34,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     const email = String(payload?.email || '');
-    const cached = email ? userCache.get(email) : null;
+    const cacheKey = email.toLowerCase();
+    const cached = cacheKey ? userCache.get(cacheKey) : null;
     if (cached && cached.expires > Date.now()) {
       return cached.user;
     }
@@ -54,8 +65,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
       resolved = updated || { ...user, is_admin: true };
     }
-    if (email) {
-      userCache.set(email, {
+    if (cacheKey) {
+      userCache.set(cacheKey, {
         user: resolved,
         expires: Date.now() + USER_CACHE_TTL_MS,
       });
