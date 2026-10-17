@@ -25,6 +25,7 @@ export class ReportsController {
     @Query('period') period: string = 'today',
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
+    @Query('fast') fast?: string,
   ) {
     try {
       return await this.reportsService.getDashboard(
@@ -32,6 +33,7 @@ export class ReportsController {
         period,
         startDate,
         endDate,
+        { fast: fast === '1' || fast === 'true' },
       );
     } catch (error: any) {
       console.error('Dashboard Error Details:', error);

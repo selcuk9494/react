@@ -283,45 +283,61 @@ export default function Dashboard() {
       }
     }, 8000);
     
+    const buildUrl = (fast: boolean) => {
+      let url = `${getApiUrl()}/dashboard?period=${period}`;
+      if (period === 'custom') {
+        url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+      }
+      if (fast) url += '&fast=1';
+      return url;
+    };
+
+    const applyPayload = (payload: any) => {
+      if (payload?.connection_error) {
+        setIsOffline(true);
+        if (!hadSnap) setData(null);
+        return;
+      }
+      setData(payload);
+      setIsOffline(false);
+      try {
+        window.localStorage.setItem(snapKey, JSON.stringify(payload));
+      } catch {}
+    };
+
     const fetchData = async () => {
       try {
-        let url = `${getApiUrl()}/dashboard?period=${period}`;
-        if (period === 'custom') {
-            url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
-        }
-
-        console.log('[Dashboard] Fetching data for period:', period);
-        const res = await axios.get(url, {
+        // 1) Hizli ilk boya (~2sn hedef)
+        console.log('[Dashboard] Fast fetch');
+        const fastRes = await axios.get(buildUrl(true), {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
-          timeout: 45000
+          timeout: 20000,
         });
-        
-        // Only update if this is still the current request
         if (reqIdRef.current === myId && !abortController.signal.aborted) {
-          // Check if response indicates connection error
-          if (res.data?.connection_error) {
-            console.log('[Dashboard] Connection error from backend');
-            setIsOffline(true);
-            setData(null);
-          } else {
-            console.log('[Dashboard] Data received successfully');
-            setData(res.data);
-            setIsOffline(false);
-            try {
-              window.localStorage.setItem(snapKey, JSON.stringify(res.data));
-            } catch {}
-          }
+          applyPayload(fastRes.data);
+          setLoading(false);
+          setIsDataLoading(false);
+          window.clearTimeout(slowTimer);
+        }
+
+        // 2) Tam veri (iptal/borc/odenmez) arka planda
+        if (reqIdRef.current !== myId || abortController.signal.aborted) return;
+        const fullRes = await axios.get(buildUrl(false), {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: abortController.signal,
+          timeout: 45000,
+        });
+        if (reqIdRef.current === myId && !abortController.signal.aborted) {
+          applyPayload(fullRes.data);
         }
       } catch (e: any) {
-        // Ignore abort errors
         if (e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
           return;
         }
         console.error('[Dashboard] Error fetching data:', e);
         if (reqIdRef.current === myId) {
           setIsOffline(true);
-          // Snap varsa ekrani bosaltma — eski rakamlari goster
           if (!hadSnap) setData(null);
           setSlowInitialLoad(true);
         }

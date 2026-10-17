@@ -124,6 +124,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       document.cookie = `token=${access_token}; path=/; max-age=${30 * 24 * 60 * 60}`;
       axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
       await fetchUser(access_token);
+      // Dashboard'u login aninda isit — ilk boya ~2sn hissi
+      try {
+        const branchIdx =
+          typeof user?.selected_branch === 'number'
+            ? user.selected_branch
+            : typeof res.data?.user?.selected_branch === 'number'
+              ? res.data.user.selected_branch
+              : 0;
+        const dash = await axios.get(`${API_URL}/dashboard?period=today&fast=1`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+          timeout: 20000,
+        });
+        if (dash.data && !dash.data.connection_error) {
+          try {
+            window.localStorage.setItem(
+              `dashboard_snap_v1_${branchIdx}_today__`,
+              JSON.stringify(dash.data),
+            );
+            window.localStorage.setItem(
+              `dashboard_snap_v1_0_today__`,
+              JSON.stringify(dash.data),
+            );
+          } catch {}
+        }
+      } catch {}
       router.push('/dashboard');
     } catch (e) {
       throw e;

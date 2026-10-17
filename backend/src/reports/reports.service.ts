@@ -2096,16 +2096,23 @@ export class ReportsService {
     period: string,
     startDate?: string,
     endDate?: string,
+    options?: { fast?: boolean },
   ) {
+    const fast = !!options?.fast;
     const cacheKey = this.cache.generateKey(
-      'dashboard_v4',
+      fast ? 'dashboard_v5_fast' : 'dashboard_v5',
       user.id,
       period,
       startDate || 'none',
       endDate || 'none',
       user.selected_branch || 0,
     );
-    const cacheTTL = ['today', 'yesterday'].includes(period) ? 120 : 600;
+    // Fast cevap kisa cache; tam cevap daha uzun
+    const cacheTTL = fast
+      ? 30
+      : ['today', 'yesterday'].includes(period)
+        ? 90
+        : 600;
 
     const cached = await this.cache.get(cacheKey);
     if (cached) {
@@ -2248,12 +2255,28 @@ export class ReportsService {
         GROUP BY type
       `;
 
+      // Hizli kapali: sadece ads_odeme (unpaid NOT EXISTS taramasi saniyeler yer)
+      const closedQueryFast = `
+        SELECT
+          CASE
+            WHEN COALESCE(o.adtur, 0) = 1 THEN 'paket'
+            WHEN COALESCE(o.adtur, 0) = 3 THEN 'hizli'
+            ELSE 'adisyon'
+          END as type,
+          COUNT(DISTINCT o.adsno)::int as adet,
+          COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as net_toplam,
+          COALESCE(SUM(COALESCE(o.iskonto, 0)), 0) as iskonto_toplam
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1) ${closedFilter}
+        GROUP BY 1
+      `;
+
       const closedAdisyonFilter = period === 'all'
         ? ''
         : w.isBusinessPeriod
           ? ` AND a.raptar >= ($2::timestamp)::date AND a.raptar < ($3::timestamp)::date`
           : ` AND a.raptar >= $2::date AND a.raptar < ($3::date + interval '1 day')`;
-      const closedQuery = `
+      const closedQueryFull = `
         WITH paid AS (
           SELECT
             o.adsno,
@@ -2300,63 +2323,79 @@ export class ReportsService {
         GROUP BY type
       `;
 
-      const debtQuery = `
-        WITH agg AS (
-          SELECT
-            h.ads_no,
-            MAX(h.borcu) as borc
-          FROM ads_hareket h
-          WHERE h.kasano = ANY($1) ${debtFilter}
-          GROUP BY h.ads_no
-        )
-        SELECT
-          COALESCE(SUM(CASE WHEN COALESCE(borc, 0) > 0 THEN COALESCE(borc, 0) ELSE 0 END), 0) as toplam,
-          COALESCE(COUNT(CASE WHEN COALESCE(borc, 0) > 0 THEN 1 END), 0)::int as adet
-        FROM agg
-      `;
-
-      const cancelQuery = `
-        SELECT
-          COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as toplam,
-          COALESCE(COUNT(*), 0)::int as adet
-        FROM ads_iptal a
-        ${cancelFilter}
-      `;
-
-      const unpayQuery = `
-        SELECT
-          CASE
-            WHEN COALESCE(a.adtur, 0) = 1 OR COALESCE(a.masano, 0) = 99999 OR COALESCE(a.sipyer, 0) = 2 THEN 'paket'
-            WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
-            ELSE 'adisyon'
-          END as type,
-          COUNT(DISTINCT a.adsno)::int as adet,
-          COALESCE(SUM(${this.unpayableAmountSql('a')}), 0) as toplam
-        FROM ads_adisyon a
-        WHERE a.kasa = ANY($1)
-          AND ${this.unpayableAck4Filter('a')}
-          ${unpayFilter}
-        GROUP BY type
-      `;
-
-      // Kasa toplamini ayni turda cek (ayri getCashReport = ekstra RTT / timeout)
       const cashQuickQuery = `
         SELECT COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as toplam
         FROM ads_odeme o
         WHERE o.kasa = ANY($1) ${closedFilter}
       `;
 
-      const [openAgg, closedAgg, debtAggRows, cancelAggRows, unpayAgg, cashQuick] =
-        await Promise.all([
+      let openAgg: any[] = [];
+      let closedAgg: any[] = [];
+      let debtAggRows: any[] = [];
+      let cancelAggRows: any[] = [];
+      let unpayAgg: any[] = [];
+      let cashQuick: any[] = [{ toplam: 0 }];
+
+      if (fast) {
+        // Ilk boya: 3 sorgu (acik + kapali + kasa) — rakip uygulamaya yakin sure
+        [openAgg, closedAgg, cashQuick] = await Promise.all([
           this.db.executeQuery(pool, openQuery, openParams).catch(() => []),
-          this.db.executeQuery(pool, closedQuery, closedParams).catch(() => []),
-          this.db.executeQuery(pool, debtQuery, debtParams).catch(() => []),
-          this.db.executeQuery(pool, cancelQuery, cancelParams).catch(() => []),
-          this.db.executeQuery(pool, unpayQuery, unpayParams).catch(() => []),
+          this.db.executeQuery(pool, closedQueryFast, closedParams).catch(() => []),
           this.db
             .executeQuery(pool, cashQuickQuery, closedParams)
             .catch(() => [{ toplam: 0 }]),
         ]);
+      } else {
+        const debtQuery = `
+          WITH agg AS (
+            SELECT
+              h.ads_no,
+              MAX(h.borcu) as borc
+            FROM ads_hareket h
+            WHERE h.kasano = ANY($1) ${debtFilter}
+            GROUP BY h.ads_no
+          )
+          SELECT
+            COALESCE(SUM(CASE WHEN COALESCE(borc, 0) > 0 THEN COALESCE(borc, 0) ELSE 0 END), 0) as toplam,
+            COALESCE(COUNT(CASE WHEN COALESCE(borc, 0) > 0 THEN 1 END), 0)::int as adet
+          FROM agg
+        `;
+        const cancelQuery = `
+          SELECT
+            COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as toplam,
+            COALESCE(COUNT(*), 0)::int as adet
+          FROM ads_iptal a
+          ${cancelFilter}
+        `;
+        const unpayQuery = `
+          SELECT
+            CASE
+              WHEN COALESCE(a.adtur, 0) = 1 OR COALESCE(a.masano, 0) = 99999 OR COALESCE(a.sipyer, 0) = 2 THEN 'paket'
+              WHEN COALESCE(a.adtur, 0) = 3 THEN 'hizli'
+              ELSE 'adisyon'
+            END as type,
+            COUNT(DISTINCT a.adsno)::int as adet,
+            COALESCE(SUM(${this.unpayableAmountSql('a')}), 0) as toplam
+          FROM ads_adisyon a
+          WHERE a.kasa = ANY($1)
+            AND ${this.unpayableAck4Filter('a')}
+            ${unpayFilter}
+          GROUP BY type
+        `;
+        [openAgg, closedAgg, debtAggRows, cancelAggRows, unpayAgg, cashQuick] =
+          await Promise.all([
+            this.db.executeQuery(pool, openQuery, openParams).catch(() => []),
+            this.db.executeQuery(pool, closedQueryFast, closedParams).catch(() => []),
+            this.db.executeQuery(pool, debtQuery, debtParams).catch(() => []),
+            this.db.executeQuery(pool, cancelQuery, cancelParams).catch(() => []),
+            this.db.executeQuery(pool, unpayQuery, unpayParams).catch(() => []),
+            this.db
+              .executeQuery(pool, cashQuickQuery, closedParams)
+              .catch(() => [{ toplam: 0 }]),
+          ]);
+        // closedQueryFull bilerek kullanilmiyor: NOT EXISTS taramasi IP'de 4-6sn yiyordu
+        void closedQueryFull;
+      }
 
       const cashReport = {
         totals: {
