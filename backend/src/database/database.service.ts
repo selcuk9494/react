@@ -450,7 +450,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       if (row?.status === 'error') {
         throw new Error(row.error || 'Şube köprüsü sorguyu çalıştıramadı');
       }
-      await this.sleep(150);
+      await this.sleep(40);
     }
     await this.mainPool.query(
       `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()

@@ -81,7 +81,7 @@ export class AgentService {
          SELECT id FROM agent_jobs
          WHERE agent_id = $1 AND status = 'pending'
          ORDER BY created_at ASC
-         LIMIT 8
+         LIMIT 16
          FOR UPDATE SKIP LOCKED
        )
        RETURNING id, sql, params`,

@@ -25,7 +25,9 @@ function log(line) {
 
 function readConfig() {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    let raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // UTF-8 BOM (PowerShell)
+    return JSON.parse(raw);
   } catch {
     return {};
   }
@@ -33,7 +35,13 @@ function readConfig() {
 
 function writeConfig(cfg) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  const prev = readConfig();
+  const next = Object.assign({}, prev, cfg);
+  // Bos sifre ile onceki sifreyi ezme
+  if (!next.pgPassword && prev.pgPassword) next.pgPassword = prev.pgPassword;
+  if (!next.agentId && prev.agentId) next.agentId = prev.agentId;
+  if (!next.secret && prev.secret) next.secret = prev.secret;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), { encoding: 'utf8' });
 }
 
 function writePairCode(code) {
@@ -79,7 +87,7 @@ function makePool(cfg) {
     database: cfg.pgDatabase || 'fastrest',
     user: cfg.pgUser || 'begum',
     password: String(cfg.pgPassword || ''),
-    max: 4,
+    max: 8,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 4000,
     statement_timeout: 20000,
@@ -133,6 +141,7 @@ async function mainLoop() {
   writeConfig(cfg);
   let pool = makePool(cfg);
   let pairedLogged = false;
+  let fastUntil = 0;
 
   while (!stopping) {
     try {
@@ -147,25 +156,32 @@ async function mainLoop() {
         pairedLogged = true;
         log('FR Rapor ile eslendi, sorgular iletiliyor');
       }
-      for (const job of poll.jobs || []) {
-        try {
-          const result = await pool.query(job.sql, job.params || []);
-          await postJson(`${cloud}/api/agent/job-result`, {
-            agentId: cfg.agentId,
-            secret: cfg.secret,
-            jobId: job.id,
-            rows: result.rows,
-          });
-        } catch (jobErr) {
-          await postJson(`${cloud}/api/agent/job-result`, {
-            agentId: cfg.agentId,
-            secret: cfg.secret,
-            jobId: job.id,
-            error: jobErr.message || String(jobErr),
-          });
-        }
-      }
-      await new Promise((r) => setTimeout(r, (poll.jobs || []).length ? 80 : 600));
+      const jobs = poll.jobs || [];
+      if (jobs.length) fastUntil = Date.now() + 20000;
+      // Ayni turdaki isleri paralel calistir (dashboard Promise.all)
+      await Promise.all(
+        jobs.map(async (job) => {
+          try {
+            const result = await pool.query(job.sql, job.params || []);
+            await postJson(`${cloud}/api/agent/job-result`, {
+              agentId: cfg.agentId,
+              secret: cfg.secret,
+              jobId: job.id,
+              rows: result.rows,
+            });
+          } catch (jobErr) {
+            await postJson(`${cloud}/api/agent/job-result`, {
+              agentId: cfg.agentId,
+              secret: cfg.secret,
+              jobId: job.id,
+              error: jobErr.message || String(jobErr),
+            });
+          }
+        }),
+      );
+      // Rapor sirasinda hizli poll (~50ms), bosken ~150ms
+      const delay = Date.now() < fastUntil ? (jobs.length ? 15 : 40) : 120;
+      await new Promise((r) => setTimeout(r, delay));
     } catch (err) {
       const detail =
         (err && err.cause && (err.cause.message || String(err.cause))) ||
@@ -175,9 +191,9 @@ async function mainLoop() {
       try {
         await pool.end();
       } catch (_) {}
-      cfg = Object.assign(cfg, readConfig());
+      cfg = Object.assign({}, readConfig(), cfg);
       pool = makePool(cfg);
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
   try {
