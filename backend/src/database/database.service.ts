@@ -455,7 +455,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           setTimeout(() => {
             this.agentFlushTimers.delete(agentId);
             void this.flushAgentQueue(agentId);
-          }, 40),
+          }, 12),
         );
       }
     });

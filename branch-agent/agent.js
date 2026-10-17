@@ -195,8 +195,8 @@ async function mainLoop() {
           }
         }),
       );
-      // Sunucu long-poll (~2sn) yapiyor; is varken hemen tekrar poll
-      const delay = jobs.length ? 5 : 20;
+      // Hizli poll: is varken 30ms, bossa 120ms (sunucuyu kilitlemeden)
+      const delay = jobs.length ? 30 : Date.now() < fastUntil ? 80 : 150;
       await new Promise((r) => setTimeout(r, delay));
     } catch (err) {
       const detail =
