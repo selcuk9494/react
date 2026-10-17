@@ -2335,24 +2335,35 @@ export class ReportsService {
         GROUP BY type
       `;
 
-      const [openAgg, closedAgg, debtAggRows, cancelAggRows, unpayAgg, cashReport] =
+      // Kasa toplamini ayni turda cek (ayri getCashReport = ekstra RTT / timeout)
+      const cashQuickQuery = `
+        SELECT COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as toplam
+        FROM ads_odeme o
+        WHERE o.kasa = ANY($1) ${closedFilter}
+      `;
+
+      const [openAgg, closedAgg, debtAggRows, cancelAggRows, unpayAgg, cashQuick] =
         await Promise.all([
           this.db.executeQuery(pool, openQuery, openParams).catch(() => []),
           this.db.executeQuery(pool, closedQuery, closedParams).catch(() => []),
           this.db.executeQuery(pool, debtQuery, debtParams).catch(() => []),
           this.db.executeQuery(pool, cancelQuery, cancelParams).catch(() => []),
           this.db.executeQuery(pool, unpayQuery, unpayParams).catch(() => []),
-          this.getCashReport(user, period, startDate, endDate).catch(() => ({
-            totals: {
-              nakit: 0,
-              kredi_karti: 0,
-              yemek_karti: 0,
-              diger: 0,
-              toplam: 0,
-            },
-            rows: [],
-          })),
+          this.db
+            .executeQuery(pool, cashQuickQuery, closedParams)
+            .catch(() => [{ toplam: 0 }]),
         ]);
+
+      const cashReport = {
+        totals: {
+          nakit: 0,
+          kredi_karti: 0,
+          yemek_karti: 0,
+          diger: 0,
+          toplam: Number((cashQuick as any[])?.[0]?.toplam) || 0,
+        },
+        rows: [],
+      };
 
       (openAgg as any[]).forEach((r) => {
         const key = r.type;

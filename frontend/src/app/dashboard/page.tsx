@@ -279,7 +279,7 @@ export default function Dashboard() {
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
-          timeout: 15000
+          timeout: 45000
         });
         
         // Only update if this is still the current request
@@ -331,7 +331,7 @@ export default function Dashboard() {
             const res = await axios.get(url, {
               headers: { Authorization: `Bearer ${token}` },
               signal: refreshController.signal,
-              timeout: 15000
+              timeout: 45000
             });
             if (!refreshController.signal.aborted) {
               if (res.data?.connection_error) {

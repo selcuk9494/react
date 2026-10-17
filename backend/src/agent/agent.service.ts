@@ -73,20 +73,29 @@ export class AgentService {
       `UPDATE branch_agents SET last_seen_at = NOW() WHERE id = $1`,
       [agent.id],
     );
-    const claimed = await this.db.executeQuery(
-      pool,
-      `UPDATE agent_jobs
-       SET status = 'processing'
-       WHERE id IN (
-         SELECT id FROM agent_jobs
-         WHERE agent_id = $1 AND status = 'pending'
-         ORDER BY created_at ASC
-         LIMIT 16
-         FOR UPDATE SKIP LOCKED
-       )
-       RETURNING id, sql, params`,
-      [agent.id],
-    );
+
+    // Long-poll: is gelene kadar ~2 sn bekle — ilk dashboard RTT'sini dusurur
+    const deadline = Date.now() + 2000;
+    let claimed: any[] = [];
+    while (true) {
+      claimed = await this.db.executeQuery(
+        pool,
+        `UPDATE agent_jobs
+         SET status = 'processing'
+         WHERE id IN (
+           SELECT id FROM agent_jobs
+           WHERE agent_id = $1 AND status = 'pending'
+           ORDER BY created_at ASC
+           LIMIT 16
+           FOR UPDATE SKIP LOCKED
+         )
+         RETURNING id, sql, params`,
+        [agent.id],
+      );
+      if (claimed.length || Date.now() >= deadline) break;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
     return {
       paired: agent.status === 'paired' && !!agent.branch_id,
       pairCode: agent.status === 'pending_pair' ? agent.pair_code : null,

@@ -195,7 +195,8 @@ async function mainLoop() {
           }
         }),
       );
-      const delay = Date.now() < fastUntil ? (jobs.length ? 10 : 30) : 100;
+      // Sunucu long-poll (~2sn) yapiyor; is varken hemen tekrar poll
+      const delay = jobs.length ? 5 : 20;
       await new Promise((r) => setTimeout(r, delay));
     } catch (err) {
       const detail =
