@@ -2102,23 +2102,64 @@ export class ReportsService {
     return branch || null;
   }
 
+  /** Kullanicinin atali oldugu subeyi id ile getir (sube gecisinde JWT lite gecikmesine karsi). */
+  private async loadAssignedBranch(userId: string, branchId: number) {
+    if (!userId || !branchId) return null;
+    try {
+      const pool = this.db.getMainPool();
+      await this.db.ensureUserBranchAssignmentsSchema();
+      const rows = await this.db.executeQuery(
+        pool,
+        `SELECT b.*,
+                COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+         FROM branches b
+         JOIN user_branch_assignments uba ON uba.branch_id = b.id
+         LEFT JOIN branch_kasas k ON k.branch_id = b.id
+         WHERE uba.user_id = $1 AND b.id = $2
+         GROUP BY b.id
+         LIMIT 1`,
+        [userId, branchId],
+      );
+      return rows[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
   async getDashboard(
     user: any,
     period: string,
     startDate?: string,
     endDate?: string,
-    options?: { fast?: boolean; forceLive?: boolean },
+    options?: { fast?: boolean; forceLive?: boolean; branchId?: number },
   ) {
     const fast = !!options?.fast;
-    const branchHint =
-      user?.selected_branch_id || user?.selected_branch || 0;
+    const requestedBranchId = Number(options?.branchId) || 0;
+    let branch = this.resolveUserBranch(user);
+    if (requestedBranchId > 0) {
+      const assigned = await this.loadAssignedBranch(
+        String(user?.id || ''),
+        requestedBranchId,
+      );
+      if (assigned) {
+        branch = assigned;
+        // resolve/getBranchPool user.branches uzerinden gider
+        user = {
+          ...user,
+          selected_branch: 0,
+          selected_branch_id: assigned.id,
+          branches: [assigned],
+        };
+      }
+    }
+    const branchId = Number(branch?.id) || 0;
     const cacheKey = this.cache.generateKey(
       fast ? 'dashboard_v5_fast' : 'dashboard_v5',
       user.id,
       period,
       startDate || 'none',
       endDate || 'none',
-      branchHint,
+      branchId || requestedBranchId || 0,
     );
     // Fast cevap kisa cache; tam cevap daha uzun
     const cacheTTL = fast
@@ -2126,9 +2167,6 @@ export class ReportsService {
       : ['today', 'yesterday'].includes(period)
         ? 90
         : 600;
-
-    const branch = this.resolveUserBranch(user);
-    const branchId = Number(branch?.id) || 0;
     const snapPeriod =
       period === 'custom' && startDate && endDate
         ? `custom:${startDate}:${endDate}`

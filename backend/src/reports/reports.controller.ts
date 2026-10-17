@@ -46,6 +46,7 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('fast') fast?: string,
+    @Query('branch_id') branchId?: string,
   ) {
     try {
       return await this.reportsService.getDashboard(
@@ -53,7 +54,10 @@ export class ReportsController {
         period,
         startDate,
         endDate,
-        { fast: fast === '1' || fast === 'true' },
+        {
+          fast: fast === '1' || fast === 'true',
+          branchId: branchId ? Number(branchId) : undefined,
+        },
       );
     } catch (error: any) {
       console.error('Dashboard Error Details:', error);

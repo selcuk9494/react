@@ -37,6 +37,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const lastUserFetchRef = useRef(0);
+  const branchSwitchUntilRef = useRef(0);
+  const selectedBranchRef = useRef<{ index: number; id?: number } | null>(null);
 
   useEffect(() => {
     const getCookieToken = () => {
@@ -68,7 +70,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const res = await axios.get(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
-      setUser(res.data);
+      // Sube gecisi sirasinda /me eski selected_branch ile geri basmasin
+      if (Date.now() < branchSwitchUntilRef.current && selectedBranchRef.current) {
+        const { index, id } = selectedBranchRef.current;
+        setUser({
+          ...res.data,
+          selected_branch: index,
+          selected_branch_id: id ?? res.data?.branches?.[index]?.id,
+        });
+      } else {
+        setUser(res.data);
+      }
     } catch (e) {
       console.error('Failed to fetch user', e);
       logout();
@@ -200,9 +212,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const selectBranch = async (index: number) => {
     if (!user) return;
+    if (user.selected_branch === index) return;
     const prev = user;
     const selected_branch_id = user.branches?.[index]?.id;
-    // Aninda UI guncelle — overlay yok, full user reload yok
+    selectedBranchRef.current = { index, id: selected_branch_id };
+    branchSwitchUntilRef.current = Date.now() + 8000;
+    // Aninda UI — POST arka planda, /me yarisi ezmesin
     setUser({
       ...user,
       selected_branch: index,
@@ -210,20 +225,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
     try {
       const res = await axios.post(`${API_URL}/auth/select-branch`, { index });
-      if (typeof res.data?.selected_branch === 'number') {
-        setUser((u) =>
-          u
-            ? {
-                ...u,
-                selected_branch: res.data.selected_branch,
-                selected_branch_id:
-                  res.data.selected_branch_id ?? u.selected_branch_id,
-              }
-            : u,
-        );
-      }
+      const id = res.data?.selected_branch_id ?? selected_branch_id;
+      selectedBranchRef.current = { index, id };
+      setUser((u) =>
+        u
+          ? {
+              ...u,
+              selected_branch: index,
+              selected_branch_id: id,
+            }
+          : u,
+      );
     } catch (e) {
       console.error('Failed to select branch', e);
+      selectedBranchRef.current = {
+        index: prev.selected_branch ?? 0,
+        id: prev.selected_branch_id,
+      };
       setUser(prev);
     }
   };

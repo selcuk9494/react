@@ -235,21 +235,17 @@ export default function Dashboard() {
     }
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     
-    // Cancel previous request if exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
     const myId = ++reqIdRef.current;
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    
-    // Detect if period or branch changed - clear data and show loading
-    const periodChanged = prevPeriodRef.current !== period;
-    const branchChanged = prevBranchRef.current !== user?.selected_branch;
-    const snapKey = `dashboard_snap_v1_${user?.selected_branch ?? 0}_${period}_${customStartDate || ''}_${customEndDate || ''}`;
 
-    // Onceki basarili cevabi aninda goster (rakip uygulamadaki "aninda acilis" hissi)
+    const branchIdx = user?.selected_branch ?? 0;
+    const branchId = user?.selected_branch_id ?? user?.branches?.[branchIdx]?.id;
+    const branchChanged = prevBranchRef.current !== branchIdx;
+    const periodChanged = prevPeriodRef.current !== period;
+    const snapKey = `dashboard_snap_v1_${branchIdx}_${period}_${customStartDate || ''}_${customEndDate || ''}`;
+
+    // Onceki basarili cevabi aninda goster
     let hadSnap = false;
     if (typeof window !== 'undefined') {
       try {
@@ -265,37 +261,39 @@ export default function Dashboard() {
       } catch {}
     }
 
-    if ((periodChanged || branchChanged) && !hadSnap) {
+    // Sube degisirken eski veriyi SILME — yeni gelene kadar ekran bos/takili kalmasin
+    if (periodChanged && !branchChanged && !hadSnap) {
       setData(null);
       setIsOffline(false);
     }
     prevPeriodRef.current = period;
-    prevBranchRef.current = user?.selected_branch;
-    
-    // Snap varsa aninda goster — API beklerken placeholder/spinner yok
+    prevBranchRef.current = branchIdx;
+
     setSlowInitialLoad(false);
+    // Snap veya mevcut veri varsa spinner yok
     setIsDataLoading(!hadSnap);
     setLoading(!hadSnap);
 
     const slowTimer = window.setTimeout(() => {
-      if (reqIdRef.current === myId && !data) {
+      if (reqIdRef.current === myId) {
         setSlowInitialLoad(true);
       }
     }, 8000);
-    
+
     const buildUrl = (fast: boolean) => {
       let url = `${getApiUrl()}/dashboard?period=${period}`;
       if (period === 'custom') {
         url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
       }
       if (fast) url += '&fast=1';
+      if (branchId) url += `&branch_id=${branchId}`;
       return url;
     };
 
     const applyPayload = (payload: any) => {
+      if (reqIdRef.current !== myId) return;
       if (payload?.connection_error) {
         setIsOffline(true);
-        if (!hadSnap) setData(null);
         return;
       }
       setData(payload);
@@ -307,8 +305,6 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
-        // Sadece hizli yol — tam rapor arka planda, UI'yi bekletmez
-        console.log('[Dashboard] Fast fetch');
         const fastRes = await axios.get(buildUrl(true), {
           headers: { Authorization: `Bearer ${token}` },
           signal: abortController.signal,
@@ -321,7 +317,6 @@ export default function Dashboard() {
           window.clearTimeout(slowTimer);
         }
 
-        // Tam veri: 2sn sonra, sessiz (ilk boyayi uzatmaz)
         window.setTimeout(async () => {
           if (reqIdRef.current !== myId || abortController.signal.aborted) return;
           try {
@@ -342,15 +337,12 @@ export default function Dashboard() {
         console.error('[Dashboard] Error fetching data:', e);
         if (reqIdRef.current === myId) {
           setIsOffline(true);
-          if (!hadSnap) setData(null);
           setSlowInitialLoad(true);
           setLoading(false);
           setIsDataLoading(false);
         }
       } finally {
         window.clearTimeout(slowTimer);
-        // Sube degisiminde eski istek abort edilir; yeni effect state'i yonetir.
-        // Abort disinda her zaman loading'i kapat.
         if (reqIdRef.current === myId) {
           setLoading(false);
           setIsDataLoading(false);
@@ -360,47 +352,32 @@ export default function Dashboard() {
     fetchData();
 
     const interval = setInterval(() => {
-      // Only auto-refresh if no request in progress and we have data
-      if (data && (!abortControllerRef.current || abortControllerRef.current.signal.aborted)) {
-        const refreshController = new AbortController();
-        abortControllerRef.current = refreshController;
-        
-        (async () => {
-          try {
-            let url = `${getApiUrl()}/dashboard?period=${period}`;
-            if (period === 'custom') {
-              url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
-            }
-            const res = await axios.get(url, {
-              headers: { Authorization: `Bearer ${token}` },
-              signal: refreshController.signal,
-              timeout: 45000
-            });
-            if (!refreshController.signal.aborted) {
-              if (res.data?.connection_error) {
-                setIsOffline(true);
-              } else {
-                setData(res.data);
-                setIsOffline(false);
-              }
-            }
-          } catch (e: any) {
-            if (e.name !== 'AbortError' && e.code !== 'ERR_CANCELED') {
-              setIsOffline(true);
-            }
+      if (reqIdRef.current !== myId) return;
+      const refreshController = new AbortController();
+      (async () => {
+        try {
+          const res = await axios.get(buildUrl(true), {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: refreshController.signal,
+            timeout: 25000,
+          });
+          if (reqIdRef.current === myId && !refreshController.signal.aborted) {
+            applyPayload(res.data);
           }
-        })();
-      }
-    }, 10000);
-    
+        } catch (e: any) {
+          if (e.name !== 'AbortError' && e.code !== 'ERR_CANCELED') {
+            // sessiz — mevcut veriyi koru
+          }
+        }
+      })();
+    }, 30000);
+
     return () => {
       clearInterval(interval);
       window.clearTimeout(slowTimer);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortController.abort();
     };
-  }, [token, period, customStartDate, customEndDate, user?.selected_branch, canViewDashboard]);
+  }, [token, period, customStartDate, customEndDate, user?.selected_branch, user?.selected_branch_id, canViewDashboard]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
@@ -1496,10 +1473,11 @@ export default function Dashboard() {
                 <div className="p-2 max-h-80 overflow-y-auto">
                     {user?.branches && user.branches.map((branch: any, index: number) => (
                         <button
-                            key={index}
+                            key={branch?.id ?? index}
+                            type="button"
                             onClick={() => {
-                                selectBranch(index);
                                 setBranchModalOpen(false);
+                                void selectBranch(index);
                             }}
                             className={clsx(
                                 "w-full text-left px-4 py-3 rounded-xl mb-1 flex items-center justify-between transition",
