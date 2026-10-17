@@ -721,7 +721,11 @@ export default function AdminManagePage() {
                     className={`rounded-md border p-3 text-left transition ${selectedBranchId === item.id ? 'border-teal-400 bg-teal-50' : 'bg-white hover:bg-slate-50'}`}
                   >
                     <div className="font-bold">{item.name || item.db_host}</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-500">{item.db_host}:{item.db_port} / {item.db_name} ({item.db_user})</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-500">
+                      {String(item.db_host || '').startsWith('agent:') || (item as any).connection_mode === 'agent'
+                        ? 'Kod ile bağlı (köprü)'
+                        : `${item.db_host}:${item.db_port} / ${item.db_name} (${item.db_user})`}
+                    </div>
                     <div className="mt-1 text-xs text-slate-500">Kasalar: {formatKasalar(item)} | Kapanış: {parseInteger(item.closing_hour, 6)} | Sahip: {item.owner_email || '-'}</div>
                   </button>
                 ))}
@@ -768,6 +772,54 @@ export default function AdminManagePage() {
                       />
                     </label>
                   </>
+                ) : selectedBranchId && branchConnectMode === 'pair' ? (
+                  <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-teal-900">
+                    <div className="font-bold">Kod ile bağlı (köprü)</div>
+                    <p className="mt-1 text-xs leading-relaxed text-teal-800">
+                      IP / DB şifre burada dolmaz. Postgres POS&apos;taki FrRaporBridge
+                      (<code className="text-[11px]">config.json</code>) içindedir.
+                      Aynı PC ise silmeye gerek yok. POS yeniden kurulduysa aşağıya yeni kod yazın.
+                    </p>
+                    <div className="mt-2 break-all font-mono text-[11px] text-teal-700">
+                      {branchForm.db_host}
+                    </div>
+                    <label className="mt-3 block text-sm font-semibold text-teal-900">
+                      Yeniden eşle (yeni kod)
+                      <input
+                        className="mt-1 w-full rounded-md border border-teal-200 bg-white px-3 py-2 uppercase tracking-widest text-slate-900"
+                        placeholder="ABC-123"
+                        value={pairCode}
+                        onChange={(event) => setPairCode(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={saving || !pairCode.trim()}
+                      onClick={async () => {
+                        if (!token || !selectedBranchId || !pairCode.trim()) return;
+                        setSaving(true);
+                        try {
+                          await axios.post(
+                            `${getApiUrl()}/branches/repair`,
+                            { code: pairCode.trim(), branchId: selectedBranchId },
+                            authHeaders,
+                          );
+                          setPairCode('');
+                          await refreshAfterSave('Şube yeni kod ile yeniden eşlendi.');
+                        } catch (error: any) {
+                          console.error(error);
+                          showMessage(
+                            error.response?.data?.message || 'Yeniden eşleme başarısız.',
+                          );
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className="mt-2 w-full rounded-md bg-teal-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40"
+                    >
+                      Kod ile yeniden bağla
+                    </button>
+                  </div>
                 ) : (
                   <>
                     <div className="grid grid-cols-[1fr_92px] gap-2">

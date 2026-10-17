@@ -197,4 +197,82 @@ export class AgentService {
     await this.cache.del(this.cache.generateKey('branches', 'user', userId));
     return { ...branch, pairOk: true };
   }
+
+  /** Mevcut agent subeyi yeni kod ile yeniden esle (silmeye gerek yok). */
+  async repairBranch(userId: string, data: { code: string; branchId: number }) {
+    const branchId = Number(data?.branchId);
+    if (!Number.isFinite(branchId) || branchId <= 0) {
+      throw new BadRequestException('Şube seçili değil');
+    }
+    const code = String(data?.code || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '');
+    if (!code) throw new BadRequestException('Eşleme kodu gerekli');
+
+    const pool = this.db.getMainPool();
+    const branches = await this.db.executeQuery(
+      pool,
+      `SELECT * FROM branches WHERE id = $1`,
+      [branchId],
+    );
+    const branch = branches[0];
+    if (!branch) throw new BadRequestException('Şube bulunamadı');
+
+    const agents = await this.db.executeQuery(
+      pool,
+      `SELECT * FROM branch_agents
+       WHERE replace(pair_code, '-', '') = replace($1, '-', '')
+         AND status = 'pending_pair'
+         AND pair_expires_at > NOW()
+       LIMIT 1`,
+      [code],
+    );
+    const agent = agents[0];
+    if (!agent) {
+      throw new BadRequestException(
+        'Kod geçersiz veya süresi dolmuş. POS’ta FrRaporBridge’i yeniden başlatın.',
+      );
+    }
+
+    const oldAgentId = branch.agent_id;
+    if (oldAgentId && String(oldAgentId) !== String(agent.id)) {
+      await this.db.executeQuery(
+        pool,
+        `UPDATE branch_agents
+         SET status = 'replaced', branch_id = NULL, pair_code = NULL
+         WHERE id = $1`,
+        [oldAgentId],
+      );
+    }
+
+    await this.db.executeQuery(
+      pool,
+      `UPDATE branches
+       SET db_host = $2,
+           db_port = 5432,
+           db_name = 'fastrest',
+           db_user = 'agent',
+           db_password = '',
+           connection_mode = 'agent',
+           agent_id = $3
+       WHERE id = $1`,
+      [branchId, `agent:${agent.id}`, agent.id],
+    );
+    await this.db.executeQuery(
+      pool,
+      `UPDATE branch_agents
+       SET status = 'paired', branch_id = $2, pair_code = NULL
+       WHERE id = $1`,
+      [agent.id, branchId],
+    );
+
+    await this.cache.del(this.cache.generateKey('branches', 'user', userId));
+    const updated = await this.db.executeQuery(
+      pool,
+      `SELECT * FROM branches WHERE id = $1`,
+      [branchId],
+    );
+    return { ...updated[0], pairOk: true, repaired: true };
+  }
 }

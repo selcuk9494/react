@@ -175,28 +175,52 @@ icacls $DataDir /grant "Users:(OI)(CI)R" /T 2>$null | Out-Null
 icacls $cfgPath /grant "SYSTEM:F" "Administrators:F" 2>$null | Out-Null
 
 # Postgres baglanti testi - basarisizsa servis KURULMAZ
+# Test dosyasi InstallDir'de olmali ki require('pg') node_modules'u bulsun
 Write-Host '  Postgres baglantisi test ediliyor...'
-$env:PGPASSWORD = $pgPassword
 $testJs = @"
-const {Pool}=require('pg');
-const p=new Pool({host:process.env.H,port:+process.env.P,database:process.env.D,user:process.env.U,password:process.env.PGPASSWORD,connectionTimeoutMillis:5000});
-p.query('select current_database() as db, current_user as u').then(r=>{
-  console.log('OK', r.rows[0].db, r.rows[0].u);
-  return p.end();
-}).catch(e=>{console.error(e.message); process.exit(1)});
+const { Pool } = require('pg');
+const p = new Pool({
+  host: process.env.H,
+  port: Number(process.env.P || 5432),
+  database: process.env.D,
+  user: process.env.U,
+  password: process.env.PGPASSWORD || '',
+  connectionTimeoutMillis: 5000,
+});
+p.query('select current_database() as db, current_user as u')
+  .then((r) => {
+    console.log('OK', r.rows[0].db, r.rows[0].u);
+    return p.end();
+  })
+  .catch((e) => {
+    console.error(e && e.message ? e.message : e);
+    process.exit(1);
+  });
 "@
-$testFile = Join-Path $env:TEMP 'fr-rapor-pg-test.js'
+$testFile = Join-Path $InstallDir 'pg-test.js'
 [System.IO.File]::WriteAllText($testFile, $testJs, (New-Object System.Text.UTF8Encoding $false))
-$env:H = $pgHost; $env:P = "$pgPort"; $env:D = $pgDatabase; $env:U = $pgUser
-& $nodeExe $testFile
-$pgTestOk = ($LASTEXITCODE -eq 0)
-Remove-Item $testFile -Force -ErrorAction SilentlyContinue
-$env:PGPASSWORD = ''
+$env:H = $pgHost
+$env:P = "$pgPort"
+$env:D = $pgDatabase
+$env:U = $pgUser
+$env:PGPASSWORD = $pgPassword
+$testOut = ''
+Push-Location $InstallDir
+try {
+  $testOut = & $nodeExe $testFile 2>&1 | Out-String
+  $pgTestOk = ($LASTEXITCODE -eq 0)
+} finally {
+  Pop-Location
+  Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+  $env:PGPASSWORD = ''
+}
+Write-Host $testOut.Trim()
 if (-not $pgTestOk) {
   throw @"
-Postgres baglanamadi - sifre/host/DB yanlis. Servis kurulmadi.
+Postgres baglanamadi. Servis kurulmadi.
 Host=$pgHost Port=$pgPort DB=$pgDatabase User=$pgUser
-Duzeltip KUR.bat ile tekrar deneyin.
+Hata: $($testOut.Trim())
+Postgres calisiyor mu / sifre dogru mu kontrol edip KUR.bat ile tekrar deneyin.
 "@
 }
 Write-Host '  Postgres OK.'

@@ -32,4 +32,10 @@ export class AgentController {
   pair(@Request() req, @Body() body: any) {
     return this.agentService.pairToUser(req.user.id, body);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('branches/repair')
+  repair(@Request() req, @Body() body: any) {
+    return this.agentService.repairBranch(req.user.id, body);
+  }
 }
