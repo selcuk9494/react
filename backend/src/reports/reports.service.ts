@@ -2107,7 +2107,7 @@ export class ReportsService {
     period: string,
     startDate?: string,
     endDate?: string,
-    options?: { fast?: boolean },
+    options?: { fast?: boolean; forceLive?: boolean },
   ) {
     const fast = !!options?.fast;
     const cacheKey = this.cache.generateKey(
@@ -2132,23 +2132,36 @@ export class ReportsService {
         ? `custom:${startDate}:${endDate}`
         : period || 'today';
 
-    // 1) PG snapshot once (instance'lar arasi paylasilir) — hedef <800ms
-    if (branchId > 0) {
+    // 1) PG snapshot once — eski olsa bile hemen don (stale-while-revalidate)
+    const forceLive = !!options?.forceLive;
+    const SNAP_FRESH_MS = 90_000;
+    const SNAP_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+    if (!forceLive && branchId > 0) {
       const snap = await this.db.getDashboardSnapshot(branchId, snapPeriod);
-      if (snap?.payload && snap.ageMs < 15 * 60 * 1000) {
+      if (snap?.payload && snap.ageMs < SNAP_MAX_AGE_MS) {
+        const stale = snap.ageMs > SNAP_FRESH_MS;
         const payload = {
           ...snap.payload,
           _snapshot: true,
           _snapshot_age_ms: snap.ageMs,
+          _snapshot_stale: stale,
         };
         await this.cache.set(cacheKey, payload, Math.min(cacheTTL, 45));
+        // Arka planda tazele — kullaniciyi bekletme
+        if (stale) {
+          void this.refreshDashboardSnapshotForBranch(branchId, snapPeriod).catch(
+            () => {},
+          );
+        }
         return payload;
       }
     }
 
-    const cached = await this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
+    if (!forceLive) {
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
     }
 
     const result = {
@@ -2555,6 +2568,35 @@ export class ReportsService {
     return { warmed: results.length, results };
   }
 
+  /** Kullanicinin subelerini arka planda isit (login / warm-mine). */
+  async warmUserBranches(user: any, limit = 8) {
+    const branches = Array.isArray(user?.branches) ? user.branches : [];
+    const sel = Math.max(0, Number(user?.selected_branch) || 0);
+    // Secili sube once — sonra digerleri
+    const ordered = [...branches.slice(sel), ...branches.slice(0, sel)];
+    const ids = ordered
+      .map((b: any) => Number(b?.id))
+      .filter((id: number) => id > 0)
+      .slice(0, limit);
+    const results: any[] = [];
+    for (const id of ids) {
+      try {
+        const existing = await this.db.getDashboardSnapshot(id, 'today');
+        // 3 dk'dan taze ise atla
+        if (existing?.payload && existing.ageMs < 3 * 60 * 1000) {
+          results.push({ id, ok: true, skipped: true, ageMs: existing.ageMs });
+          continue;
+        }
+        const started = Date.now();
+        await this.refreshDashboardSnapshotForBranch(id, 'today');
+        results.push({ id, ok: true, ms: Date.now() - started });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || String(e) });
+      }
+    }
+    return { warmed: results.length, results };
+  }
+
   /** Cron / agent: snapshot'i canli hesaplayip buluta yazar. */
   async refreshDashboardSnapshotForBranch(
     branchId: number,
@@ -2574,32 +2616,15 @@ export class ReportsService {
     const branch = rows[0];
     if (!branch) return null;
     const fakeUser = {
-      id: branch.user_id,
+      id: branch.user_id || `warm-${branchId}`,
       selected_branch: 0,
       selected_branch_id: branchId,
       branches: [branch],
     };
-    // Snapshot yokmus gibi zorla canli hesap: cache'i atla
-    const cacheKey = this.cache.generateKey(
-      'dashboard_v5_fast',
-      `warm:${branchId}`,
-      period,
-      'none',
-      'none',
-      0,
-    );
-    try {
-      await this.cache.del(cacheKey);
-    } catch {}
-    try {
-      await this.db.executeQuery(
-        pool,
-        `DELETE FROM dashboard_snapshots WHERE branch_id = $1 AND period = $2`,
-        [branchId, period],
-      );
-    } catch {}
+    // Eski snapshot'i SILME — concurrent istekler stale snap ile hizli kalsin
     return this.getDashboard(fakeUser, period, undefined, undefined, {
       fast: true,
+      forceLive: true,
     });
   }
 

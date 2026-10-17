@@ -124,7 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       document.cookie = `token=${access_token}; path=/; max-age=${30 * 24 * 60 * 60}`;
       axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
       await fetchUser(access_token);
-      // Once dashboard'a gec — prefetch arka planda (login'i bekletmez)
+      // Once dashboard'a gec — prefetch + tum subeleri arka planda isit
       router.push('/dashboard');
       const branchIdx =
         typeof user?.selected_branch === 'number'
@@ -132,9 +132,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           : typeof res.data?.user?.selected_branch === 'number'
             ? res.data.user.selected_branch
             : 0;
+      const authHdr = { Authorization: `Bearer ${access_token}` };
       void axios
         .get(`${API_URL}/dashboard?period=today&fast=1`, {
-          headers: { Authorization: `Bearer ${access_token}` },
+          headers: authHdr,
           timeout: 20000,
         })
         .then((dash) => {
@@ -151,6 +152,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             } catch {}
           }
         })
+        .catch(() => {});
+      void axios
+        .post(`${API_URL}/dashboard/warm-mine`, {}, { headers: authHdr, timeout: 5000 })
         .catch(() => {});
     } catch (e) {
       throw e;
@@ -197,16 +201,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const selectBranch = async (index: number) => {
     if (!user) return;
     const prev = user;
-    // Aninda UI guncelle — tam ekran overlay yok (takili kalma hissi vermesin)
+    const selected_branch_id = user.branches?.[index]?.id;
+    // Aninda UI guncelle — overlay yok, full user reload yok
     setUser({
       ...user,
       selected_branch: index,
-      selected_branch_id: user.branches?.[index]?.id,
+      selected_branch_id,
     });
     try {
       const res = await axios.post(`${API_URL}/auth/select-branch`, { index });
-      if (res.data?.id || res.data?.email) {
-        setUser(res.data);
+      if (typeof res.data?.selected_branch === 'number') {
+        setUser((u) =>
+          u
+            ? {
+                ...u,
+                selected_branch: res.data.selected_branch,
+                selected_branch_id:
+                  res.data.selected_branch_id ?? u.selected_branch_id,
+              }
+            : u,
+        );
       }
     } catch (e) {
       console.error('Failed to select branch', e);

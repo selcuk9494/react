@@ -2,6 +2,7 @@ import {
   Controller,
   Body,
   Get,
+  Post,
   Patch,
   Query,
   Request,
@@ -25,6 +26,15 @@ export class ReportsController {
       return { ok: false, error: 'admin only' };
     }
     return this.reportsService.warmDashboardSnapshots(12);
+  }
+
+  /** Login sonrasi: kullanicinin subelerini arka planda isit (istemci beklememeli). */
+  @UseGuards(JwtAuthGuard)
+  @Post('dashboard/warm-mine')
+  async warmMine(@Request() req) {
+    // Yaniti hemen don; isitma arka planda
+    void this.reportsService.warmUserBranches(req.user, 8).catch(() => {});
+    return { ok: true, queued: (req.user?.branches || []).length };
   }
 
   @UseGuards(JwtAuthGuard)

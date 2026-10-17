@@ -4,7 +4,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 
-const USER_CACHE_TTL_MS = 60_000;
+const USER_CACHE_TTL_MS = 5 * 60_000;
 const userCache = new Map<string, { user: any; expires: number }>();
 
 /** Sube degisimi / profil guncellemesi sonrasi cache'i dusur. */
@@ -15,6 +15,27 @@ export function invalidateUserCache(email?: string) {
   }
   userCache.delete(String(email).toLowerCase());
   userCache.delete(String(email));
+}
+
+/** Sube degistirirken branches listesini tekrar cekme — sadece index patch. */
+export function patchUserCacheSelectedBranch(email: string, index: number) {
+  const key = String(email || '').toLowerCase();
+  if (!key) return null;
+  const cached = userCache.get(key);
+  if (!cached?.user) return null;
+  const branches = cached.user.branches || [];
+  const selected_branch_id =
+    index >= 0 && index < branches.length ? branches[index]?.id : null;
+  cached.user = {
+    ...cached.user,
+    selected_branch: index,
+    selected_branch_id,
+  };
+  cached.expires = Date.now() + USER_CACHE_TTL_MS;
+  return {
+    selected_branch: index,
+    selected_branch_id,
+  };
 }
 
 @Injectable()
