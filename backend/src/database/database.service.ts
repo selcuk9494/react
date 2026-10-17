@@ -461,71 +461,91 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  private async waitAgentJob(jobId: string, timeoutMs = 20000): Promise<any> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const job = await this.mainPool.query(
+        `SELECT status, result, error FROM agent_jobs WHERE id = $1`,
+        [jobId],
+      );
+      const row = job.rows[0];
+      if (row?.status === 'done' || row?.status === 'error') return row;
+      await this.sleep(25);
+    }
+    await this.mainPool.query(
+      `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()
+       WHERE id = $1 AND status IN ('pending', 'processing')`,
+      [jobId],
+    );
+    return { status: 'error', error: 'timeout' };
+  }
+
+  private async insertAgentJob(agentId: string, sql: string, paramsPayload: any) {
+    const inserted = await this.mainPool.query(
+      `INSERT INTO agent_jobs (agent_id, sql, params, status)
+       VALUES ($1, $2, $3::jsonb, 'pending')
+       RETURNING id`,
+      [agentId, sql, JSON.stringify(paramsPayload ?? [])],
+    );
+    return inserted.rows[0].id as string;
+  }
+
   private async flushAgentQueue(agentId: string) {
     const queue = this.agentQueues.get(agentId) || [];
     this.agentQueues.set(agentId, []);
     if (!queue.length) return;
 
+    const failAll = (err: any) => queue.forEach((item) => item.reject(err));
+
     try {
-      let sql: string;
-      let paramsPayload: any;
-      if (queue.length === 1) {
-        sql = queue[0].text;
-        paramsPayload = queue[0].params;
-      } else {
-        sql = '__BATCH__';
-        paramsPayload = queue.map((item) => ({
-          sql: item.text,
-          params: item.params,
-        }));
-      }
-
-      const inserted = await this.mainPool.query(
-        `INSERT INTO agent_jobs (agent_id, sql, params, status)
-         VALUES ($1, $2, $3::jsonb, 'pending')
-         RETURNING id`,
-        [agentId, sql, JSON.stringify(paramsPayload ?? [])],
-      );
-      const jobId = inserted.rows[0].id;
-      const deadline = Date.now() + 20000;
-      let row: any = null;
-      while (Date.now() < deadline) {
-        const job = await this.mainPool.query(
-          `SELECT status, result, error FROM agent_jobs WHERE id = $1`,
-          [jobId],
+      // Once tek job (batch) dene — eski agent __BATCH__ bilmezse tek tek dus
+      if (queue.length > 1) {
+        const jobId = await this.insertAgentJob(
+          agentId,
+          '__BATCH__',
+          queue.map((item) => ({ sql: item.text, params: item.params })),
         );
-        row = job.rows[0];
-        if (row?.status === 'done' || row?.status === 'error') break;
-        await this.sleep(25);
-      }
-
-      if (row?.status === 'done') {
-        if (queue.length === 1) {
-          queue[0].resolve(row.result?.rows ?? []);
-        } else {
+        const row = await this.waitAgentJob(jobId);
+        if (row?.status === 'done') {
           const batch = row.result?.batch ?? row.result?.rows ?? [];
-          queue.forEach((item, i) => {
-            item.resolve(Array.isArray(batch[i]) ? batch[i] : []);
-          });
+          const looksBatched =
+            Array.isArray(batch) &&
+            batch.length === queue.length &&
+            batch.every((part: any) => Array.isArray(part));
+          if (looksBatched) {
+            queue.forEach((item, i) => item.resolve(batch[i]));
+            return;
+          }
         }
-        return;
+        // Batch basarisiz / eski agent → her sorguyu ayri job yap
       }
 
-      const errMsg =
-        row?.status === 'error'
-          ? row.error || 'Şube köprüsü sorguyu çalıştıramadı'
-          : 'Şube köprüsü yanıt vermiyor (zaman aşımı). POS bilgisayarda FrRaporBridge servisi ve interneti kontrol edin.';
-      if (row?.status !== 'error') {
-        await this.mainPool.query(
-          `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()
-           WHERE id = $1 AND status IN ('pending', 'processing')`,
-          [jobId],
-        );
-      }
-      const err = new Error(errMsg);
-      queue.forEach((item) => item.reject(err));
+      await Promise.all(
+        queue.map(async (item) => {
+          try {
+            const jobId = await this.insertAgentJob(
+              agentId,
+              item.text,
+              item.params,
+            );
+            const row = await this.waitAgentJob(jobId);
+            if (row?.status === 'done') {
+              item.resolve(row.result?.rows ?? []);
+              return;
+            }
+            item.reject(
+              new Error(
+                row?.error ||
+                  'Şube köprüsü yanıt vermiyor. FrRaporBridge servisini kontrol edin.',
+              ),
+            );
+          } catch (err) {
+            item.reject(err);
+          }
+        }),
+      );
     } catch (err) {
-      queue.forEach((item) => item.reject(err));
+      failAll(err);
     }
   }
 
