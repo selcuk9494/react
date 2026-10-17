@@ -272,9 +272,9 @@ export default function Dashboard() {
     prevPeriodRef.current = period;
     prevBranchRef.current = user?.selected_branch;
     
-    // Always show loading when fetching
+    // Snap varsa aninda goster — API beklerken placeholder/spinner yok
     setSlowInitialLoad(false);
-    setIsDataLoading(true);
+    setIsDataLoading(!hadSnap);
     setLoading(!hadSnap);
 
     const slowTimer = window.setTimeout(() => {
@@ -402,7 +402,7 @@ export default function Dashboard() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  const showPlaceholder = isDataLoading || !data;
+  const showPlaceholder = !data;
   const renderMoney = (val: number) => (showPlaceholder ? '...' : formatCurrency(val || 0));
   const renderCount = (val: number) => (showPlaceholder ? '...' : String(val || 0));
 

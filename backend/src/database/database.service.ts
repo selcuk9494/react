@@ -430,8 +430,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private dashboardSnapshotsReady = false;
+
   private async ensureDashboardSnapshotsTable() {
-    if (!this.mainPool || this.isMock) return;
+    if (!this.mainPool || this.isMock || this.dashboardSnapshotsReady) return;
     await this.mainPool.query(`
       CREATE TABLE IF NOT EXISTS dashboard_snapshots (
         branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
@@ -441,6 +443,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         PRIMARY KEY (branch_id, period)
       )
     `);
+    this.dashboardSnapshotsReady = true;
   }
 
   async getDashboardSnapshot(branchId: number, period = 'today') {

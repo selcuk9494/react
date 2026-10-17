@@ -4,6 +4,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 
+const USER_CACHE_TTL_MS = 60_000;
+const userCache = new Map<string, { user: any; expires: number }>();
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -20,7 +23,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    const user = await this.usersService.findOne(payload.email);
+    const email = String(payload?.email || '');
+    const cached = email ? userCache.get(email) : null;
+    if (cached && cached.expires > Date.now()) {
+      return cached.user;
+    }
+
+    const user = await this.usersService.findOne(email);
     if (!user) {
       throw new UnauthorizedException();
     }
@@ -38,12 +47,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    if (adminEmails.includes(payload.email) && !user.is_admin) {
+    let resolved = user;
+    if (adminEmails.includes(email) && !user.is_admin) {
       const updated = await this.usersService.update(user.id, {
         is_admin: true,
       });
-      return updated || { ...user, is_admin: true };
+      resolved = updated || { ...user, is_admin: true };
     }
-    return user;
+    if (email) {
+      userCache.set(email, {
+        user: resolved,
+        expires: Date.now() + USER_CACHE_TTL_MS,
+      });
+    }
+    return resolved;
   }
 }
