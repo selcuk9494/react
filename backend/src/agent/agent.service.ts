@@ -104,6 +104,7 @@ export class AgentService {
     jobId: string,
     rows?: any[],
     error?: string,
+    batch?: any[],
   ) {
     const agent = await this.authAgent(agentId, secret);
     const pool = this.db.getMainPool();
@@ -117,12 +118,16 @@ export class AgentService {
       );
       return { ok: true };
     }
+    const payload =
+      batch && Array.isArray(batch)
+        ? { rows: batch, batch }
+        : { rows: rows || [] };
     await this.db.executeQuery(
       pool,
       `UPDATE agent_jobs
        SET status = 'done', result = $3::jsonb, completed_at = NOW()
        WHERE id = $1 AND agent_id = $2`,
-      [jobId, agent.id, JSON.stringify({ rows: rows || [] })],
+      [jobId, agent.id, JSON.stringify(payload)],
     );
     return { ok: true };
   }

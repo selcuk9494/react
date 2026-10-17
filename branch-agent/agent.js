@@ -157,18 +157,34 @@ async function mainLoop() {
         log('FR Rapor ile eslendi, sorgular iletiliyor');
       }
       const jobs = poll.jobs || [];
-      if (jobs.length) fastUntil = Date.now() + 20000;
-      // Ayni turdaki isleri paralel calistir (dashboard Promise.all)
+      if (jobs.length) fastUntil = Date.now() + 30000;
+
       await Promise.all(
         jobs.map(async (job) => {
           try {
-            const result = await pool.query(job.sql, job.params || []);
-            await postJson(`${cloud}/api/agent/job-result`, {
-              agentId: cfg.agentId,
-              secret: cfg.secret,
-              jobId: job.id,
-              rows: result.rows,
-            });
+            if (job.sql === '__BATCH__') {
+              const parts = Array.isArray(job.params) ? job.params : [];
+              const batch = [];
+              for (const part of parts) {
+                const result = await pool.query(part.sql, part.params || []);
+                batch.push(result.rows);
+              }
+              await postJson(`${cloud}/api/agent/job-result`, {
+                agentId: cfg.agentId,
+                secret: cfg.secret,
+                jobId: job.id,
+                rows: batch,
+                batch,
+              });
+            } else {
+              const result = await pool.query(job.sql, job.params || []);
+              await postJson(`${cloud}/api/agent/job-result`, {
+                agentId: cfg.agentId,
+                secret: cfg.secret,
+                jobId: job.id,
+                rows: result.rows,
+              });
+            }
           } catch (jobErr) {
             await postJson(`${cloud}/api/agent/job-result`, {
               agentId: cfg.agentId,
@@ -179,8 +195,7 @@ async function mainLoop() {
           }
         }),
       );
-      // Rapor sirasinda hizli poll (~50ms), bosken ~150ms
-      const delay = Date.now() < fastUntil ? (jobs.length ? 15 : 40) : 120;
+      const delay = Date.now() < fastUntil ? (jobs.length ? 10 : 30) : 100;
       await new Promise((r) => setTimeout(r, delay));
     } catch (err) {
       const detail =

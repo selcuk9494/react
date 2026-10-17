@@ -24,6 +24,7 @@ export class AgentController {
       body?.jobId,
       body?.rows,
       body?.error,
+      body?.batch,
     );
   }
 

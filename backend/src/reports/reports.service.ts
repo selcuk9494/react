@@ -429,7 +429,10 @@ export class ReportsService {
       connection_mode: branch.connection_mode,
       agent_id: branch.agent_id,
     });
-    const resolvedKasas = await this.expandKasaNosIfStale(pool, kasa_nos);
+    // Agent koprusunde her ekstra sorgu ~1 RTT; kasa listesini oldugu gibi kullan
+    const resolvedKasas = pool?.__agentId
+      ? kasa_nos
+      : await this.expandKasaNosIfStale(pool, kasa_nos);
 
     return {
       pool,

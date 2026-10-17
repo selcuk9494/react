@@ -422,6 +422,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** Ayni anda gelen sorgulari tek agent job'unda birlestir (dashboard Promise.all). */
+  private agentQueues = new Map<
+    string,
+    Array<{
+      text: string;
+      params: any[];
+      resolve: (rows: any) => void;
+      reject: (err: any) => void;
+    }>
+  >();
+  private agentFlushTimers = new Map<string, NodeJS.Timeout>();
+
   private async relayViaAgent(
     agentId: string,
     text: string,
@@ -430,36 +442,91 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!agentId) {
       throw new Error('Şube köprüsü bağlı değil. POS uygulamasını açın ve kod ile eşleyin.');
     }
-    const inserted = await this.mainPool.query(
-      `INSERT INTO agent_jobs (agent_id, sql, params, status)
-       VALUES ($1, $2, $3::jsonb, 'pending')
-       RETURNING id`,
-      [agentId, text, JSON.stringify(params ?? [])],
-    );
-    const jobId = inserted.rows[0].id;
-    const deadline = Date.now() + 18000;
-    while (Date.now() < deadline) {
-      const job = await this.mainPool.query(
-        `SELECT status, result, error FROM agent_jobs WHERE id = $1`,
-        [jobId],
+    return new Promise((resolve, reject) => {
+      let queue = this.agentQueues.get(agentId);
+      if (!queue) {
+        queue = [];
+        this.agentQueues.set(agentId, queue);
+      }
+      queue.push({ text, params: params ?? [], resolve, reject });
+      if (!this.agentFlushTimers.has(agentId)) {
+        this.agentFlushTimers.set(
+          agentId,
+          setTimeout(() => {
+            this.agentFlushTimers.delete(agentId);
+            void this.flushAgentQueue(agentId);
+          }, 8),
+        );
+      }
+    });
+  }
+
+  private async flushAgentQueue(agentId: string) {
+    const queue = this.agentQueues.get(agentId) || [];
+    this.agentQueues.set(agentId, []);
+    if (!queue.length) return;
+
+    try {
+      let sql: string;
+      let paramsPayload: any;
+      if (queue.length === 1) {
+        sql = queue[0].text;
+        paramsPayload = queue[0].params;
+      } else {
+        sql = '__BATCH__';
+        paramsPayload = queue.map((item) => ({
+          sql: item.text,
+          params: item.params,
+        }));
+      }
+
+      const inserted = await this.mainPool.query(
+        `INSERT INTO agent_jobs (agent_id, sql, params, status)
+         VALUES ($1, $2, $3::jsonb, 'pending')
+         RETURNING id`,
+        [agentId, sql, JSON.stringify(paramsPayload ?? [])],
       );
-      const row = job.rows[0];
+      const jobId = inserted.rows[0].id;
+      const deadline = Date.now() + 20000;
+      let row: any = null;
+      while (Date.now() < deadline) {
+        const job = await this.mainPool.query(
+          `SELECT status, result, error FROM agent_jobs WHERE id = $1`,
+          [jobId],
+        );
+        row = job.rows[0];
+        if (row?.status === 'done' || row?.status === 'error') break;
+        await this.sleep(25);
+      }
+
       if (row?.status === 'done') {
-        return row.result?.rows ?? [];
+        if (queue.length === 1) {
+          queue[0].resolve(row.result?.rows ?? []);
+        } else {
+          const batch = row.result?.batch ?? row.result?.rows ?? [];
+          queue.forEach((item, i) => {
+            item.resolve(Array.isArray(batch[i]) ? batch[i] : []);
+          });
+        }
+        return;
       }
-      if (row?.status === 'error') {
-        throw new Error(row.error || 'Şube köprüsü sorguyu çalıştıramadı');
+
+      const errMsg =
+        row?.status === 'error'
+          ? row.error || 'Şube köprüsü sorguyu çalıştıramadı'
+          : 'Şube köprüsü yanıt vermiyor (zaman aşımı). POS bilgisayarda FrRaporBridge servisi ve interneti kontrol edin.';
+      if (row?.status !== 'error') {
+        await this.mainPool.query(
+          `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()
+           WHERE id = $1 AND status IN ('pending', 'processing')`,
+          [jobId],
+        );
       }
-      await this.sleep(40);
+      const err = new Error(errMsg);
+      queue.forEach((item) => item.reject(err));
+    } catch (err) {
+      queue.forEach((item) => item.reject(err));
     }
-    await this.mainPool.query(
-      `UPDATE agent_jobs SET status = 'error', error = 'timeout', completed_at = NOW()
-       WHERE id = $1 AND status IN ('pending', 'processing')`,
-      [jobId],
-    );
-    throw new Error(
-      'Şube köprüsü yanıt vermiyor (zaman aşımı). POS bilgisayarda FrRaporBridge servisi çalışıyor mu ve internete (react-delta-bice-16.vercel.app) çıkabiliyor mu kontrol edin.',
-    );
   }
 
   getMainPool(): any {
