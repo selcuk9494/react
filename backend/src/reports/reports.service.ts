@@ -429,10 +429,14 @@ export class ReportsService {
       connection_mode: branch.connection_mode,
       agent_id: branch.agent_id,
     });
-    // Agent koprusunde her ekstra sorgu ~1 RTT; kasa listesini oldugu gibi kullan
-    const resolvedKasas = pool?.__agentId
-      ? kasa_nos
-      : await this.expandKasaNosIfStale(pool, kasa_nos);
+    // expandKasaNosIfStale uzak DB'de 30 gun ads_odeme tarar — IP/agent her ikisinde de
+    // saniyeler kaybettirir. Admin'de kasa tanimliysa dogrudan kullan.
+    const hasExplicitKasas =
+      Array.isArray(branch.kasalar) && branch.kasalar.length > 0;
+    const resolvedKasas =
+      pool?.__agentId || hasExplicitKasas
+        ? kasa_nos
+        : await this.expandKasaNosIfStale(pool, kasa_nos);
 
     return {
       pool,

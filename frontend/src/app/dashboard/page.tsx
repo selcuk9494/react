@@ -247,20 +247,35 @@ export default function Dashboard() {
     // Detect if period or branch changed - clear data and show loading
     const periodChanged = prevPeriodRef.current !== period;
     const branchChanged = prevBranchRef.current !== user?.selected_branch;
-    
-    // ALWAYS clear data and show loading when period or branch changes
-    if (periodChanged || branchChanged) {
-      console.log('[Dashboard] Period or branch changed, clearing data');
+    const snapKey = `dashboard_snap_v1_${user?.selected_branch ?? 0}_${period}_${customStartDate || ''}_${customEndDate || ''}`;
+
+    // Onceki basarili cevabi aninda goster (rakip uygulamadaki "aninda acilis" hissi)
+    let hadSnap = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(snapKey);
+        if (raw) {
+          const snap = JSON.parse(raw);
+          if (snap && typeof snap === 'object') {
+            setData(snap);
+            hadSnap = true;
+            setIsOffline(false);
+          }
+        }
+      } catch {}
+    }
+
+    if ((periodChanged || branchChanged) && !hadSnap) {
       setData(null);
       setIsOffline(false);
-      prevPeriodRef.current = period;
-      prevBranchRef.current = user?.selected_branch;
     }
+    prevPeriodRef.current = period;
+    prevBranchRef.current = user?.selected_branch;
     
     // Always show loading when fetching
     setSlowInitialLoad(false);
     setIsDataLoading(true);
-    setLoading(true);
+    setLoading(!hadSnap);
 
     const slowTimer = window.setTimeout(() => {
       if (reqIdRef.current === myId && !data) {
@@ -293,6 +308,9 @@ export default function Dashboard() {
             console.log('[Dashboard] Data received successfully');
             setData(res.data);
             setIsOffline(false);
+            try {
+              window.localStorage.setItem(snapKey, JSON.stringify(res.data));
+            } catch {}
           }
         }
       } catch (e: any) {
@@ -303,7 +321,8 @@ export default function Dashboard() {
         console.error('[Dashboard] Error fetching data:', e);
         if (reqIdRef.current === myId) {
           setIsOffline(true);
-          setData(null); // Clear stale data on error
+          // Snap varsa ekrani bosaltma — eski rakamlari goster
+          if (!hadSnap) setData(null);
           setSlowInitialLoad(true);
         }
       } finally {
