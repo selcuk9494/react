@@ -12,6 +12,8 @@ interface User {
   email: string;
   selected_branch?: number;
   selected_branch_id?: number;
+  /** select-branch API tamamlanınca artar — raporlar doğru şubeyi yeniden çeker */
+  branch_epoch?: number;
   branches?: any[];
   days_left?: number;
   expiry_date?: string;
@@ -226,6 +228,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await axios.post(`${API_URL}/auth/select-branch`, { index });
       const id = res.data?.selected_branch_id ?? selected_branch_id;
+      const branch_epoch =
+        typeof res.data?.branch_epoch === 'number'
+          ? res.data.branch_epoch
+          : Date.now();
       selectedBranchRef.current = { index, id };
       setUser((u) =>
         u
@@ -233,6 +239,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               ...u,
               selected_branch: index,
               selected_branch_id: id,
+              branch_epoch,
             }
           : u,
       );

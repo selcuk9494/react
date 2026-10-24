@@ -140,6 +140,7 @@ export class AuthService {
       success: true,
       selected_branch: branchIndex,
       selected_branch_id: branchId,
+      branch_epoch: Date.now(),
     };
   }
 

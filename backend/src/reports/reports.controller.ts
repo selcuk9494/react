@@ -552,8 +552,15 @@ export class ReportsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/businesses')
-  async getBranchBusinesses(@Request() req) {
-    return this.reportsService.getBranchBusinesses(req.user);
+  async getBranchBusinesses(
+    @Request() req,
+    @Query('branch_id') branchId?: string,
+  ) {
+    const id = branchId != null ? parseInt(String(branchId), 10) : NaN;
+    return this.reportsService.getBranchBusinesses(
+      req.user,
+      Number.isFinite(id) ? id : undefined,
+    );
   }
 
   @UseGuards(JwtAuthGuard)

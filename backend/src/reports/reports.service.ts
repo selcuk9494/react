@@ -385,9 +385,36 @@ export class ReportsService {
     return user?.branches?.[branchIndex] || null;
   }
 
+  /** UI'dan gelen branch_id (şube geçişi JWT'den önce gelebilir). */
+  private async resolveBusinessesBranch(user: any, branchId?: number) {
+    const requested = Number(branchId);
+    if (Number.isFinite(requested) && requested > 0) {
+      const fromList = Array.isArray(user?.branches)
+        ? user.branches.find((b: any) => String(b?.id) === String(requested))
+        : null;
+      if (fromList?.id) return fromList;
+      if (user?.id) {
+        const pool = this.db.getMainPool();
+        await this.db.ensureUserBranchAssignmentsSchema();
+        const rows = await this.db.executeQuery(
+          pool,
+          `SELECT b.id, b.name
+           FROM branches b
+           JOIN user_branch_assignments uba ON uba.branch_id = b.id
+           WHERE uba.user_id = $1 AND b.id = $2
+           LIMIT 1`,
+          [user.id, requested],
+        );
+        if (rows?.[0]?.id) return rows[0];
+      }
+      if (user?.is_admin) return { id: requested };
+    }
+    return this.resolveSelectedBranch(user);
+  }
+
   /** Şube işletmeleri + ürün grubu bağları (ortak). */
-  async getBranchBusinesses(user: any) {
-    const branch = this.resolveSelectedBranch(user);
+  async getBranchBusinesses(user: any, branchId?: number) {
+    const branch = await this.resolveBusinessesBranch(user, branchId);
     if (!branch?.id) return { businesses: [] as any[] };
     await this.db.ensureBranchBusinessesSchema();
     const pool = this.db.getMainPool();
@@ -429,6 +456,7 @@ export class ReportsService {
   async saveBranchBusinesses(
     user: any,
     body: {
+      branch_id?: number;
       businesses?: Array<{
         id?: number;
         name?: string;
@@ -436,7 +464,10 @@ export class ReportsService {
       }>;
     },
   ) {
-    const branch = this.resolveSelectedBranch(user);
+    const branch = await this.resolveBusinessesBranch(
+      user,
+      body?.branch_id != null ? Number(body.branch_id) : undefined,
+    );
     if (!branch?.id) return { ok: false, error: 'branch_required' };
     await this.db.ensureBranchBusinessesSchema();
     const pool = this.db.getMainPool();

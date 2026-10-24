@@ -230,9 +230,15 @@ function ProductSalesContent() {
     persistBusinessId(id);
   };
 
-  // Şube değişince Street Life eşlemesi başka müşteride kalmasın
-  const branchScopeKey = `${user?.selected_branch_id ?? ''}:${user?.selected_branch ?? ''}`;
+  // Şube + select-branch sync (JWT güncellenince epoch artar)
+  const branchScopeKey = `${user?.selected_branch_id ?? ''}:${user?.selected_branch ?? ''}:${user?.branch_epoch ?? 0}`;
+  const prevBranchIdRef = useRef<string>('');
   useEffect(() => {
+    const branchId = String(user?.selected_branch_id ?? '');
+    const switched =
+      prevBranchIdRef.current !== '' && prevBranchIdRef.current !== branchId;
+    prevBranchIdRef.current = branchId;
+    if (!switched) return;
     setBusinesses([]);
     setBusinessesLoaded(false);
     setBusinessBreakdown([]);
@@ -241,7 +247,7 @@ function ProductSalesContent() {
     setShowBizModal(false);
     setDraftBusinesses([]);
     setApiKasaList([]);
-  }, [branchScopeKey]);
+  }, [user?.selected_branch_id]);
 
   const kasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -739,12 +745,19 @@ function ProductSalesContent() {
       setBusinessesLoaded(false);
       return;
     }
+    const branchId = user?.selected_branch_id;
+    if (branchId == null) {
+      setBusinesses([]);
+      setBusinessesLoaded(true);
+      return;
+    }
     let cancelled = false;
     const scopeAtStart = branchScopeKey;
     (async () => {
       try {
         const res = await axios.get(`${getApiUrl()}/reports/businesses`, {
           headers: { Authorization: `Bearer ${token}` },
+          params: { branch_id: branchId },
         });
         if (cancelled || scopeAtStart !== branchScopeKey) return;
         const list: Biz[] = (res.data?.businesses || [])
@@ -773,7 +786,7 @@ function ProductSalesContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, branchScopeKey]);
+  }, [token, branchScopeKey, user?.selected_branch_id]);
 
   useEffect(() => {
     if (!businessesLoaded) return;
@@ -902,6 +915,7 @@ function ProductSalesContent() {
     setBizSaving(true);
     try {
       const payload = {
+        branch_id: user?.selected_branch_id,
         businesses: draftBusinesses
           .map((b) => ({
             name: b.name.trim(),
