@@ -149,6 +149,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS kasa_name VARCHAR(100)
       `);
       await this.ensureBranchGroupKasaMapSchema(client);
+      await this.ensureBranchBusinessesSchema(client);
       await this.ensureUserBranchAssignmentsSchema(client);
       await client.query(`
         DELETE FROM branches b
@@ -270,7 +271,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Sube bazli urun grubu ↔ kasa eslemesi (tum kullanicilar ortak). */
+  /** Sube bazli urun grubu ↔ kasa eslemesi (eski; geriye donuk). */
   async ensureBranchGroupKasaMapSchema(existingClient?: any) {
     const client = existingClient || (await this.mainPool.connect());
     const ownClient = !existingClient;
@@ -288,6 +289,43 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await client.query(`
         CREATE INDEX IF NOT EXISTS branch_group_kasa_map_branch_idx
         ON branch_group_kasa_map (branch_id);
+      `);
+    } finally {
+      if (ownClient) client.release();
+    }
+  }
+
+  /** Sube isletmeleri + urun grubu baglari (tum kullanicilar ortak). */
+  async ensureBranchBusinessesSchema(existingClient?: any) {
+    const client = existingClient || (await this.mainPool.connect());
+    const ownClient = !existingClient;
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_businesses (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          name VARCHAR(120) NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS branch_businesses_branch_idx
+        ON branch_businesses (branch_id);
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_business_groups (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          business_id INTEGER NOT NULL REFERENCES branch_businesses(id) ON DELETE CASCADE,
+          group_id INTEGER NOT NULL,
+          UNIQUE (branch_id, group_id)
+        );
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS branch_business_groups_biz_idx
+        ON branch_business_groups (business_id);
       `);
     } finally {
       if (ownClient) client.release();

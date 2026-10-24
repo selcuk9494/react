@@ -533,15 +533,15 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('reports/group-kasa-map')
-  async getGroupKasaMap(@Request() req) {
-    return this.reportsService.getGroupKasaMap(req.user);
+  @Get('reports/businesses')
+  async getBranchBusinesses(@Request() req) {
+    return this.reportsService.getBranchBusinesses(req.user);
   }
 
   @UseGuards(JwtAuthGuard)
-  @Put('reports/group-kasa-map')
-  async saveGroupKasaMap(@Request() req, @Body() body: any) {
-    return this.reportsService.saveGroupKasaMap(req.user, body || {});
+  @Put('reports/businesses')
+  async saveBranchBusinesses(@Request() req, @Body() body: any) {
+    return this.reportsService.saveBranchBusinesses(req.user, body || {});
   }
 
   @UseGuards(JwtAuthGuard)

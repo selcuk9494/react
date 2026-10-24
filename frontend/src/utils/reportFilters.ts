@@ -6,7 +6,7 @@ const PERIOD_KEY = 'report_period';
 const START_KEY = 'report_start_date';
 const END_KEY = 'report_end_date';
 const KASA_KEY = 'report_kasa_no';
-const KASA_GROUP_MODE_KEY = 'report_kasa_group_based';
+const BUSINESS_KEY = 'report_business_id';
 
 const ALLOWED = [
   'today',
@@ -82,13 +82,21 @@ export function persistKasaNo(kasaNo: string) {
   writeLS(KASA_KEY, String(kasaNo));
 }
 
-/** Kasa grup bazlı rapor modu (ürün satış). */
-export function readKasaGroupBasedMode(): boolean {
-  return readLS(KASA_GROUP_MODE_KEY) === '1';
+/** Ürün satış işletme filtresi (boş = tüm işletmeler). */
+export function readStoredBusinessId(): string {
+  return readLS(BUSINESS_KEY) || '';
 }
 
-export function persistKasaGroupBasedMode(on: boolean) {
-  writeLS(KASA_GROUP_MODE_KEY, on ? '1' : '0');
+export function persistBusinessId(businessId: string) {
+  if (!businessId) {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(BUSINESS_KEY);
+      } catch {}
+    }
+    return;
+  }
+  writeLS(BUSINESS_KEY, String(businessId));
 }
 
 export type KasaEntry = { kasa_no: number; name: string };
@@ -264,6 +272,13 @@ export function getKasaColor(kasaNo: number | string): KasaColor {
       ? (Math.trunc(n) - 1) % KASA_COLORS.length
       : 0;
   return KASA_COLORS[idx < 0 ? 0 : idx];
+}
+
+/** İşletme sırasına göre renk (0-based index). */
+export function getBusinessColor(index: number | string): KasaColor {
+  const n = Number(index);
+  const idx = Number.isFinite(n) ? Math.abs(Math.trunc(n)) % KASA_COLORS.length : 0;
+  return KASA_COLORS[idx];
 }
 
 /** Dashboard + tum raporlar icin ortak period/kasa state. */

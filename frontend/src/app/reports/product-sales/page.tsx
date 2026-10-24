@@ -4,16 +4,16 @@ import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Package, Layers, ArrowUpDown, ReceiptText, X, Link2 } from 'lucide-react';
+import { Package, Layers, ArrowUpDown, ReceiptText, X, Store, Plus } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import {
   useSharedReportFilters,
   getBranchKasaOptions,
   getBranchKasaEntries,
   formatKasaLabel,
-  getKasaColor,
-  readKasaGroupBasedMode,
-  persistKasaGroupBasedMode,
+  getBusinessColor,
+  readStoredBusinessId,
+  persistBusinessId,
   type KasaEntry,
 } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
@@ -46,24 +46,23 @@ function ProductSalesContent() {
     { kasa: number; total: number; qty: number; products: number }[]
   >([]);
   const [kasaBreakdownLoading, setKasaBreakdownLoading] = useState(false);
-  /** group_id → eşli kasa numaraları (şube ortak) */
-  const [groupKasaMap, setGroupKasaMap] = useState<Record<number, number[]>>({});
-  const [showMapModal, setShowMapModal] = useState(false);
-  const [draftMap, setDraftMap] = useState<Record<number, number[]>>({});
-  const [mapSaving, setMapSaving] = useState(false);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [kasaGroupBased, setKasaGroupBased] = useState(false);
+  type Biz = { id: number; name: string; group_ids: number[]; sort_order?: number };
+  const [businesses, setBusinesses] = useState<Biz[]>([]);
+  const [businessesLoaded, setBusinessesLoaded] = useState(false);
+  const [selectedBusinessId, setSelectedBusinessIdState] = useState('');
+  const [showBizModal, setShowBizModal] = useState(false);
+  const [draftBusinesses, setDraftBusinesses] = useState<
+    { key: string; id?: number; name: string; group_ids: number[] }[]
+  >([]);
+  const [bizSaving, setBizSaving] = useState(false);
 
   useEffect(() => {
-    setKasaGroupBased(readKasaGroupBasedMode());
+    setSelectedBusinessIdState(readStoredBusinessId());
   }, []);
 
-  const toggleKasaGroupBased = () => {
-    setKasaGroupBased((prev) => {
-      const next = !prev;
-      persistKasaGroupBasedMode(next);
-      return next;
-    });
+  const setSelectedBusinessId = (id: string) => {
+    setSelectedBusinessIdState(id);
+    persistBusinessId(id);
   };
 
   const kasaEntries = useMemo(() => {
@@ -86,83 +85,62 @@ function ProductSalesContent() {
     [kasaEntries],
   );
 
-  const hasMultiKasa = allKasaOptions.length > 1;
+  const groupToBusiness = useMemo(() => {
+    const m = new Map<number, { businessId: number; name: string; index: number }>();
+    businesses.forEach((b, index) => {
+      for (const gid of b.group_ids || []) {
+        m.set(gid, { businessId: b.id, name: b.name, index });
+      }
+    });
+    return m;
+  }, [businesses]);
 
-  const hasAnyGroupKasaMapping = useMemo(
-    () =>
-      Object.values(groupKasaMap).some(
-        (nos) => Array.isArray(nos) && nos.length > 0,
-      ),
-    [groupKasaMap],
+  const selectedBusiness = useMemo(
+    () => businesses.find((b) => String(b.id) === String(selectedBusinessId)) || null,
+    [businesses, selectedBusinessId],
   );
 
-  /** Seçili kasaya eşlenen grup id'leri. */
-  const mappedGroupsForKasa = useMemo(() => {
-    if (!kasaNo) return [] as number[];
-    const kn = Number(kasaNo);
-    if (!Number.isFinite(kn)) return [];
-    return groups
-      .filter((g) => (groupKasaMap[g.id] || []).includes(kn))
-      .map((g) => g.id as number);
-  }, [groups, kasaNo, groupKasaMap]);
+  const businessGroupIds = useMemo(
+    () => (selectedBusiness ? [...(selectedBusiness.group_ids || [])] : []) as number[],
+    [selectedBusiness],
+  );
 
-  /** Kasa grup bazlı aktifken görünür gruplar; değilse hepsi. */
+  /** İşletme seçiliyse o işletmenin grupları; değilse hepsi. */
   const visibleGroups = useMemo(() => {
-    if (!kasaGroupBased || !kasaNo || !mapLoaded || !hasAnyGroupKasaMapping) {
+    if (!selectedBusinessId || !businessesLoaded || !businessGroupIds.length) {
+      if (selectedBusinessId && businessesLoaded && selectedBusiness && !businessGroupIds.length) {
+        return [];
+      }
       return groups;
     }
-    const kn = Number(kasaNo);
-    if (!Number.isFinite(kn)) return groups;
-    return groups.filter((g) => (groupKasaMap[g.id] || []).includes(kn));
+    const set = new Set(businessGroupIds);
+    return groups.filter((g) => set.has(g.id));
   }, [
     groups,
-    kasaNo,
-    groupKasaMap,
-    mapLoaded,
-    kasaGroupBased,
-    hasAnyGroupKasaMapping,
+    selectedBusinessId,
+    businessesLoaded,
+    businessGroupIds,
+    selectedBusiness,
   ]);
 
-  /** API'ye gidecek grup filtresi. */
+  /** API grup filtresi: işletme + isteğe bağlı manuel grup seçimi. */
   const effectiveGroupIds = useMemo(() => {
-    // Normal mod: kullanıcının seçimi
-    if (!kasaGroupBased || !mapLoaded) return selectedGroups;
-
-    // Kasa seçili: o kasaya eşlenen gruplar (kullanıcı daraltmışsa kesişim)
-    if (kasaNo && hasAnyGroupKasaMapping) {
-      const mapped = mappedGroupsForKasa;
-      if (!mapped.length) return [-1]; // eşleme yok → boş rapor
+    if (selectedBusinessId && businessesLoaded) {
+      const mapped = businessGroupIds;
+      if (!mapped.length) return [-1];
       if (!selectedGroups.length) return mapped;
       const intersect = selectedGroups.filter((id) => mapped.includes(id));
       return intersect.length ? intersect : mapped;
     }
-
     return selectedGroups;
   }, [
-    kasaGroupBased,
-    mapLoaded,
-    kasaNo,
-    hasAnyGroupKasaMapping,
-    mappedGroupsForKasa,
+    selectedBusinessId,
+    businessesLoaded,
+    businessGroupIds,
     selectedGroups,
   ]);
 
-  /** Grup seçiliyken / kasa-grup modunda kasa özeti. */
-  const breakdownKasaOptions = useMemo(() => {
-    if (!selectedGroups.length) return allKasaOptions;
-    const set = new Set<number>();
-    let anyMapped = false;
-    for (const gid of selectedGroups) {
-      const nos = groupKasaMap[gid];
-      if (nos && nos.length) {
-        anyMapped = true;
-        nos.forEach((n) => set.add(n));
-      }
-    }
-    if (!anyMapped) return allKasaOptions;
-    const filtered = allKasaOptions.filter((k) => set.has(k));
-    return filtered.length ? filtered : allKasaOptions;
-  }, [selectedGroups, groupKasaMap, allKasaOptions]);
+  const breakdownKasaOptions = allKasaOptions;
 
   const additionalParams = useMemo(() => {
     const params: any = {};
@@ -258,23 +236,9 @@ function ProductSalesContent() {
               params.set('start_date', customStartDate);
               params.set('end_date', customEndDate);
             }
-            let groupIdsForKasa = selectedGroups;
-            if (kasaGroupBased && hasAnyGroupKasaMapping) {
-              const mapped = groups
-                .filter((g) => (groupKasaMap[g.id] || []).includes(kasa))
-                .map((g) => g.id as number);
-              if (!mapped.length) {
-                return { kasa, total: 0, qty: 0, products: 0 };
-              }
-              if (selectedGroups.length) {
-                const intersect = selectedGroups.filter((id) => mapped.includes(id));
-                groupIdsForKasa = intersect.length ? intersect : mapped;
-              } else {
-                groupIdsForKasa = mapped;
-              }
-            }
-            if (groupIdsForKasa.length) {
-              params.set('group_ids', groupIdsForKasa.join(','));
+            // Kasa özeti: seçili işletmenin grup filtresi varsa uygula
+            if (effectiveGroupIds.length) {
+              params.set('group_ids', effectiveGroupIds.join(','));
             }
             const res = await axios.get(
               `${getApiUrl()}/reports/product-sales?${params.toString()}`,
@@ -309,11 +273,7 @@ function ProductSalesContent() {
     period,
     customStartDate,
     customEndDate,
-    selectedGroups,
-    kasaGroupBased,
-    hasAnyGroupKasaMapping,
-    groups,
-    groupKasaMap,
+    effectiveGroupIds,
   ]);
 
   useEffect(() => {
@@ -331,69 +291,69 @@ function ProductSalesContent() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !hasMultiKasa) {
-      setGroupKasaMap({});
-      setMapLoaded(false);
+    if (!token) {
+      setBusinesses([]);
+      setBusinessesLoaded(false);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const res = await axios.get(`${getApiUrl()}/reports/group-kasa-map`, {
+        const res = await axios.get(`${getApiUrl()}/reports/businesses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const next: Record<number, number[]> = {};
-        for (const item of res.data?.mappings || []) {
-          const gid = Number(item?.group_id);
-          if (!Number.isFinite(gid)) continue;
-          const nos: number[] = (Array.isArray(item?.kasa_nos) ? item.kasa_nos : [])
-            .map((n: any) => Number(n))
-            .filter((n: number) => Number.isFinite(n) && n > 0);
-          next[gid] = [...new Set<number>(nos)].sort((a, b) => a - b);
-        }
+        const list: Biz[] = (res.data?.businesses || [])
+          .map((b: any, index: number) => ({
+            id: Number(b.id),
+            name: String(b.name || '').trim(),
+            sort_order: Number(b.sort_order) || index,
+            group_ids: Array.from(
+              new Set(
+                (Array.isArray(b.group_ids) ? b.group_ids : [])
+                  .map((n: any) => Number(n))
+                  .filter((n: number) => Number.isFinite(n)),
+              ),
+            ),
+          }))
+          .filter((b: Biz) => Number.isFinite(b.id) && b.name);
         if (!cancelled) {
-          setGroupKasaMap(next);
-          setMapLoaded(true);
+          setBusinesses(list);
+          setBusinessesLoaded(true);
         }
       } catch {
         if (!cancelled) {
-          setGroupKasaMap({});
-          setMapLoaded(true);
+          setBusinesses([]);
+          setBusinessesLoaded(true);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [token, hasMultiKasa, user?.selected_branch, user?.selected_branch_id]);
+  }, [token, user?.selected_branch, user?.selected_branch_id]);
 
-  // Kasa değişince: grup bazlı modda eşlenen gruplara ayarla; değilse görünürlerle sınırla
   useEffect(() => {
-    if (!mapLoaded) return;
-    if (kasaGroupBased && kasaNo && hasAnyGroupKasaMapping) {
+    if (!businessesLoaded) return;
+    if (selectedBusinessId && businessGroupIds.length) {
       setSelectedGroups((prev) => {
         const same =
-          prev.length === mappedGroupsForKasa.length &&
-          prev.every((id, i) => id === mappedGroupsForKasa[i]);
-        return same ? prev : mappedGroupsForKasa;
+          prev.length === businessGroupIds.length &&
+          prev.every((id, i) => id === businessGroupIds[i]);
+        return same ? prev : [...businessGroupIds];
       });
       return;
     }
-    if (!kasaNo) return;
+    if (selectedBusinessId && !businessGroupIds.length) {
+      setSelectedGroups([]);
+      return;
+    }
     setSelectedGroups((prev) => {
       if (!prev.length) return prev;
       const allowed = new Set(visibleGroups.map((g) => g.id));
       const next = prev.filter((id) => allowed.has(id));
       return next.length === prev.length ? prev : next;
     });
-  }, [
-    kasaNo,
-    visibleGroups,
-    mapLoaded,
-    kasaGroupBased,
-    hasAnyGroupKasaMapping,
-    mappedGroupsForKasa,
-  ]);
+  }, [selectedBusinessId, businessGroupIds, businessesLoaded, visibleGroups]);
 
   useEffect(() => {
       const groupIdParam = searchParams.get('group_id');
@@ -444,66 +404,95 @@ function ProductSalesContent() {
     return Number.isFinite(n) ? n : 0;
   };
 
-  const openMapModal = () => {
-    const draft: Record<number, number[]> = {};
-    for (const g of groups) {
-      draft[g.id] = [...(groupKasaMap[g.id] || [])];
-    }
-    setDraftMap(draft);
-    setShowMapModal(true);
+  const openBizModal = () => {
+    setDraftBusinesses(
+      businesses.length
+        ? businesses.map((b) => ({
+            key: `id-${b.id}`,
+            id: b.id,
+            name: b.name,
+            group_ids: [...(b.group_ids || [])],
+          }))
+        : [
+            { key: `new-${Date.now()}`, name: 'German Döner', group_ids: [] },
+            { key: `new-${Date.now() + 1}`, name: 'Smash Burger', group_ids: [] },
+            { key: `new-${Date.now() + 2}`, name: 'Sams Chicken', group_ids: [] },
+          ],
+    );
+    setShowBizModal(true);
   };
 
-  const toggleDraftKasa = (groupId: number, kasa: number) => {
-    setDraftMap((prev) => {
-      const cur = new Set(prev[groupId] || []);
-      if (cur.has(kasa)) cur.delete(kasa);
-      else cur.add(kasa);
-      return {
-        ...prev,
-        [groupId]: Array.from(cur).sort((a, b) => a - b),
-      };
-    });
-  };
-
-  const setDraftAllKasas = (groupId: number, all: boolean) => {
-    setDraftMap((prev) => ({
+  const addDraftBusiness = () => {
+    setDraftBusinesses((prev) => [
       ...prev,
-      [groupId]: all ? [...allKasaOptions] : [],
-    }));
+      { key: `new-${Date.now()}`, name: '', group_ids: [] },
+    ]);
   };
 
-  const saveGroupKasaMap = async () => {
+  const toggleDraftGroup = (bizKey: string, groupId: number) => {
+    setDraftBusinesses((prev) =>
+      prev.map((b) => {
+        if (b.key !== bizKey) {
+          // bir grup tek işletmede kalsın
+          return {
+            ...b,
+            group_ids: b.group_ids.filter((id) => id !== groupId),
+          };
+        }
+        const has = b.group_ids.includes(groupId);
+        return {
+          ...b,
+          group_ids: has
+            ? b.group_ids.filter((id) => id !== groupId)
+            : [...b.group_ids, groupId],
+        };
+      }),
+    );
+  };
+
+  const saveBusinesses = async () => {
     if (!token) return;
-    setMapSaving(true);
+    setBizSaving(true);
     try {
-      const mappings = Object.entries(draftMap)
-        .map(([gid, nos]) => ({
-          group_id: Number(gid),
-          kasa_nos: nos,
-        }))
-        .filter((m) => Number.isFinite(m.group_id) && m.kasa_nos.length > 0);
+      const payload = {
+        businesses: draftBusinesses
+          .map((b) => ({
+            name: b.name.trim(),
+            group_ids: b.group_ids,
+          }))
+          .filter((b) => b.name),
+      };
       const res = await axios.put(
-        `${getApiUrl()}/reports/group-kasa-map`,
-        { mappings },
+        `${getApiUrl()}/reports/businesses`,
+        payload,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      const next: Record<number, number[]> = {};
-      for (const item of res.data?.mappings || mappings) {
-        const gid = Number(item?.group_id);
-        if (!Number.isFinite(gid)) continue;
-        const nos: number[] = (Array.isArray(item?.kasa_nos) ? item.kasa_nos : [])
-          .map((n: any) => Number(n))
-          .filter((n: number) => Number.isFinite(n) && n > 0);
-        next[gid] = [...new Set<number>(nos)].sort((a, b) => a - b);
+      const list: Biz[] = (res.data?.businesses || []).map((b: any, index: number) => ({
+        id: Number(b.id),
+        name: String(b.name || '').trim(),
+        sort_order: Number(b.sort_order) || index,
+        group_ids: Array.from(
+          new Set(
+            (Array.isArray(b.group_ids) ? b.group_ids : [])
+              .map((n: any) => Number(n))
+              .filter((n: number) => Number.isFinite(n)),
+          ),
+        ),
+      }));
+      setBusinesses(list);
+      setBusinessesLoaded(true);
+      if (
+        selectedBusinessId &&
+        !list.some((b) => String(b.id) === String(selectedBusinessId))
+      ) {
+        setSelectedBusinessId('');
       }
-      setGroupKasaMap(next);
-      setMapLoaded(true);
-      setShowMapModal(false);
+      setShowBizModal(false);
     } catch (e) {
       console.error(e);
-      alert('Grup-kasa eşlemesi kaydedilemedi.');
+      alert('İşletmeler kaydedilemedi.');
     } finally {
-      setMapSaving(false);
+      setBizSaving(false);
     }
   };
 
@@ -583,99 +572,101 @@ function ProductSalesContent() {
         className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5"
         style={{ paddingTop: 'calc(140px + env(safe-area-inset-top))' }}
       >
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
+              <Store className="w-5 h-5 text-emerald-700" />
+              <span className="text-sm font-semibold text-slate-700">İşletme</span>
+              <button
+                type="button"
+                onClick={openBizModal}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                İşletme / Grup
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBusinessId('');
+                  setSelectedGroups([]);
+                }}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap font-semibold',
+                  !selectedBusinessId
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-700 border-slate-200',
+                )}
+              >
+                Tüm İşletmeler
+              </button>
+              {businesses.map((b, index) => {
+                const color = getBusinessColor(index);
+                const active = String(selectedBusinessId) === String(b.id);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBusinessId(String(b.id))}
+                    className={clsx(
+                      'px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap font-semibold',
+                      active ? `${color.solid} ${color.solidText}` : `${color.bg} ${color.border} ${color.text}`,
+                    )}
+                  >
+                    {b.name}
+                    <span className="ml-1.5 text-[10px] opacity-80">
+                      {(b.group_ids || []).length} grup
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
             <div className="flex items-center gap-2 shrink-0">
               <Layers className="w-5 h-5 text-indigo-600" />
               <span className="text-sm font-semibold text-slate-700">Ürün Grubu</span>
               {selectedGroups.length > 0 && (
                 <button
-                  onClick={() => setSelectedGroups([])}
+                  onClick={() => setSelectedGroups(selectedBusinessId ? [...businessGroupIds] : [])}
                   className="text-xs px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700"
                 >
                   Temizle
                 </button>
               )}
-              {hasMultiKasa && (
-                <>
-                  <button
-                    type="button"
-                    onClick={openMapModal}
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
-                    title="Ürün gruplarını kasalarla eşleştir"
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    Grup ↔ Kasa
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleKasaGroupBased}
-                    className={clsx(
-                      'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border font-semibold transition',
-                      kasaGroupBased
-                        ? 'border-slate-800 bg-slate-800 text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400',
-                    )}
-                    title={
-                      kasaGroupBased
-                        ? 'Kasa seçince yalnızca o kasaya eşlenen gruplar raporlanır'
-                        : 'Açıkken kasa raporu, eşlenen gruplara göre filtrelenir'
-                    }
-                  >
-                    <span
-                      className={clsx(
-                        'w-1.5 h-1.5 rounded-full',
-                        kasaGroupBased ? 'bg-emerald-400' : 'bg-slate-300',
-                      )}
-                    />
-                    Kasa grup bazlı rapor
-                    <span className="opacity-80 font-bold">
-                      {kasaGroupBased ? 'Açık' : 'Kapalı'}
-                    </span>
-                  </button>
-                </>
-              )}
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
               <button
-                onClick={() => setSelectedGroups([])}
+                onClick={() => setSelectedGroups(selectedBusinessId ? [...businessGroupIds] : [])}
                 className={clsx(
                   "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
-                  selectedGroups.length === 0 ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
+                  selectedGroups.length === 0 ||
+                    (selectedBusinessId &&
+                      selectedGroups.length === businessGroupIds.length &&
+                      businessGroupIds.every((id) => selectedGroups.includes(id)))
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-slate-700 border-slate-200"
                 )}
               >
                 Tümü
               </button>
               {visibleGroups.map((g) => {
-                const mapped = groupKasaMap[g.id] || [];
-                const primaryKasa = mapped[0];
-                const color = primaryKasa ? getKasaColor(primaryKasa) : null;
+                const biz = groupToBusiness.get(g.id);
+                const color = biz ? getBusinessColor(biz.index) : null;
                 const selected = selectedGroups.includes(g.id);
-                const labels = mapped.map((n) => formatKasaLabel(n, kasaEntries));
                 return (
                   <button
                     key={g.id}
                     type="button"
-                    title={
-                      labels.length
-                        ? `Kasalar: ${labels.join(', ')}`
-                        : undefined
-                    }
+                    title={biz ? biz.name : undefined}
                     onClick={() => {
-                      const removing = selected;
                       setSelectedGroups((prev) => {
-                        if (removing) return prev.filter((x) => x !== g.id);
+                        if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
                         return [...prev, g.id];
                       });
-                      // Grup seçilince eşli tüm kasalarda raporlanabilsin
-                      if (
-                        !removing &&
-                        mapped.length > 0 &&
-                        kasaNo &&
-                        !mapped.includes(Number(kasaNo))
-                      ) {
-                        setKasaNo('');
-                      }
                     }}
                     className={clsx(
                       'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap transition',
@@ -689,34 +680,14 @@ function ProductSalesContent() {
                     )}
                   >
                     <span className="font-medium">{g.name}</span>
-                    {mapped.length > 0 && (
-                      <span className="inline-flex items-center gap-1">
-                        {mapped.slice(0, 2).map((n) => {
-                          const c = getKasaColor(n);
-                          return (
-                            <span
-                              key={n}
-                              className={clsx(
-                                'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
-                                selected
-                                  ? 'bg-white/20 border-white/30 text-white'
-                                  : c.tag,
-                              )}
-                            >
-                              {formatKasaLabel(n, kasaEntries)}
-                            </span>
-                          );
-                        })}
-                        {mapped.length > 2 && (
-                          <span
-                            className={clsx(
-                              'text-[10px] font-semibold',
-                              selected ? 'text-white/80' : 'text-slate-400',
-                            )}
-                          >
-                            +{mapped.length - 2}
-                          </span>
+                    {biz && (
+                      <span
+                        className={clsx(
+                          'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                          selected ? 'bg-white/20 border-white/30 text-white' : color?.tag,
                         )}
+                      >
+                        {biz.name}
                       </span>
                     )}
                   </button>
@@ -749,7 +720,7 @@ function ProductSalesContent() {
               />
             </div>
           </div>
-          <div className="md:hidden mt-3">
+          <div className="md:hidden">
             <input
               type="text"
               placeholder={t('search_product')}
@@ -758,15 +729,10 @@ function ProductSalesContent() {
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
             />
           </div>
-          {kasaGroupBased && hasMultiKasa && (
-            <p className="mt-3 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-              <span className="font-bold text-slate-800">Kasa grup bazlı rapor açık:</span>{' '}
-              {kasaNo
-                ? `${formatKasaLabel(kasaNo, kasaEntries)} için yalnızca eşlenen gruplar raporlanıyor.`
-                : 'Bir kasa seçince o kasaya eşlenen grupların raporu gelir. Kapalıyken normal satış raporu alınır.'}
-              {!hasAnyGroupKasaMapping && (
-                <span className="text-amber-700"> Önce Grup ↔ Kasa ile eşleme kaydedin.</span>
-              )}
+          {selectedBusiness && (
+            <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <span className="font-bold text-slate-800">{selectedBusiness.name}</span>
+              {' '}ürün raporu — gruplar bu işletmeye bağlı. Kasa filtresi üstte ayrı çalışır.
             </p>
           )}
         </div>
@@ -791,7 +757,7 @@ function ProductSalesContent() {
                   {kasaNo
                     ? formatKasaLabel(kasaNo, kasaEntries)
                     : 'Tüm Kasalar'}
-                  {kasaGroupBased && kasaNo ? ' · Grup bazlı' : ''}{' '}
+                  {selectedBusiness ? ` · ${selectedBusiness.name}` : ''}{' '}
                   · {t('total_sales')}
                 </p>
                 <AutoFitText
@@ -837,9 +803,8 @@ function ProductSalesContent() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg).map((g) => {
-                  const mapped = groupKasaMap[g.id] || [];
-                  const primaryKasa = mapped[0];
-                  const color = primaryKasa ? getKasaColor(primaryKasa) : null;
+                  const biz = groupToBusiness.get(g.id);
+                  const color = biz ? getBusinessColor(biz.index) : null;
                   return (
                     <div
                       key={g.id}
@@ -850,22 +815,11 @@ function ProductSalesContent() {
                           : 'border-slate-100 bg-slate-50/80',
                       )}
                     >
-                      {mapped.length > 0 && (
+                      {biz && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
-                          {mapped.map((n) => {
-                            const c = getKasaColor(n);
-                            return (
-                              <span
-                                key={n}
-                                className={clsx(
-                                  'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
-                                  c.tag,
-                                )}
-                              >
-                                {formatKasaLabel(n, kasaEntries)}
-                              </span>
-                            );
-                          })}
+                          <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded-md border', color?.tag)}>
+                            {biz.name}
+                          </span>
                         </div>
                       )}
                       <div
@@ -1048,106 +1002,111 @@ function ProductSalesContent() {
         )}
       </main>
 
-      {showMapModal && (
+      {showBizModal && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
-          onClick={() => !mapSaving && setShowMapModal(false)}
+          onClick={() => !bizSaving && setShowBizModal(false)}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-xl flex flex-col"
+            className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Grup ↔ Kasa Eşleme</h3>
+                <h3 className="text-lg font-bold text-slate-900">İşletmeler ve Ürün Grupları</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  Her ürün grubunu hangi kasalarda raporlanacağını seçin. Kayıt şube için ortaktır; tüm kullanıcılar görür.
+                  German Döner, Smash Burger gibi işletmeleri ekleyin; ürün gruplarını işletmelere bağlayın. Kayıt şube ortakıdır. Kasa filtresi bundan bağımsızdır.
                 </p>
               </div>
               <button
                 type="button"
-                disabled={mapSaving}
-                onClick={() => setShowMapModal(false)}
+                disabled={bizSaving}
+                onClick={() => setShowBizModal(false)}
                 className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="overflow-y-auto px-5 py-4 space-y-3">
-              {groups.length === 0 ? (
-                <p className="text-sm text-slate-500 py-8 text-center">Ürün grubu bulunamadı.</p>
-              ) : (
-                groups.map((g) => {
-                  const selected = draftMap[g.id] || [];
-                  return (
-                    <div
-                      key={g.id}
-                      className="rounded-xl border border-slate-200 p-3 bg-slate-50/60"
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="font-semibold text-slate-900 text-sm truncate" title={g.name}>
-                          {g.name}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            className="text-[11px] font-semibold text-indigo-700 hover:underline"
-                            onClick={() => setDraftAllKasas(g.id, true)}
-                          >
-                            Tüm kasalar
-                          </button>
-                          <button
-                            type="button"
-                            className="text-[11px] font-semibold text-slate-500 hover:underline"
-                            onClick={() => setDraftAllKasas(g.id, false)}
-                          >
-                            Temizle
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {kasaEntries.map((k) => {
-                          const on = selected.includes(k.kasa_no);
-                          return (
-                            <button
-                              key={k.kasa_no}
-                              type="button"
-                              onClick={() => toggleDraftKasa(g.id, k.kasa_no)}
-                              className={clsx(
-                                'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
-                                on
-                                  ? 'bg-emerald-600 text-white border-emerald-600'
-                                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300',
-                              )}
-                            >
-                              {formatKasaLabel(k.kasa_no, kasaEntries)}
-                            </button>
-                          );
-                        })}
-                      </div>
+            <div className="overflow-y-auto px-5 py-4 space-y-4">
+              {draftBusinesses.map((b, index) => {
+                const color = getBusinessColor(index);
+                return (
+                  <div key={b.key} className={clsx('rounded-xl border p-4', color.bg, color.border)}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <input
+                        type="text"
+                        maxLength={120}
+                        placeholder="İşletme adı"
+                        className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+                        value={b.name}
+                        onChange={(e) =>
+                          setDraftBusinesses((prev) =>
+                            prev.map((x) => (x.key === b.key ? { ...x, name: e.target.value } : x)),
+                          )
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-rose-600 px-2 py-1"
+                        onClick={() =>
+                          setDraftBusinesses((prev) => prev.filter((x) => x.key !== b.key))
+                        }
+                      >
+                        Sil
+                      </button>
                     </div>
-                  );
-                })
-              )}
+                    <div className="flex flex-wrap gap-2">
+                      {groups.map((g) => {
+                        const on = b.group_ids.includes(g.id);
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => toggleDraftGroup(b.key, g.id)}
+                            className={clsx(
+                              'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                              on
+                                ? `${color.solid} ${color.solidText}`
+                                : 'bg-white text-slate-600 border-slate-200',
+                            )}
+                          >
+                            {g.name}
+                          </button>
+                        );
+                      })}
+                      {groups.length === 0 && (
+                        <span className="text-xs text-slate-500">Ürün grubu yok.</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={addDraftBusiness}
+                className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                + İşletme ekle
+              </button>
             </div>
 
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
               <button
                 type="button"
-                disabled={mapSaving}
-                onClick={() => setShowMapModal(false)}
+                disabled={bizSaving}
+                onClick={() => setShowBizModal(false)}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100"
               >
                 İptal
               </button>
               <button
                 type="button"
-                disabled={mapSaving}
-                onClick={saveGroupKasaMap}
+                disabled={bizSaving}
+                onClick={saveBusinesses}
                 className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
               >
-                {mapSaving ? 'Kaydediliyor...' : 'Kaydet'}
+                {bizSaving ? 'Kaydediliyor...' : 'Kaydet'}
               </button>
             </div>
           </div>
