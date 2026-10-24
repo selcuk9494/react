@@ -527,6 +527,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Put('reports/kasas')
+  async saveBranchKasas(@Request() req, @Body() body: any) {
+    return this.reportsService.saveBranchKasaNames(req.user, body || {});
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/group-kasa-map')
   async getGroupKasaMap(@Request() req) {
     return this.reportsService.getGroupKasaMap(req.user);

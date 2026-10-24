@@ -526,6 +526,55 @@ export class ReportsService {
     };
   }
 
+  /** Kasa isimleri — şube ortak, tüm kullanıcılar görür. */
+  async saveBranchKasaNames(
+    user: any,
+    body: { kasa_list?: Array<{ kasa_no?: number; name?: string | null }> },
+  ) {
+    const branch = this.resolveSelectedBranch(user);
+    if (!branch?.id) return { ok: false, error: 'branch_required' };
+    const pool = this.db.getMainPool();
+    const items = Array.isArray(body?.kasa_list) ? body.kasa_list : [];
+
+    for (const item of items) {
+      const kasaNo = Number(item?.kasa_no);
+      if (!Number.isFinite(kasaNo) || kasaNo <= 0) continue;
+      const name =
+        item?.name != null && String(item.name).trim()
+          ? String(item.name).trim().slice(0, 100)
+          : null;
+
+      const updated = await this.db.executeQuery(
+        pool,
+        `UPDATE branch_kasas
+         SET kasa_name = $3
+         WHERE branch_id = $1 AND kasa_no = $2
+         RETURNING id`,
+        [branch.id, kasaNo, name],
+      );
+      if (!updated?.length) {
+        await this.db.executeQuery(
+          pool,
+          `INSERT INTO branch_kasas (branch_id, kasa_no, kasa_name)
+           VALUES ($1, $2, $3)`,
+          [branch.id, kasaNo, name],
+        );
+      }
+    }
+
+    // JWT/user branch cache isimleri eski kalmasın diye branch cache temizle
+    try {
+      await this.cache.del(this.cache.generateKey('branches', 'id', branch.id));
+      if (user?.id) {
+        await this.cache.del(
+          this.cache.generateKey('branches', 'user', user.id),
+        );
+      }
+    } catch {}
+
+    return this.getBranchKasaList(user);
+  }
+
   private async getBranchPool(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branch =

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Pencil, X } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { useI18n } from '@/contexts/I18nContext';
@@ -46,8 +46,33 @@ export default function ReportHeader({
   const { token, user } = useAuth();
   const router = useRouter();
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [showKasaNameModal, setShowKasaNameModal] = useState(false);
   const [apiKasaList, setApiKasaList] = useState<KasaEntry[]>([]);
+  const [draftKasaNames, setDraftKasaNames] = useState<Record<number, string>>({});
+  const [kasaNamesSaving, setKasaNamesSaving] = useState(false);
+  const [kasaListTick, setKasaListTick] = useState(0);
   const userKasaEntries = useMemo(() => getBranchKasaEntries(user), [user]);
+
+  const applyKasaListResponse = (data: any): KasaEntry[] => {
+    const fromList = Array.isArray(data?.kasa_list)
+      ? data.kasa_list
+          .map((item: any) => ({
+            kasa_no: Number(item?.kasa_no),
+            name:
+              item?.name != null && String(item.name).trim()
+                ? String(item.name).trim()
+                : '',
+          }))
+          .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0)
+      : [];
+    if (fromList.length > 0) return fromList;
+    return Array.isArray(data?.kasas)
+      ? data.kasas
+          .map((n: any) => Number(n))
+          .filter((n: number) => Number.isFinite(n) && n > 0)
+          .map((kasa_no: number) => ({ kasa_no, name: '' }))
+      : [];
+  };
 
   // branch_kasas tablosundan guncel kasa listesi (+ isimler)
   useEffect(() => {
@@ -58,28 +83,7 @@ export default function ReportHeader({
         const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const fromList = Array.isArray(res.data?.kasa_list)
-          ? res.data.kasa_list
-              .map((item: any) => ({
-                kasa_no: Number(item?.kasa_no),
-                name:
-                  item?.name != null && String(item.name).trim()
-                    ? String(item.name).trim()
-                    : '',
-              }))
-              .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0)
-          : [];
-        if (fromList.length > 0) {
-          if (!cancelled) setApiKasaList(fromList);
-          return;
-        }
-        const list = Array.isArray(res.data?.kasas)
-          ? res.data.kasas
-              .map((n: any) => Number(n))
-              .filter((n: number) => Number.isFinite(n) && n > 0)
-              .map((kasa_no: number) => ({ kasa_no, name: '' }))
-          : [];
-        if (!cancelled) setApiKasaList(list);
+        if (!cancelled) setApiKasaList(applyKasaListResponse(res.data));
       } catch {
         if (!cancelled) setApiKasaList([]);
       }
@@ -87,7 +91,7 @@ export default function ReportHeader({
     return () => {
       cancelled = true;
     };
-  }, [token, setKasaNo, user?.selected_branch, user?.selected_branch_id]);
+  }, [token, setKasaNo, user?.selected_branch, user?.selected_branch_id, kasaListTick]);
 
   const resolvedKasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -112,6 +116,45 @@ export default function ReportHeader({
     e.preventDefault();
     setPeriod('custom');
     setShowCustomDateModal(false);
+  };
+
+  const openKasaNameModal = () => {
+    const draft: Record<number, string> = {};
+    for (const e of resolvedKasaEntries) {
+      draft[e.kasa_no] = e.name || '';
+    }
+    setDraftKasaNames(draft);
+    setShowKasaNameModal(true);
+  };
+
+  const saveKasaNames = async () => {
+    if (!token) return;
+    setKasaNamesSaving(true);
+    try {
+      const kasa_list = Object.entries(draftKasaNames).map(([no, name]) => ({
+        kasa_no: Number(no),
+        name: String(name || '').trim() || null,
+      }));
+      const res = await axios.put(
+        `${getApiUrl()}/reports/kasas`,
+        { kasa_list },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const next = applyKasaListResponse(res.data);
+      setApiKasaList(next);
+      setKasaListTick((n) => n + 1);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('fr-kasa-names-updated', { detail: next }),
+        );
+      }
+      setShowKasaNameModal(false);
+    } catch (e) {
+      console.error(e);
+      alert(lang === 'tr' ? 'Kasa isimleri kaydedilemedi.' : 'Could not save register names.');
+    } finally {
+      setKasaNamesSaving(false);
+    }
   };
 
   return (
@@ -220,7 +263,7 @@ export default function ReportHeader({
               })()}
             </div>
             {setKasaNo && resolvedKasaOptions.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[60%]">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[70%]">
                 <button
                   type="button"
                   onClick={() => setKasaNo('')}
@@ -249,6 +292,15 @@ export default function ReportHeader({
                     {formatKasaLabel(e.kasa_no, resolvedKasaEntries)}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={openKasaNameModal}
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+                  title={lang === 'tr' ? 'Kasa isimlerini düzenle' : 'Edit register names'}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {lang === 'tr' ? 'İsimler' : 'Names'}
+                </button>
               </div>
             )}
           </div>
@@ -298,6 +350,85 @@ export default function ReportHeader({
                 {t('apply')}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showKasaNameModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !kasaNamesSaving && setShowKasaNameModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {lang === 'tr' ? 'Kasa İsimleri' : 'Register Names'}
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  {lang === 'tr'
+                    ? 'Verilen isimler şube için ortaktır; tüm kullanıcılar raporlarda görür.'
+                    : 'Names are shared for the branch and visible to all users in reports.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={kasaNamesSaving}
+                onClick={() => setShowKasaNameModal(false)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {resolvedKasaEntries.map((e) => (
+                <div key={e.kasa_no} className="flex items-center gap-3">
+                  <span className="w-16 shrink-0 text-xs font-bold text-slate-500">
+                    #{e.kasa_no}
+                  </span>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    placeholder={lang === 'tr' ? 'Örn: Salon, Paket' : 'e.g. Floor, Drive'}
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    value={draftKasaNames[e.kasa_no] ?? ''}
+                    onChange={(ev) =>
+                      setDraftKasaNames((prev) => ({
+                        ...prev,
+                        [e.kasa_no]: ev.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={kasaNamesSaving}
+                onClick={() => setShowKasaNameModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                {lang === 'tr' ? 'İptal' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={kasaNamesSaving}
+                onClick={saveKasaNames}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {kasaNamesSaving
+                  ? lang === 'tr'
+                    ? 'Kaydediliyor...'
+                    : 'Saving...'
+                  : lang === 'tr'
+                    ? 'Kaydet'
+                    : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}

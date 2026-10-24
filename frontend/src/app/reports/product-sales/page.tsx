@@ -161,6 +161,26 @@ function ProductSalesContent() {
     };
   }, [token, user?.selected_branch, user?.selected_branch_id]);
 
+  useEffect(() => {
+    const onNames = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail;
+      if (!Array.isArray(detail)) return;
+      const list = detail
+        .map((item: any) => ({
+          kasa_no: Number(item?.kasa_no),
+          name:
+            item?.name != null && String(item.name).trim()
+              ? String(item.name).trim()
+              : '',
+        }))
+        .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0);
+      if (list.length) setApiKasaList(list);
+    };
+    window.addEventListener('fr-kasa-names-updated', onNames as EventListener);
+    return () =>
+      window.removeEventListener('fr-kasa-names-updated', onNames as EventListener);
+  }, []);
+
   // Tum kasalar seciliyken her kasanin ozetini ayni sayfada goster
   useEffect(() => {
     if (!token || kasaNo || breakdownKasaOptions.length < 1 || allKasaOptions.length < 2) {
