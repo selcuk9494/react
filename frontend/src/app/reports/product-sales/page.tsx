@@ -203,29 +203,38 @@ function ProductSalesContent() {
   }, [selectedBusinessId, businessesLoaded, businesses, groupToBusinesses]);
 
   const breakdownKasaOptions = allKasaOptions;
+  const breakdownKasaKey = allKasaOptions.join(',');
+  const effectiveGroupKey = effectiveGroupIds.join(',');
+  const sharedGroupKey = sharedGroupIdsInFilter.join(',');
+  const knownGroupKey = allMappedGroupIds.join(',');
+  const rivalGroupKey = rivalGroupIds.join(',');
 
   const additionalParams = useMemo(() => {
     const params: any = {};
-    if (effectiveGroupIds.length) params.group_ids = effectiveGroupIds.join(',');
+    if (effectiveGroupIds.length) params.group_ids = effectiveGroupKey;
     // Ortak / tanımsız: siparişte baskın şubeye yazılır (tek yerde)
     if (selectedBusinessId && businessesLoaded && effectiveGroupIds.length) {
       if (sharedGroupIdsInFilter.length) {
-        params.shared_group_ids = sharedGroupIdsInFilter.join(',');
+        params.shared_group_ids = sharedGroupKey;
       }
       if (allMappedGroupIds.length) {
-        params.known_group_ids = allMappedGroupIds.join(',');
+        params.known_group_ids = knownGroupKey;
       }
       if (rivalGroupIds.length) {
-        params.rival_group_ids = rivalGroupIds.join(',');
+        params.rival_group_ids = rivalGroupKey;
       }
     }
     if (selectedPlu !== null) params.plu = String(selectedPlu);
     return params;
   }, [
-    effectiveGroupIds,
-    sharedGroupIdsInFilter,
-    allMappedGroupIds,
-    rivalGroupIds,
+    effectiveGroupIds.length,
+    effectiveGroupKey,
+    sharedGroupIdsInFilter.length,
+    sharedGroupKey,
+    allMappedGroupIds.length,
+    knownGroupKey,
+    rivalGroupIds.length,
+    rivalGroupKey,
     selectedBusinessId,
     businessesLoaded,
     selectedPlu,
@@ -302,7 +311,7 @@ function ProductSalesContent() {
 
   // Tum kasalar seciliyken tek istekte kasa ozetlerini al
   useEffect(() => {
-    if (!token || kasaNo || breakdownKasaOptions.length < 2) {
+    if (!token || kasaNo || breakdownKasaKey.split(',').filter(Boolean).length < 2) {
       setKasaBreakdown([]);
       setKasaBreakdownLoading(false);
       return;
@@ -311,7 +320,12 @@ function ProductSalesContent() {
       setKasaBreakdownLoading(false);
       return;
     }
-    let cancelled = false;
+    const kasaList = breakdownKasaKey
+      .split(',')
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const controller = new AbortController();
+    let active = true;
     (async () => {
       setKasaBreakdownLoading(true);
       try {
@@ -320,21 +334,23 @@ function ProductSalesContent() {
           params.set('start_date', customStartDate);
           params.set('end_date', customEndDate);
         }
-        if (effectiveGroupIds.length) {
-          params.set('group_ids', effectiveGroupIds.join(','));
+        if (effectiveGroupKey) params.set('group_ids', effectiveGroupKey);
+        if (selectedBusinessId && sharedGroupKey) {
+          params.set('shared_group_ids', sharedGroupKey);
         }
-        if (sharedGroupIdsInFilter.length) {
-          params.set('shared_group_ids', sharedGroupIdsInFilter.join(','));
+        if (selectedBusinessId && knownGroupKey) {
+          params.set('known_group_ids', knownGroupKey);
         }
-        if (selectedBusinessId && allMappedGroupIds.length) {
-          params.set('known_group_ids', allMappedGroupIds.join(','));
-        }
-        if (selectedBusinessId && rivalGroupIds.length) {
-          params.set('rival_group_ids', rivalGroupIds.join(','));
+        if (selectedBusinessId && rivalGroupKey) {
+          params.set('rival_group_ids', rivalGroupKey);
         }
         const res = await axios.get(
           `${getApiUrl()}/reports/product-sales?${params.toString()}`,
-          { headers: { Authorization: `Bearer ${token}` } },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+            timeout: 90000,
+          },
         );
         const byKasa = new Map<number, { total: number; qty: number; products: number }>();
         for (const it of Array.isArray(res.data) ? res.data : []) {
@@ -346,7 +362,7 @@ function ProductSalesContent() {
             products: Number(it.products) || 0,
           });
         }
-        const rows = breakdownKasaOptions.map((kasa) => {
+        const rows = kasaList.map((kasa) => {
           const row = byKasa.get(kasa);
           return {
             kasa,
@@ -355,28 +371,30 @@ function ProductSalesContent() {
             products: row?.products ?? 0,
           };
         });
-        if (!cancelled) setKasaBreakdown(rows);
-      } catch {
-        if (!cancelled) setKasaBreakdown([]);
+        if (active) setKasaBreakdown(rows);
+      } catch (err: any) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        if (active) setKasaBreakdown([]);
       } finally {
-        if (!cancelled) setKasaBreakdownLoading(false);
+        if (active) setKasaBreakdownLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      active = false;
+      controller.abort();
     };
   }, [
     token,
     kasaNo,
-    breakdownKasaOptions,
+    breakdownKasaKey,
     period,
     customStartDate,
     customEndDate,
-    effectiveGroupIds,
-    sharedGroupIdsInFilter,
+    effectiveGroupKey,
+    sharedGroupKey,
     selectedBusinessId,
-    allMappedGroupIds,
-    rivalGroupIds,
+    knownGroupKey,
+    rivalGroupKey,
   ]);
 
   useEffect(() => {
@@ -1059,11 +1077,16 @@ function ProductSalesContent() {
               </div>
 
               {!kasaNo && allKasaOptions.length > 1 && (
-                kasaBreakdownLoading
-                  ? breakdownKasaOptions.map((k) => (
+                (kasaBreakdownLoading && kasaBreakdown.length === 0
+                  ? allKasaOptions.map((k) => (
                       <div key={k} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
                     ))
-                  : kasaBreakdown.map((row) => {
+                  : (kasaBreakdown.length ? kasaBreakdown : allKasaOptions.map((kasa) => ({
+                      kasa,
+                      total: 0,
+                      qty: 0,
+                      products: 0,
+                    }))).map((row) => {
                       const color = getKasaColor(row.kasa);
                       return (
                       <button
@@ -1074,6 +1097,7 @@ function ProductSalesContent() {
                           'text-left rounded-2xl border p-5 shadow-sm hover:shadow-md transition',
                           color.bg,
                           color.border,
+                          kasaBreakdownLoading && 'opacity-70',
                         )}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -1092,7 +1116,7 @@ function ProductSalesContent() {
                         </p>
                       </button>
                       );
-                    })
+                    }))
               )}
             </div>
 
