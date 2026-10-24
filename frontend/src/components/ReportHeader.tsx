@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Calendar, X } from 'lucide-react';
 import clsx from 'clsx';
+import axios from 'axios';
 import { useI18n } from '@/contexts/I18nContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/utils/api';
 
 interface ReportHeaderProps {
   title: string;
@@ -35,8 +38,37 @@ export default function ReportHeader({
   kasaOptions = [],
 }: ReportHeaderProps) {
   const { t, lang } = useI18n();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [apiKasas, setApiKasas] = useState<number[]>([]);
+
+  // branch_kasas tablosundan guncel kasa listesi (user.branches bazen sadece kasa_no tasir)
+  useEffect(() => {
+    if (!token || !setKasaNo) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const list = Array.isArray(res.data?.kasas)
+          ? res.data.kasas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
+          : [];
+        if (!cancelled) setApiKasas(list);
+      } catch {
+        if (!cancelled) setApiKasas([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, setKasaNo, user?.selected_branch, user?.selected_branch_id]);
+
+  const resolvedKasaOptions = useMemo(() => {
+    const merged = Array.from(new Set([...(kasaOptions || []), ...apiKasas]));
+    return merged.sort((a, b) => a - b);
+  }, [kasaOptions, apiKasas]);
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +78,10 @@ export default function ReportHeader({
 
   return (
     <>
-      {/* Fixed Header - Mobile Optimized with Safe Area */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="w-full max-w-7xl mx-auto">
         {/* Title Row with Back Button */}
-        <div className="flex items-center gap-2 px-3 py-3">
+        <div className="flex items-center gap-2 px-4 sm:px-6 lg:px-8 py-3">
           <button 
             onClick={() => router.back()}
             className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors"
@@ -58,7 +90,7 @@ export default function ReportHeader({
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <h1 className="text-base font-bold text-gray-900 truncate flex-1">{title}</h1>
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate flex-1">{title}</h1>
           {actions && (
             <div className="flex-shrink-0 flex items-center gap-2">
               {actions}
@@ -67,7 +99,7 @@ export default function ReportHeader({
         </div>
 
         {/* Period Filter Buttons */}
-        <div className="px-3 pb-3">
+        <div className="px-4 sm:px-6 lg:px-8 pb-3">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <style jsx>{`
               div::-webkit-scrollbar {
@@ -150,22 +182,39 @@ export default function ReportHeader({
                 return '';
               })()}
             </div>
-            {setKasaNo && kasaOptions.length > 0 && (
-              <select
-                value={kasaNo}
-                onChange={(e) => setKasaNo(e.target.value)}
-                className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 max-w-[140px]"
-                aria-label="Kasa"
-              >
-                <option value="">{lang === 'tr' ? 'Tüm Kasalar' : 'All Registers'}</option>
-                {kasaOptions.map((n) => (
-                  <option key={n} value={String(n)}>
+            {setKasaNo && resolvedKasaOptions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[60%]">
+                <button
+                  type="button"
+                  onClick={() => setKasaNo('')}
+                  className={clsx(
+                    'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                    !kasaNo
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400',
+                  )}
+                >
+                  {lang === 'tr' ? 'Tüm Kasalar' : 'All'}
+                </button>
+                {resolvedKasaOptions.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setKasaNo(String(n))}
+                    className={clsx(
+                      'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                      String(kasaNo) === String(n)
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300',
+                    )}
+                  >
                     Kasa {n}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             )}
           </div>
+        </div>
         </div>
       </header>
 

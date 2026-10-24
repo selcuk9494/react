@@ -373,6 +373,45 @@ export class ReportsService {
     }
   }
 
+  /** Rapor UI kasa filtresi — expand yok, hizli. */
+  async getBranchKasaList(user: any) {
+    const branchIndex = user.selected_branch || 0;
+    const branch =
+      user?.selected_branch_id && Array.isArray(user?.branches)
+        ? user.branches.find(
+            (b: any) => String(b?.id) === String(user.selected_branch_id),
+          ) || user.branches[branchIndex]
+        : user.branches?.[branchIndex];
+    if (!branch) return { kasas: [] as number[] };
+
+    const primary = Number(branch.kasa_no) || 1;
+    let kasas: number[] = [primary];
+    if (Array.isArray(branch.kasalar) && branch.kasalar.length > 0) {
+      kasas = Array.from(
+        new Set([
+          primary,
+          ...branch.kasalar
+            .map((k: any) => Number(k))
+            .filter((k: number) => Number.isFinite(k) && k > 0),
+        ]),
+      );
+    } else if (branch.id) {
+      try {
+        const mainPool = this.db.getMainPool();
+        const rows = await this.db.executeQuery(
+          mainPool,
+          'SELECT kasa_no FROM branch_kasas WHERE branch_id = $1 ORDER BY kasa_no',
+          [branch.id],
+        );
+        const extras = rows
+          .map((r: any) => parseInt(r.kasa_no, 10))
+          .filter((n: any) => Number.isFinite(n) && n > 0);
+        kasas = Array.from(new Set([primary, ...extras]));
+      } catch {}
+    }
+    return { kasas: kasas.sort((a, b) => a - b) };
+  }
+
   private async getBranchPool(user: any) {
     const branchIndex = user.selected_branch || 0;
     const branch =

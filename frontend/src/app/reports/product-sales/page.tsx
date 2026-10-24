@@ -4,7 +4,7 @@ import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Package, Layers, ArrowUpDown, ReceiptText, ChevronRight, X } from 'lucide-react';
+import { Package, Layers, ArrowUpDown, ReceiptText, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
@@ -21,7 +21,6 @@ function ProductSalesContent() {
   const searchParams = useSearchParams();
   
   const [groups, setGroups] = useState<any[]>([]);
-  const [groupsLoading, setGroupsLoading] = useState(false);
   const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
   const kasaOptions = getBranchKasaOptions(user);
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
@@ -29,10 +28,20 @@ function ProductSalesContent() {
   const [selectedProductName, setSelectedProductName] = useState('');
   const [productOrders, setProductOrders] = useState<any[]>([]);
   const [productOrdersLoading, setProductOrdersLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'products' | 'groups'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [apiKasas, setApiKasas] = useState<number[]>([]);
+  const [kasaBreakdown, setKasaBreakdown] = useState<
+    { kasa: number; total: number; qty: number; products: number }[]
+  >([]);
+  const [kasaBreakdownLoading, setKasaBreakdownLoading] = useState(false);
+
+  const allKasaOptions = useMemo(() => {
+    return Array.from(new Set([...(kasaOptions || []), ...apiKasas])).sort(
+      (a, b) => a - b,
+    );
+  }, [kasaOptions, apiKasas]);
 
   const additionalParams = useMemo(() => {
     const params: any = {};
@@ -52,8 +61,87 @@ function ProductSalesContent() {
   });
 
   useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const list = Array.isArray(res.data?.kasas)
+          ? res.data.kasas
+              .map((n: any) => Number(n))
+              .filter((n: number) => Number.isFinite(n) && n > 0)
+          : [];
+        if (!cancelled) setApiKasas(list);
+      } catch {
+        if (!cancelled) setApiKasas([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.selected_branch, user?.selected_branch_id]);
+
+  // Tum kasalar seciliyken her kasanin ozetini ayni sayfada goster
+  useEffect(() => {
+    if (!token || kasaNo || allKasaOptions.length < 2) {
+      setKasaBreakdown([]);
+      return;
+    }
+    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
+    let cancelled = false;
+    (async () => {
+      setKasaBreakdownLoading(true);
+      try {
+        const rows = await Promise.all(
+          allKasaOptions.map(async (kasa) => {
+            const params = new URLSearchParams({ period, kasa_no: String(kasa) });
+            if (period === 'custom') {
+              params.set('start_date', customStartDate);
+              params.set('end_date', customEndDate);
+            }
+            if (selectedGroups.length) {
+              params.set('group_ids', selectedGroups.join(','));
+            }
+            const res = await axios.get(
+              `${getApiUrl()}/reports/product-sales?${params.toString()}`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            const items = Array.isArray(res.data) ? res.data : [];
+            const total = items.reduce(
+              (a: number, it: any) => a + (Number(it.total) || 0),
+              0,
+            );
+            const qty = items.reduce(
+              (a: number, it: any) => a + (Number(it.quantity) || 0),
+              0,
+            );
+            return { kasa, total, qty, products: items.length };
+          }),
+        );
+        if (!cancelled) setKasaBreakdown(rows);
+      } catch {
+        if (!cancelled) setKasaBreakdown([]);
+      } finally {
+        if (!cancelled) setKasaBreakdownLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    token,
+    kasaNo,
+    allKasaOptions,
+    period,
+    customStartDate,
+    customEndDate,
+    selectedGroups,
+  ]);
+
+  useEffect(() => {
     const fetchGroups = async () => {
-      setGroupsLoading(true);
       try {
         const res = await axios.get(`${getApiUrl()}/reports/product-groups`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -61,8 +149,6 @@ function ProductSalesContent() {
         setGroups(res.data);
       } catch (e) {
         console.error(e);
-      } finally {
-        setGroupsLoading(false);
       }
     };
     if (token) fetchGroups();
@@ -73,7 +159,6 @@ function ProductSalesContent() {
       if (groupIdParam) {
           const gid = parseInt(groupIdParam);
           if (!isNaN(gid)) setSelectedGroups([gid]);
-          setActiveTab('products');
       }
   }, [searchParams]);
 
@@ -137,6 +222,9 @@ function ProductSalesContent() {
     return item.product_name?.toLowerCase().includes(q) || item.plu?.toString().includes(q);
   });
 
+  const totalSales = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.total), 0);
+  const totalQty = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.quantity), 0);
+
   const sortedData = [...filteredData].sort((a, b) => {
     const aTotal = asNumber(a.total);
     const bTotal = asNumber(b.total);
@@ -146,9 +234,6 @@ function ProductSalesContent() {
     const bVal = sortBy === 'total' ? bTotal : sortBy === 'quantity' ? bQty : sortBy === 'pct_total' ? (totalSales > 0 ? bTotal / totalSales : 0) : (totalQty > 0 ? bQty / totalQty : 0);
     return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
   });
-
-  const totalSales = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.total), 0);
-  const totalQty = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.quantity), 0);
   const groupAgg = useMemo(() => {
     const m = new Map<number, { name: string; total: number; qty: number }>();
     filteredData.forEach((it: any) => {
@@ -175,7 +260,7 @@ function ProductSalesContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
+    <div className="min-h-screen bg-slate-100 pb-16 font-sans safe-bottom">
       <ReportHeader
         title={"Ürün Satış Raporu"}
         period={period}
@@ -187,59 +272,60 @@ function ProductSalesContent() {
         actions={<ReportExportButtons title="Ürün Satış Raporu" columns={exportColumns} rows={sortedData} />}
         kasaNo={kasaNo}
         setKasaNo={setKasaNo}
-        kasaOptions={kasaOptions}
+        kasaOptions={allKasaOptions}
       />
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
-        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
+      <main
+        className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5"
+        style={{ paddingTop: 'calc(140px + env(safe-area-inset-top))' }}
+      >
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
+            <div className="flex items-center gap-2 shrink-0">
               <Layers className="w-5 h-5 text-indigo-600" />
-              <span className="text-sm font-semibold text-gray-700">Ürün Grubu</span>
+              <span className="text-sm font-semibold text-slate-700">Ürün Grubu</span>
+              {selectedGroups.length > 0 && (
+                <button
+                  onClick={() => setSelectedGroups([])}
+                  className="text-xs px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700"
+                >
+                  Temizle
+                </button>
+              )}
             </div>
-            {selectedGroups.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
               <button
                 onClick={() => setSelectedGroups([])}
-                className="text-xs px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
-              >
-                Temizle
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-            <button
-              onClick={() => setSelectedGroups([])}
-              className={clsx(
-                "px-3 py-1.5 rounded-xl text-sm border",
-                selectedGroups.length === 0 ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"
-              )}
-            >
-              Tümü
-            </button>
-            {groups.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => {
-                  setSelectedGroups((prev) => {
-                    if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
-                    return [...prev, g.id];
-                  });
-                }}
                 className={clsx(
-                  "px-3 py-1.5 rounded-xl text-sm border whitespace-nowrap",
-                  selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"
+                  "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
+                  selectedGroups.length === 0 ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
                 )}
               >
-                {g.name}
+                Tümü
               </button>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+              {groups.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => {
+                    setSelectedGroups((prev) => {
+                      if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
+                      return [...prev, g.id];
+                    });
+                  }}
+                  className={clsx(
+                    "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
+                    selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
+                  )}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white"
               >
                 <option value="total">Tutar</option>
                 <option value="quantity">Adet</option>
@@ -248,89 +334,116 @@ function ProductSalesContent() {
               </select>
               <button
                 onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
-                className="px-2 py-1.5 rounded-lg border border-gray-200"
+                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white"
               >
-                <ArrowUpDown className="w-4 h-4 text-gray-600" />
+                <ArrowUpDown className="w-4 h-4 text-slate-600" />
               </button>
-              {selectedPlu !== null && (
-                <button
-                  onClick={() => {
-                    setSelectedPlu(null);
-                    setSelectedProductName('');
-                    setProductOrders([]);
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
-                >
-                  Ürün filtresini temizle (PLU {selectedPlu})
-                </button>
-              )}
-            </div>
-            <ReportExportButtons title="Ürün Satış Raporu" columns={exportColumns} rows={sortedData} />
-          </div>
-        </div>
-        {isLoading ? (
-          <div className="space-y-4">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-8 animate-pulse">
-              <div className="h-4 bg-white/30 rounded w-32 mx-auto mb-3"></div>
-              <div className="h-12 bg-white/40 rounded w-48 mx-auto mb-4"></div>
-              <div className="h-3 bg-white/20 rounded w-24 mx-auto"></div>
-            </div>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="bg-white rounded-3xl p-5 shadow-lg animate-pulse">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                    <div className="h-3 bg-gray-100 rounded w-20"></div>
-                  </div>
-                  <div className="h-6 bg-gray-200 rounded w-24"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : error || !data || data.length === 0 ? (
-          <div className="text-center py-12">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">{error ? `Error: ${error.message}` : t('period_no_sales_products')}</p>
-            {error && (
-              <details className="mt-4 text-left max-w-md mx-auto bg-red-50 p-4 rounded-lg">
-                <summary className="cursor-pointer text-red-700 font-medium">Debug Info</summary>
-                <pre className="mt-2 text-xs text-red-600 overflow-auto">{JSON.stringify(error, null, 2)}</pre>
-              </details>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-3xl p-8 text-center text-white shadow-2xl">
-              <p className="text-blue-100 text-sm font-bold mb-3">💰 {t('total_sales')}</p>
-              <AutoFitText
-                text={formatCurrency(totalSales)}
-                className="font-black tracking-tight drop-shadow-lg"
-                maxPx={48}
-                minPx={24}
-              />
-              <p className="text-blue-200 text-base mt-4 font-semibold">{totalQty} {t('total_products')}</p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <input
                 type="text"
                 placeholder={t('search_product')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="hidden md:block w-48 lg:w-64 px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+            </div>
+          </div>
+          <div className="md:hidden mt-3">
+            <input
+              type="text"
+              placeholder={t('search_product')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+            ))}
+            <div className="lg:col-span-4 h-96 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+          </div>
+        ) : error || !data || data.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <Package className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">{error ? `Error: ${error.message}` : t('period_no_sales_products')}</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="sm:col-span-2 xl:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
+                <p className="text-slate-300 text-xs font-semibold uppercase tracking-wide mb-2">
+                  {kasaNo ? `Kasa ${kasaNo}` : 'Tüm Kasalar'} · {t('total_sales')}
+                </p>
+                <AutoFitText
+                  text={formatCurrency(totalSales)}
+                  className="font-black tracking-tight"
+                  maxPx={36}
+                  minPx={22}
+                />
+                <p className="text-slate-400 text-sm mt-2 font-medium">
+                  {totalQty} {t('total_products')} · {sortedData.length} kalem
+                </p>
+              </div>
+
+              {!kasaNo && allKasaOptions.length > 1 && (
+                kasaBreakdownLoading
+                  ? allKasaOptions.map((k) => (
+                      <div key={k} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+                    ))
+                  : kasaBreakdown.map((row) => (
+                      <button
+                        key={row.kasa}
+                        type="button"
+                        onClick={() => setKasaNo(String(row.kasa))}
+                        className="text-left bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                            Kasa {row.kasa}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{row.products} ürün</span>
+                        </div>
+                        <p className="text-xl font-black text-slate-900">{formatCurrency(row.total)}</p>
+                        <p className="text-xs text-slate-500 mt-1">{row.qty} adet</p>
+                      </button>
+                    ))
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-bold text-slate-900">Gruplar</div>
+                <div className="text-sm text-slate-500">{groupAgg.length} grup</div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg).map((g) => (
+                  <div key={g.id} className="border border-slate-100 rounded-xl p-3 bg-slate-50/80">
+                    <div className="text-sm font-semibold text-slate-800 truncate" title={g.name}>{g.name || 'Diğer'}</div>
+                    <div className="text-xs text-slate-500">{g.qty} adet</div>
+                    <div className="text-sm font-bold text-slate-900 mt-1">{formatCurrency(g.total)}</div>
+                    <div className="mt-2 h-1.5 bg-slate-200 rounded">
+                      <div
+                        className="h-1.5 bg-indigo-600 rounded"
+                        style={{ width: `${totalSales > 0 ? Math.min(100, (g.total / totalSales) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {selectedPlu !== null && (
-              <div className="bg-white rounded-3xl p-5 shadow-lg border border-indigo-100">
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-indigo-100">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <div className="flex items-center gap-2 text-indigo-700 font-black">
                       <ReceiptText className="w-5 h-5" />
                       Satıldığı Adisyonlar
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       {selectedProductName || `PLU ${selectedPlu}`}
                     </p>
                   </div>
@@ -341,111 +454,139 @@ function ProductSalesContent() {
                       setSelectedProductName('');
                       setProductOrders([]);
                     }}
-                    className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600"
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"
                     title="Kapat"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-
                 {productOrdersLoading ? (
-                  <div className="py-8 text-center text-gray-500 font-semibold">
-                    Adisyonlar yükleniyor...
-                  </div>
+                  <div className="py-8 text-center text-slate-500 font-semibold">Adisyonlar yükleniyor...</div>
                 ) : productOrders.length === 0 ? (
-                  <div className="py-8 text-center text-gray-500 font-semibold">
-                    Bu ürün için adisyon bulunamadı.
-                  </div>
+                  <div className="py-8 text-center text-slate-500 font-semibold">Bu ürün için adisyon bulunamadı.</div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
-                    {productOrders.map((order, idx) => (
-                      <button
-                        key={`${order.status}-${order.adsno}-${order.adtur}-${idx}`}
-                        type="button"
-                        onClick={() => openOrderDetail(order)}
-                        className="w-full py-3 flex items-center gap-3 text-left hover:bg-indigo-50/60 rounded-2xl px-2 transition"
-                      >
-                        <div className={clsx(
-                          "w-10 h-10 rounded-xl flex items-center justify-center font-black text-white",
-                          order.status === 'open' ? "bg-orange-500" : "bg-emerald-600",
-                        )}>
-                          #{order.adsno}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-900 truncate">
-                            {order.masano ? `Masa ${order.masano}` : 'Adisyon'} · {order.status === 'open' ? 'Açık' : 'Kapalı'}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {order.tarih || '-'} {order.saat ? `· ${String(order.saat).slice(0, 5)}` : ''} · {order.quantity} adet
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-black text-gray-900">{formatCurrency(Number(order.total || 0))}</div>
-                          <div className="text-xs text-indigo-600 font-bold">Detay</div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                      </button>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-slate-500 border-b border-slate-100">
+                          <th className="py-2 pr-4 font-semibold">Adisyon</th>
+                          <th className="py-2 pr-4 font-semibold">Durum</th>
+                          <th className="py-2 pr-4 font-semibold">Masa</th>
+                          <th className="py-2 pr-4 font-semibold">Tarih</th>
+                          <th className="py-2 pr-4 font-semibold text-right">Adet</th>
+                          <th className="py-2 font-semibold text-right">Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productOrders.map((order, idx) => (
+                          <tr
+                            key={`${order.status}-${order.adsno}-${order.adtur}-${idx}`}
+                            className="border-b border-slate-50 hover:bg-indigo-50/50 cursor-pointer"
+                            onClick={() => openOrderDetail(order)}
+                          >
+                            <td className="py-2.5 pr-4 font-bold text-slate-900">#{order.adsno}</td>
+                            <td className="py-2.5 pr-4">
+                              <span className={clsx(
+                                'text-xs font-bold px-2 py-0.5 rounded-md',
+                                order.status === 'open' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700',
+                              )}>
+                                {order.status === 'open' ? 'Açık' : 'Kapalı'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 pr-4 text-slate-700">{order.masano || '-'}</td>
+                            <td className="py-2.5 pr-4 text-slate-600">
+                              {order.tarih || '-'}{order.saat ? ` ${String(order.saat).slice(0, 5)}` : ''}
+                            </td>
+                            <td className="py-2.5 pr-4 text-right">{order.quantity}</td>
+                            <td className="py-2.5 text-right font-bold">{formatCurrency(Number(order.total || 0))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="space-y-3">
-              <div className="bg-white rounded-3xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="font-bold text-gray-900">Gruplar</div>
-                  <div className="text-sm text-gray-500">{groupAgg.length} grup</div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg.slice(0, 6)).map((g, i) => (
-                    <div key={g.id} className="border rounded-xl p-3">
-                      <div className="text-sm font-semibold text-gray-800">{g.name || 'Diğer'}</div>
-                      <div className="text-xs text-gray-500">{g.qty} adet</div>
-                      <div className="text-sm font-bold text-gray-900">{formatCurrency(g.total)}</div>
-                      <div className="mt-1 h-1.5 bg-gray-200 rounded">
-                        <div
-                          className="h-1.5 bg-indigo-600 rounded"
-                          style={{ width: `${totalSales > 0 ? Math.min(100, (g.total / totalSales) * 100) : 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900">Ürünler</h2>
+                <span className="text-sm text-slate-500">{sortedData.length} kayıt</span>
               </div>
-              {sortedData.map((item: any, index: number) => (
-                <div key={index} className="bg-white rounded-3xl p-5 shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3
-                        className="font-bold text-gray-900 cursor-pointer hover:text-indigo-700"
+
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr className="text-left">
+                      <th className="px-4 py-3 font-semibold w-12">#</th>
+                      <th className="px-4 py-3 font-semibold">Ürün</th>
+                      <th className="px-4 py-3 font-semibold">Grup</th>
+                      <th className="px-4 py-3 font-semibold">PLU</th>
+                      <th className="px-4 py-3 font-semibold text-right">Adet</th>
+                      <th className="px-4 py-3 font-semibold text-right">Tutar</th>
+                      <th className="px-4 py-3 font-semibold text-right">Tutar %</th>
+                      <th className="px-4 py-3 font-semibold text-right">Adet %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedData.map((item: any, index: number) => (
+                      <tr
+                        key={`${item.plu}-${index}`}
+                        className="border-t border-slate-100 hover:bg-indigo-50/40 cursor-pointer"
                         onClick={() => {
                           setSelectedPlu(item.plu ?? null);
                           setSelectedProductName(item.product_name || '');
                         }}
-                        title={item.plu ? `PLU ${item.plu} adisyonlarını listele` : undefined}
                       >
-                        {item.product_name}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {asNumber(item.quantity)} {t('pieces')} • Tutar % {(totalSales > 0 ? ((asNumber(item.total) / totalSales) * 100) : 0).toFixed(1)} • Adet % {(totalQty > 0 ? ((asNumber(item.quantity) / totalQty) * 100) : 0).toFixed(1)}
-                      </p>
-                      <div className="mt-2 h-2 bg-gray-200 rounded">
-                        <div
-                          className="h-2 bg-indigo-600 rounded"
-                          style={{ width: `${totalSales > 0 ? Math.min(100, (asNumber(item.total) / totalSales) * 100) : 0}%` }}
-                        />
+                        <td className="px-4 py-3 text-slate-400 font-medium">{index + 1}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{item.product_name}</td>
+                        <td className="px-4 py-3 text-slate-600">{item.group_name || '-'}</td>
+                        <td className="px-4 py-3 text-slate-500">{item.plu ?? '-'}</td>
+                        <td className="px-4 py-3 text-right font-medium">{asNumber(item.quantity)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(asNumber(item.total))}</td>
+                        <td className="px-4 py-3 text-right text-slate-600">
+                          {(totalSales > 0 ? (asNumber(item.total) / totalSales) * 100 : 0).toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-600">
+                          {(totalQty > 0 ? (asNumber(item.quantity) / totalQty) * 100 : 0).toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="lg:hidden divide-y divide-slate-100">
+                {sortedData.map((item: any, index: number) => (
+                  <button
+                    key={`${item.plu}-${index}`}
+                    type="button"
+                    className="w-full text-left px-4 py-4 hover:bg-slate-50"
+                    onClick={() => {
+                      setSelectedPlu(item.plu ?? null);
+                      setSelectedProductName(item.product_name || '');
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-slate-900 truncate">{item.product_name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {asNumber(item.quantity)} adet · {item.group_name || 'Grup yok'}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-slate-900">{formatCurrency(asNumber(item.total))}</div>
+                        <div className="text-[11px] text-slate-400">
+                          %{(totalSales > 0 ? (asNumber(item.total) / totalSales) * 100 : 0).toFixed(1)}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">{formatCurrency(asNumber(item.total))}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
           </>
         )}

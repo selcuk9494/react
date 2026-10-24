@@ -79,14 +79,18 @@ export class UsersService {
     // But if you want to be explicit, we can return a full list here.
     // However, keeping it NULL in DB is better for future updates (new reports automatically allowed).
 
-    // Fetch assigned branches
+    // Fetch assigned branches (+ branch_kasas — rapor filtresi icin)
     await this.db.ensureUserBranchAssignmentsSchema();
     const branchesRes = await pool.query(
-      `SELECT b.*
+      `SELECT b.*,
+              COALESCE(array_agg(k.kasa_no ORDER BY k.kasa_no)
+                FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
        FROM branches b
        JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       LEFT JOIN branch_kasas k ON k.branch_id = b.id
        WHERE uba.user_id = $1
-       ORDER BY uba.created_at ASC, b.id ASC`,
+       GROUP BY b.id
+       ORDER BY MIN(uba.created_at) ASC, b.id ASC`,
       [user.id],
     );
     user.branches = branchesRes.rows;
@@ -123,11 +127,15 @@ export class UsersService {
     const idx = Math.max(0, Number(user.selected_branch) || 0);
     await this.db.ensureUserBranchAssignmentsSchema();
     const branchesRes = await pool.query(
-      `SELECT b.*
+      `SELECT b.*,
+              COALESCE(array_agg(k.kasa_no ORDER BY k.kasa_no)
+                FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
        FROM branches b
        JOIN user_branch_assignments uba ON uba.branch_id = b.id
+       LEFT JOIN branch_kasas k ON k.branch_id = b.id
        WHERE uba.user_id = $1
-       ORDER BY uba.created_at ASC, b.id ASC
+       GROUP BY b.id
+       ORDER BY MIN(uba.created_at) ASC, b.id ASC
        OFFSET $2 LIMIT 1`,
       [user.id, idx],
     );

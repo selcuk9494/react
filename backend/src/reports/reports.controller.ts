@@ -520,6 +520,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('reports/kasas')
+  async getBranchKasas(@Request() req) {
+    return this.reportsService.getBranchKasaList(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/product-groups')
   async getProductGroups(@Request() req) {
     return this.reportsService.getProductGroups(req.user);
