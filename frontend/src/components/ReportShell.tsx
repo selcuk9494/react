@@ -21,7 +21,7 @@ export default function ReportShell({
         'w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 space-y-5',
         className,
       )}
-      style={{ paddingTop: 'calc(140px + env(safe-area-inset-top))' }}
+      style={{ paddingTop: 'calc(158px + env(safe-area-inset-top))' }}
     >
       {children}
     </main>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, Pencil, X } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, ChevronDown, Pencil, X } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { useI18n } from '@/contexts/I18nContext';
@@ -44,9 +44,10 @@ export default function ReportHeader({
   kasaOptions = [],
 }: ReportHeaderProps) {
   const { t, lang } = useI18n();
-  const { token, user } = useAuth();
+  const { token, user, selectBranch } = useAuth();
   const router = useRouter();
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
   const [showKasaNameModal, setShowKasaNameModal] = useState(false);
   const [apiKasaList, setApiKasaList] = useState<KasaEntry[]>([]);
   const [draftKasaNames, setDraftKasaNames] = useState<Record<number, string>>({});
@@ -158,11 +159,31 @@ export default function ReportHeader({
     }
   };
 
+  const branches = Array.isArray(user?.branches) ? user.branches : [];
+  const selectedBranchIndex =
+    typeof user?.selected_branch === 'number' ? user.selected_branch : 0;
+  const currentBranchName =
+    branches[selectedBranchIndex]?.name ||
+    branches.find((b: any) => String(b?.id) === String(user?.selected_branch_id))
+      ?.name ||
+    (lang === 'tr' ? 'Şube seç' : 'Select branch');
+
+  const handleSelectBranch = async (index: number) => {
+    if (index === selectedBranchIndex) {
+      setShowBranchModal(false);
+      return;
+    }
+    setShowBranchModal(false);
+    setKasaNo?.('');
+    setApiKasaList([]);
+    await selectBranch(index);
+  };
+
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-7xl mx-auto">
-        {/* Title Row with Back Button */}
+        {/* Title Row with Back Button + branch switcher */}
         <div className="flex items-center gap-2 px-4 sm:px-6 lg:px-8 py-3">
           <button 
             onClick={() => router.back()}
@@ -172,7 +193,21 @@ export default function ReportHeader({
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate flex-1">{title}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">{title}</h1>
+            {branches.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBranchModal(true)}
+                className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-md text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 px-1 -ml-1 py-0.5"
+                title={t('branch_selection')}
+              >
+                <Building2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{currentBranchName}</span>
+                <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-70" />
+              </button>
+            )}
+          </div>
           {actions && (
             <div className="flex-shrink-0 flex items-center gap-2">
               {actions}
@@ -312,6 +347,50 @@ export default function ReportHeader({
         </div>
         </div>
       </header>
+
+      {showBranchModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setShowBranchModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">{t('branch_selection')}</h3>
+              <button
+                type="button"
+                onClick={() => setShowBranchModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 max-h-80 overflow-y-auto">
+              {branches.map((branch: any, index: number) => {
+                const active = selectedBranchIndex === index;
+                return (
+                  <button
+                    key={branch?.id ?? index}
+                    type="button"
+                    onClick={() => void handleSelectBranch(index)}
+                    className={clsx(
+                      'w-full text-left px-4 py-3 rounded-xl mb-1 flex items-center justify-between transition',
+                      active
+                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                        : 'text-gray-700 hover:bg-gray-50',
+                    )}
+                  >
+                    <span className="font-medium truncate">{branch?.name || `Şube ${index + 1}`}</span>
+                    {active && <div className="w-2 h-2 bg-indigo-600 rounded-full shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom Date Modal */}
       {showCustomDateModal && (
