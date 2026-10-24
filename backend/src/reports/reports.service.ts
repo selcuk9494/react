@@ -3779,6 +3779,7 @@ export class ReportsService {
     groupId?: number,
     groupIds?: number[],
     plu?: number,
+    byKasa = false,
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(
@@ -3901,6 +3902,7 @@ export class ReportsService {
           'c-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
+          a.kasa as kasa,
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
@@ -3918,6 +3920,7 @@ export class ReportsService {
           'o-' || a.ctid::text as line_id,
           COALESCE(a.adsno, 0) as adsno,
           COALESCE(a.adtur, 0) as adtur,
+          a.kasa as kasa,
           a.pluid,
           COALESCE(a.miktar, 0) as miktar,
           COALESCE(a.tutar, 0) as tutar,
@@ -3936,6 +3939,7 @@ export class ReportsService {
           s.line_id,
           s.adsno,
           s.adtur,
+          s.kasa,
           s.pluid,
           s.miktar,
           s.tutar,
@@ -3970,6 +3974,21 @@ export class ReportsService {
           ${fold.adjCase} as adj_tutar
         ${fold.adjFrom}
       )
+      ${
+        byKasa
+          ? `
+      SELECT
+          l.kasa as kasa,
+          COALESCE(SUM(l.miktar), 0) as quantity,
+          COALESCE(SUM(l.adj_tutar), 0) as total,
+          COUNT(DISTINCT COALESCE(l.p_plu, l.pluid)) as products
+      FROM adjusted l
+      WHERE NOT COALESCE(l.is_menu, false)
+        ${extraFilter}
+      GROUP BY l.kasa
+      ORDER BY total DESC
+          `
+          : `
       SELECT
           MAX(product_name) as product_name,
           COALESCE(p_plu, pluid) as plu,
@@ -3982,6 +4001,8 @@ export class ReportsService {
         ${extraFilter}
       GROUP BY COALESCE(p_plu, pluid)
       ORDER BY total DESC
+          `
+      }
     `;
 
     const rows = await this.db.executeQuery(pool, query, params);

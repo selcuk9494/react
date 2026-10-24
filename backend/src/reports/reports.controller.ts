@@ -465,11 +465,14 @@ export class ReportsController {
     @Query('group_ids') groupIds?: string,
     @Query('plu') plu?: number,
     @Query('kasa_no') kasaNo?: string,
+    @Query('by_kasa') byKasa?: string,
   ) {
     const ids = (groupIds || '')
       .split(',')
       .map((n) => parseInt(n))
       .filter((n) => !isNaN(n));
+    const groupByKasa =
+      byKasa === '1' || byKasa === 'true' || byKasa === 'yes';
     return this.reportsService.getProductSales(this.withKasa(req.user, kasaNo),
       period,
       startDate,
@@ -477,6 +480,7 @@ export class ReportsController {
       groupId,
       ids.length ? ids : undefined,
       typeof plu !== 'undefined' ? Number(plu) : undefined,
+      groupByKasa,
     );
   }
 

@@ -12,6 +12,7 @@ import {
   getBranchKasaEntries,
   formatKasaLabel,
   getBusinessColor,
+  getKasaColor,
   readStoredBusinessId,
   persistBusinessId,
   type KasaEntry,
@@ -234,44 +235,52 @@ function ProductSalesContent() {
       window.removeEventListener('fr-kasa-names-updated', onNames as EventListener);
   }, []);
 
-  // Tum kasalar seciliyken her kasanin ozetini ayni sayfada goster
+  // Tum kasalar seciliyken tek istekte kasa ozetlerini al
   useEffect(() => {
-    if (!token || kasaNo || breakdownKasaOptions.length < 1 || allKasaOptions.length < 2) {
+    if (!token || kasaNo || breakdownKasaOptions.length < 2) {
       setKasaBreakdown([]);
+      setKasaBreakdownLoading(false);
       return;
     }
-    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
+    if (period === 'custom' && (!customStartDate || !customEndDate)) {
+      setKasaBreakdownLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setKasaBreakdownLoading(true);
       try {
-        const rows = await Promise.all(
-          breakdownKasaOptions.map(async (kasa) => {
-            const params = new URLSearchParams({ period, kasa_no: String(kasa) });
-            if (period === 'custom') {
-              params.set('start_date', customStartDate);
-              params.set('end_date', customEndDate);
-            }
-            // Kasa özeti: seçili işletmenin grup filtresi varsa uygula
-            if (effectiveGroupIds.length) {
-              params.set('group_ids', effectiveGroupIds.join(','));
-            }
-            const res = await axios.get(
-              `${getApiUrl()}/reports/product-sales?${params.toString()}`,
-              { headers: { Authorization: `Bearer ${token}` } },
-            );
-            const items = Array.isArray(res.data) ? res.data : [];
-            const total = items.reduce(
-              (a: number, it: any) => a + (Number(it.total) || 0),
-              0,
-            );
-            const qty = items.reduce(
-              (a: number, it: any) => a + (Number(it.quantity) || 0),
-              0,
-            );
-            return { kasa, total, qty, products: items.length };
-          }),
+        const params = new URLSearchParams({ period, by_kasa: '1' });
+        if (period === 'custom') {
+          params.set('start_date', customStartDate);
+          params.set('end_date', customEndDate);
+        }
+        if (effectiveGroupIds.length) {
+          params.set('group_ids', effectiveGroupIds.join(','));
+        }
+        const res = await axios.get(
+          `${getApiUrl()}/reports/product-sales?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } },
         );
+        const byKasa = new Map<number, { total: number; qty: number; products: number }>();
+        for (const it of Array.isArray(res.data) ? res.data : []) {
+          const kasa = Number(it?.kasa);
+          if (!Number.isFinite(kasa) || kasa <= 0) continue;
+          byKasa.set(kasa, {
+            total: Number(it.total) || 0,
+            qty: Number(it.quantity) || 0,
+            products: Number(it.products) || 0,
+          });
+        }
+        const rows = breakdownKasaOptions.map((kasa) => {
+          const row = byKasa.get(kasa);
+          return {
+            kasa,
+            total: row?.total ?? 0,
+            qty: row?.qty ?? 0,
+            products: row?.products ?? 0,
+          };
+        });
         if (!cancelled) setKasaBreakdown(rows);
       } catch {
         if (!cancelled) setKasaBreakdown([]);
@@ -974,23 +983,36 @@ function ProductSalesContent() {
                   ? breakdownKasaOptions.map((k) => (
                       <div key={k} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
                     ))
-                  : kasaBreakdown.map((row) => (
+                  : kasaBreakdown.map((row) => {
+                      const color = getKasaColor(row.kasa);
+                      return (
                       <button
                         key={row.kasa}
                         type="button"
                         onClick={() => setKasaNo(String(row.kasa))}
-                        className="text-left bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-emerald-400 hover:shadow-md transition"
+                        className={clsx(
+                          'text-left rounded-2xl border p-5 shadow-sm hover:shadow-md transition',
+                          color.bg,
+                          color.border,
+                        )}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                          <span className={clsx('text-xs font-bold px-2 py-0.5 rounded-md border', color.tag)}>
                             {formatKasaLabel(row.kasa, kasaEntries)}
                           </span>
-                          <span className="text-[11px] text-slate-400">{row.products} ürün</span>
+                          <span className={clsx('text-[11px]', color.text, 'opacity-70')}>
+                            {row.products} ürün
+                          </span>
                         </div>
-                        <p className="text-xl font-black text-slate-900">{formatCurrency(row.total)}</p>
-                        <p className="text-xs text-slate-500 mt-1">{row.qty} adet</p>
+                        <p className={clsx('text-xl font-black', color.text)}>
+                          {formatCurrency(row.total)}
+                        </p>
+                        <p className={clsx('text-xs mt-1 opacity-70', color.text)}>
+                          {row.qty} adet
+                        </p>
                       </button>
-                    ))
+                      );
+                    })
               )}
             </div>
 
