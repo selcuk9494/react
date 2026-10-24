@@ -3907,9 +3907,10 @@ export class ReportsService {
       params.push(exclusiveIds);
       const exclusiveParam = params.length;
       // Menü satirlari da companion: tip eslesmesi yeterli (tutar 0 olsa bile)
+      // Paket/fişlerde kasa NULL olabiliyor — IS NOT DISTINCT FROM gerekli
       const ticketMatch = `c.adsno = l.adsno
-              AND c.adtur = l.adtur
-              AND c.kasa = l.kasa`;
+              AND c.adtur IS NOT DISTINCT FROM l.adtur
+              AND c.kasa IS NOT DISTINCT FROM l.kasa`;
       const lineWeight = `CASE
             WHEN COALESCE(c.adj_tutar, 0) <> 0 THEN ABS(c.adj_tutar)
             WHEN COALESCE(c.tutar, 0) <> 0 THEN ABS(c.tutar)
