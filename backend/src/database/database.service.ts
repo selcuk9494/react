@@ -140,8 +140,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         CREATE TABLE IF NOT EXISTS branch_kasas (
           id SERIAL PRIMARY KEY,
           branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
-          kasa_no INTEGER NOT NULL
+          kasa_no INTEGER NOT NULL,
+          kasa_name VARCHAR(100)
         );
+      `);
+      await client.query(`
+        ALTER TABLE branch_kasas
+        ADD COLUMN IF NOT EXISTS kasa_name VARCHAR(100)
       `);
       await this.ensureUserBranchAssignmentsSchema(client);
       await client.query(`

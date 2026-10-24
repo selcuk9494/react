@@ -6,7 +6,13 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Package, Layers, ArrowUpDown, ReceiptText, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
-import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
+import {
+  useSharedReportFilters,
+  getBranchKasaOptions,
+  getBranchKasaEntries,
+  formatKasaLabel,
+  type KasaEntry,
+} from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
 import AutoFitText from '@/components/AutoFitText';
@@ -23,6 +29,7 @@ function ProductSalesContent() {
   const [groups, setGroups] = useState<any[]>([]);
   const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
   const kasaOptions = getBranchKasaOptions(user);
+  const userKasaEntries = getBranchKasaEntries(user);
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [selectedPlu, setSelectedPlu] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState('');
@@ -31,17 +38,31 @@ function ProductSalesContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
-  const [apiKasas, setApiKasas] = useState<number[]>([]);
+  const [apiKasaList, setApiKasaList] = useState<KasaEntry[]>([]);
   const [kasaBreakdown, setKasaBreakdown] = useState<
     { kasa: number; total: number; qty: number; products: number }[]
   >([]);
   const [kasaBreakdownLoading, setKasaBreakdownLoading] = useState(false);
 
-  const allKasaOptions = useMemo(() => {
-    return Array.from(new Set([...(kasaOptions || []), ...apiKasas])).sort(
-      (a, b) => a - b,
-    );
-  }, [kasaOptions, apiKasas]);
+  const kasaEntries = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const e of [...userKasaEntries, ...apiKasaList]) {
+      if (!map.has(e.kasa_no) || e.name) {
+        map.set(e.kasa_no, e.name || map.get(e.kasa_no) || '');
+      }
+    }
+    for (const n of kasaOptions || []) {
+      if (!map.has(n)) map.set(n, '');
+    }
+    return Array.from(map.entries())
+      .map(([kasa_no, name]) => ({ kasa_no, name }))
+      .sort((a, b) => a.kasa_no - b.kasa_no);
+  }, [userKasaEntries, apiKasaList, kasaOptions]);
+
+  const allKasaOptions = useMemo(
+    () => kasaEntries.map((e) => e.kasa_no),
+    [kasaEntries],
+  );
 
   const additionalParams = useMemo(() => {
     const params: any = {};
@@ -68,14 +89,30 @@ function ProductSalesContent() {
         const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        const fromList = Array.isArray(res.data?.kasa_list)
+          ? res.data.kasa_list
+              .map((item: any) => ({
+                kasa_no: Number(item?.kasa_no),
+                name:
+                  item?.name != null && String(item.name).trim()
+                    ? String(item.name).trim()
+                    : '',
+              }))
+              .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0)
+          : [];
+        if (fromList.length > 0) {
+          if (!cancelled) setApiKasaList(fromList);
+          return;
+        }
         const list = Array.isArray(res.data?.kasas)
           ? res.data.kasas
               .map((n: any) => Number(n))
               .filter((n: number) => Number.isFinite(n) && n > 0)
+              .map((kasa_no: number) => ({ kasa_no, name: '' }))
           : [];
-        if (!cancelled) setApiKasas(list);
+        if (!cancelled) setApiKasaList(list);
       } catch {
-        if (!cancelled) setApiKasas([]);
+        if (!cancelled) setApiKasaList([]);
       }
     })();
     return () => {
@@ -375,7 +412,10 @@ function ProductSalesContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <div className="sm:col-span-2 xl:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
                 <p className="text-slate-300 text-xs font-semibold uppercase tracking-wide mb-2">
-                  {kasaNo ? `Kasa ${kasaNo}` : 'Tüm Kasalar'} · {t('total_sales')}
+                  {kasaNo
+                    ? formatKasaLabel(kasaNo, kasaEntries)
+                    : 'Tüm Kasalar'}{' '}
+                  · {t('total_sales')}
                 </p>
                 <AutoFitText
                   text={formatCurrency(totalSales)}
@@ -402,7 +442,7 @@ function ProductSalesContent() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                            Kasa {row.kasa}
+                            {formatKasaLabel(row.kasa, kasaEntries)}
                           </span>
                           <span className="text-[11px] text-slate-400">{row.products} ürün</span>
                         </div>

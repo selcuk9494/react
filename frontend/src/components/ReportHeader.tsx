@@ -8,6 +8,11 @@ import axios from 'axios';
 import { useI18n } from '@/contexts/I18nContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/utils/api';
+import {
+  formatKasaLabel,
+  getBranchKasaEntries,
+  type KasaEntry,
+} from '@/utils/reportFilters';
 
 interface ReportHeaderProps {
   title: string;
@@ -41,9 +46,10 @@ export default function ReportHeader({
   const { token, user } = useAuth();
   const router = useRouter();
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
-  const [apiKasas, setApiKasas] = useState<number[]>([]);
+  const [apiKasaList, setApiKasaList] = useState<KasaEntry[]>([]);
+  const userKasaEntries = useMemo(() => getBranchKasaEntries(user), [user]);
 
-  // branch_kasas tablosundan guncel kasa listesi (user.branches bazen sadece kasa_no tasir)
+  // branch_kasas tablosundan guncel kasa listesi (+ isimler)
   useEffect(() => {
     if (!token || !setKasaNo) return;
     let cancelled = false;
@@ -52,12 +58,30 @@ export default function ReportHeader({
         const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const list = Array.isArray(res.data?.kasas)
-          ? res.data.kasas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
+        const fromList = Array.isArray(res.data?.kasa_list)
+          ? res.data.kasa_list
+              .map((item: any) => ({
+                kasa_no: Number(item?.kasa_no),
+                name:
+                  item?.name != null && String(item.name).trim()
+                    ? String(item.name).trim()
+                    : '',
+              }))
+              .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0)
           : [];
-        if (!cancelled) setApiKasas(list);
+        if (fromList.length > 0) {
+          if (!cancelled) setApiKasaList(fromList);
+          return;
+        }
+        const list = Array.isArray(res.data?.kasas)
+          ? res.data.kasas
+              .map((n: any) => Number(n))
+              .filter((n: number) => Number.isFinite(n) && n > 0)
+              .map((kasa_no: number) => ({ kasa_no, name: '' }))
+          : [];
+        if (!cancelled) setApiKasaList(list);
       } catch {
-        if (!cancelled) setApiKasas([]);
+        if (!cancelled) setApiKasaList([]);
       }
     })();
     return () => {
@@ -65,10 +89,24 @@ export default function ReportHeader({
     };
   }, [token, setKasaNo, user?.selected_branch, user?.selected_branch_id]);
 
-  const resolvedKasaOptions = useMemo(() => {
-    const merged = Array.from(new Set([...(kasaOptions || []), ...apiKasas]));
-    return merged.sort((a, b) => a - b);
-  }, [kasaOptions, apiKasas]);
+  const resolvedKasaEntries = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const e of [...userKasaEntries, ...apiKasaList]) {
+      if (!map.has(e.kasa_no) || e.name) map.set(e.kasa_no, e.name || map.get(e.kasa_no) || '');
+    }
+    for (const n of kasaOptions || []) {
+      const no = Number(n);
+      if (Number.isFinite(no) && no > 0 && !map.has(no)) map.set(no, '');
+    }
+    return Array.from(map.entries())
+      .map(([kasa_no, name]) => ({ kasa_no, name }))
+      .sort((a, b) => a.kasa_no - b.kasa_no);
+  }, [userKasaEntries, apiKasaList, kasaOptions]);
+
+  const resolvedKasaOptions = useMemo(
+    () => resolvedKasaEntries.map((e) => e.kasa_no),
+    [resolvedKasaEntries],
+  );
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,19 +233,20 @@ export default function ReportHeader({
                 >
                   {lang === 'tr' ? 'Tüm Kasalar' : 'All'}
                 </button>
-                {resolvedKasaOptions.map((n) => (
+                {resolvedKasaEntries.map((e) => (
                   <button
-                    key={n}
+                    key={e.kasa_no}
                     type="button"
-                    onClick={() => setKasaNo(String(n))}
+                    title={`Kasa ${e.kasa_no}`}
+                    onClick={() => setKasaNo(String(e.kasa_no))}
                     className={clsx(
                       'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
-                      String(kasaNo) === String(n)
+                      String(kasaNo) === String(e.kasa_no)
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300',
                     )}
                   >
-                    Kasa {n}
+                    {formatKasaLabel(e.kasa_no, resolvedKasaEntries)}
                   </button>
                 ))}
               </div>

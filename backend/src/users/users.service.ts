@@ -83,6 +83,16 @@ export class UsersService {
     await this.db.ensureUserBranchAssignmentsSchema();
     const branchesRes = await pool.query(
       `SELECT b.*,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'kasa_no', k.kasa_no,
+                    'name', NULLIF(BTRIM(k.kasa_name), '')
+                  )
+                  ORDER BY k.kasa_no
+                ) FILTER (WHERE k.kasa_no IS NOT NULL),
+                '[]'::json
+              ) AS kasa_list,
               COALESCE(array_agg(k.kasa_no ORDER BY k.kasa_no)
                 FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
        FROM branches b
@@ -128,6 +138,16 @@ export class UsersService {
     await this.db.ensureUserBranchAssignmentsSchema();
     const branchesRes = await pool.query(
       `SELECT b.*,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'kasa_no', k.kasa_no,
+                    'name', NULLIF(BTRIM(k.kasa_name), '')
+                  )
+                  ORDER BY k.kasa_no
+                ) FILTER (WHERE k.kasa_no IS NOT NULL),
+                '[]'::json
+              ) AS kasa_list,
               COALESCE(array_agg(k.kasa_no ORDER BY k.kasa_no)
                 FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
        FROM branches b

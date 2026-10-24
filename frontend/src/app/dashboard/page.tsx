@@ -167,9 +167,12 @@ export default function Dashboard() {
     db_user: 'begum',
     db_password: 'KORDO',
     kasa_no: 1,
-    kasalar: [] as number[],
+    kasa_name: '',
+    kasalar: [] as { kasa_no: number; name: string }[],
     closing_hour: 6,
   });
+  const [extraKasaNo, setExtraKasaNo] = useState('');
+  const [extraKasaName, setExtraKasaName] = useState('');
 
   // Helper Functions from reference
   const formatTime = (timeString: string) => {
@@ -431,14 +434,27 @@ export default function Dashboard() {
   const handleSaveBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+        const payload = {
+          ...branchForm,
+          kasa_name: branchForm.kasa_name?.trim() || null,
+          kasalar: [
+            {
+              kasa_no: Number(branchForm.kasa_no) || 1,
+              name: branchForm.kasa_name?.trim() || null,
+            },
+            ...branchForm.kasalar.map((k) => ({
+              kasa_no: Number(k.kasa_no),
+              name: k.name?.trim() || null,
+            })),
+          ],
+          kasa_list: undefined,
+        };
         if (editingBranch && editingBranch.id) {
-            // Update
-            await axios.put(`${getApiUrl()}/branches/${editingBranch.id}`, branchForm, {
+            await axios.put(`${getApiUrl()}/branches/${editingBranch.id}`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
         } else {
-            // Create
-            await axios.post(`${getApiUrl()}/branches`, branchForm, {
+            await axios.post(`${getApiUrl()}/branches`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
         }
@@ -1606,6 +1622,34 @@ export default function Dashboard() {
                                     <button 
                                         onClick={() => {
                                             setEditingBranch(branch);
+                                            const primary = Number(branch.kasa_no) || 1;
+                                            let listRaw: any = branch.kasa_list;
+                                            if (typeof listRaw === 'string') {
+                                              try { listRaw = JSON.parse(listRaw); } catch { listRaw = []; }
+                                            }
+                                            const entries: { kasa_no: number; name: string }[] = [];
+                                            if (Array.isArray(listRaw) && listRaw.length > 0) {
+                                              for (const item of listRaw) {
+                                                const no = Number(item?.kasa_no ?? item);
+                                                if (!Number.isFinite(no) || no <= 0) continue;
+                                                const nm =
+                                                  item != null && typeof item === 'object' && item.name
+                                                    ? String(item.name).trim()
+                                                    : '';
+                                                entries.push({ kasa_no: no, name: nm });
+                                              }
+                                            } else {
+                                              for (const k of branch.kasalar || []) {
+                                                const no = Number(k);
+                                                if (Number.isFinite(no) && no > 0) {
+                                                  entries.push({ kasa_no: no, name: '' });
+                                                }
+                                              }
+                                            }
+                                            if (!entries.some((e) => e.kasa_no === primary)) {
+                                              entries.unshift({ kasa_no: primary, name: '' });
+                                            }
+                                            const primaryEntry = entries.find((e) => e.kasa_no === primary);
                                             setBranchForm({
                                                 name: branch.name,
                                                 db_host: branch.db_host,
@@ -1613,14 +1657,17 @@ export default function Dashboard() {
                                                 db_name: branch.db_name,
                                                 db_user: branch.db_user,
                                                 db_password: branch.db_password,
-                                                kasa_no: branch.kasa_no,
-                                                kasalar: (branch.kasalar || []).filter((k: any) => typeof k === 'number'),
+                                                kasa_no: primary,
+                                                kasa_name: primaryEntry?.name || '',
+                                                kasalar: entries.filter((e) => e.kasa_no !== primary),
                                                 closing_hour:
                                                   typeof branch.closing_hour === 'number' &&
                                                   Number.isFinite(branch.closing_hour)
                                                     ? branch.closing_hour
                                                     : 6,
                                             });
+                                            setExtraKasaNo('');
+                                            setExtraKasaName('');
                                         }}
                                         className="p-2 bg-white border border-gray-200 rounded-lg text-indigo-600 hover:bg-indigo-50 transition"
                                     >
@@ -1646,9 +1693,12 @@ export default function Dashboard() {
                                         db_user: 'begum',
                                         db_password: 'KORDO',
                                         kasa_no: 1,
+                                        kasa_name: '',
                                         kasalar: [],
                                         closing_hour: 6,
                                     });
+                                    setExtraKasaNo('');
+                                    setExtraKasaName('');
                                 }}
                                 className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold"
                             >
@@ -1719,6 +1769,24 @@ export default function Dashboard() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Ana Kasa Adı
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                              placeholder="Örn: Salon, Paket, Drive"
+                              maxLength={100}
+                              value={branchForm.kasa_name}
+                              onChange={(e) =>
+                                setBranchForm({
+                                  ...branchForm,
+                                  kasa_name: e.target.value,
+                                })
+                              }
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                               Kapanış Saati (Saat)
                             </label>
                             <input
@@ -1736,60 +1804,99 @@ export default function Dashboard() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Ek Kasa Numaraları</label>
-                            <div className="flex items-center gap-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Ek Kasalar</label>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <input
+                                    type="number"
+                                    className="w-full sm:w-24 border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                                    placeholder="No"
+                                    min={1}
+                                    value={extraKasaNo}
+                                    onChange={(e) => setExtraKasaNo(e.target.value)}
+                                />
                                 <input
                                     type="text"
                                     className="flex-1 border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                                    placeholder="Örn: 2,3,4"
-                                    id="extra-kasa-input"
+                                    placeholder="Kasa adı (örn: Bahçe)"
+                                    maxLength={100}
+                                    value={extraKasaName}
+                                    onChange={(e) => setExtraKasaName(e.target.value)}
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            const input = e.currentTarget;
-                                            const values = input.value.split(',')
-                                                .map(v => parseInt(v.trim()))
-                                                .filter(v => !isNaN(v));
-                                            if (values.length > 0) {
-                                                const merged = Array.from(new Set([...branchForm.kasalar, ...values]));
-                                                setBranchForm({ ...branchForm, kasalar: merged });
-                                                input.value = '';
-                                            }
-                                        }
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const no = parseInt(extraKasaNo, 10);
+                                        if (!Number.isFinite(no) || no <= 0) return;
+                                        if (no === Number(branchForm.kasa_no)) return;
+                                        const name = extraKasaName.trim();
+                                        const without = branchForm.kasalar.filter((k) => k.kasa_no !== no);
+                                        setBranchForm({
+                                          ...branchForm,
+                                          kasalar: [...without, { kasa_no: no, name }].sort(
+                                            (a, b) => a.kasa_no - b.kasa_no,
+                                          ),
+                                        });
+                                        setExtraKasaNo('');
+                                        setExtraKasaName('');
+                                      }
                                     }}
                                 />
                                 <button
                                     type="button"
                                     className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
                                     onClick={() => {
-                                        const input = document.getElementById('extra-kasa-input') as HTMLInputElement | null;
-                                        if (!input) return;
-                                        const values = input.value.split(',')
-                                            .map(v => parseInt(v.trim()))
-                                            .filter(v => !isNaN(v));
-                                        if (values.length > 0) {
-                                            const merged = Array.from(new Set([...branchForm.kasalar, ...values]));
-                                            setBranchForm({ ...branchForm, kasalar: merged });
-                                            input.value = '';
-                                        }
+                                        const no = parseInt(extraKasaNo, 10);
+                                        if (!Number.isFinite(no) || no <= 0) return;
+                                        if (no === Number(branchForm.kasa_no)) return;
+                                        const name = extraKasaName.trim();
+                                        const without = branchForm.kasalar.filter((k) => k.kasa_no !== no);
+                                        setBranchForm({
+                                          ...branchForm,
+                                          kasalar: [...without, { kasa_no: no, name }].sort(
+                                            (a, b) => a.kasa_no - b.kasa_no,
+                                          ),
+                                        });
+                                        setExtraKasaNo('');
+                                        setExtraKasaName('');
                                     }}
                                 >
                                     Ekle
                                 </button>
                             </div>
                             {branchForm.kasalar.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-2">
+                                <div className="mt-2 space-y-2">
                                     {branchForm.kasalar.map((k, idx) => (
-                                        <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold">
-                                            Kasa {k}
+                                        <div
+                                          key={k.kasa_no}
+                                          className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-2 py-1.5"
+                                        >
+                                            <span className="text-xs font-bold text-indigo-700 shrink-0">
+                                              #{k.kasa_no}
+                                            </span>
+                                            <input
+                                              type="text"
+                                              className="flex-1 min-w-0 rounded-md border border-indigo-100 bg-white px-2 py-1 text-sm text-gray-900"
+                                              placeholder="Kasa adı"
+                                              maxLength={100}
+                                              value={k.name}
+                                              onChange={(e) => {
+                                                const next = [...branchForm.kasalar];
+                                                next[idx] = { ...next[idx], name: e.target.value };
+                                                setBranchForm({ ...branchForm, kasalar: next });
+                                              }}
+                                            />
                                             <button
                                                 type="button"
-                                                className="ml-1 text-indigo-500 hover:text-indigo-700"
-                                                onClick={() => setBranchForm({...branchForm, kasalar: branchForm.kasalar.filter((x, i) => i !== idx)})}
+                                                className="text-indigo-500 hover:text-indigo-700 text-sm font-bold px-1"
+                                                onClick={() =>
+                                                  setBranchForm({
+                                                    ...branchForm,
+                                                    kasalar: branchForm.kasalar.filter((_, i) => i !== idx),
+                                                  })
+                                                }
                                             >
                                                 ×
                                             </button>
-                                        </span>
+                                        </div>
                                     ))}
                                 </div>
                             )}

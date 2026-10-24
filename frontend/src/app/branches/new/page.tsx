@@ -25,10 +25,37 @@ export default function NewBranchPage() {
     db_user: 'begum',
     db_password: 'KORDO',
     kasa_no: '1',
+    kasa_name: '',
     closing_hour: '6',
   });
-  const [kasalar, setKasalar] = useState<number[]>([]);
+  const [kasalar, setKasalar] = useState<{ kasa_no: number; name: string }[]>([]);
+  const [extraKasaNo, setExtraKasaNo] = useState('');
+  const [extraKasaName, setExtraKasaName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const buildKasaPayload = () => {
+    const primary = parseInt(formData.kasa_no, 10) || 1;
+    return [
+      { kasa_no: primary, name: formData.kasa_name.trim() || null },
+      ...kasalar.map((k) => ({
+        kasa_no: k.kasa_no,
+        name: k.name.trim() || null,
+      })),
+    ];
+  };
+
+  const addExtraKasa = () => {
+    const no = parseInt(extraKasaNo, 10);
+    if (!Number.isFinite(no) || no <= 0) return;
+    if (no === (parseInt(formData.kasa_no, 10) || 1)) return;
+    const name = extraKasaName.trim();
+    const without = kasalar.filter((k) => k.kasa_no !== no);
+    setKasalar(
+      [...without, { kasa_no: no, name }].sort((a, b) => a.kasa_no - b.kasa_no),
+    );
+    setExtraKasaNo('');
+    setExtraKasaName('');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -48,6 +75,38 @@ export default function NewBranchPage() {
         });
         const found = (res.data || []).find((b: any) => b.id === id);
         if (found) {
+          const primary = Number(found.kasa_no) || 1;
+          let listRaw: any = found.kasa_list;
+          if (typeof listRaw === 'string') {
+            try {
+              listRaw = JSON.parse(listRaw);
+            } catch {
+              listRaw = [];
+            }
+          }
+          const entries: { kasa_no: number; name: string }[] = [];
+          if (Array.isArray(listRaw) && listRaw.length > 0) {
+            for (const item of listRaw) {
+              const no = Number(item?.kasa_no ?? item);
+              if (!Number.isFinite(no) || no <= 0) continue;
+              const nm =
+                item != null && typeof item === 'object' && item.name
+                  ? String(item.name).trim()
+                  : '';
+              entries.push({ kasa_no: no, name: nm });
+            }
+          } else {
+            for (const k of found.kasalar || []) {
+              const no = Number(k);
+              if (Number.isFinite(no) && no > 0) {
+                entries.push({ kasa_no: no, name: '' });
+              }
+            }
+          }
+          if (!entries.some((e) => e.kasa_no === primary)) {
+            entries.unshift({ kasa_no: primary, name: '' });
+          }
+          const primaryEntry = entries.find((e) => e.kasa_no === primary);
           setFormData({
             name: found.name || '',
             db_host: found.db_host || '',
@@ -55,14 +114,15 @@ export default function NewBranchPage() {
             db_name: found.db_name || 'fasrest',
             db_user: found.db_user || 'begum',
             db_password: found.db_password || 'KORDO',
-            kasa_no: String(found.kasa_no || '1'),
+            kasa_no: String(primary),
+            kasa_name: primaryEntry?.name || '',
             closing_hour: String(
               typeof found.closing_hour === 'number' && !isNaN(found.closing_hour)
                 ? found.closing_hour
                 : 6,
             ),
           });
-          setKasalar((found.kasalar || []).filter((k: any) => typeof k === 'number'));
+          setKasalar(entries.filter((e) => e.kasa_no !== primary));
           if (found.connection_mode === 'agent' || String(found.db_host || '').startsWith('agent:')) {
             setMode('pair');
           }
@@ -84,8 +144,9 @@ export default function NewBranchPage() {
           code: pairCode.trim(),
           name: formData.name || undefined,
           kasa_no: parseInt(formData.kasa_no, 10) || 1,
+          kasa_name: formData.kasa_name.trim() || null,
           closing_hour: parseInt(formData.closing_hour || '6', 10),
-          kasalar,
+          kasalar: buildKasaPayload(),
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -110,8 +171,9 @@ export default function NewBranchPage() {
         ...formData,
         db_port: parseInt(formData.db_port),
         kasa_no: parseInt(formData.kasa_no),
+        kasa_name: formData.kasa_name.trim() || null,
         closing_hour: parseInt(formData.closing_hour || '6'),
-        kasalar,
+        kasalar: buildKasaPayload(),
       };
       if (editingId) {
         await axios.put(`${getApiUrl()}/branches/${editingId}`, payload, {
@@ -228,6 +290,18 @@ export default function NewBranchPage() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Kasa Adı</label>
+                <input
+                  type="text"
+                  name="kasa_name"
+                  maxLength={100}
+                  placeholder="Örn: Salon"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  value={formData.kasa_name}
+                  onChange={handleChange}
+                />
+              </div>
               {error && (
                 <div className="rounded-md bg-red-50 p-4">
                   <h3 className="text-sm font-medium text-red-800">{error}</h3>
@@ -322,65 +396,81 @@ export default function NewBranchPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Ek Kasa Numaraları</label>
-                <div className="flex items-center gap-2">
+                <label className="block text-sm font-medium text-gray-700">Ana Kasa Adı</label>
+                <input
+                  type="text"
+                  name="kasa_name"
+                  maxLength={100}
+                  placeholder="Örn: Salon, Paket"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  value={formData.kasa_name}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Ek Kasalar</label>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-full sm:w-24 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="No"
+                    value={extraKasaNo}
+                    onChange={(e) => setExtraKasaNo(e.target.value)}
+                  />
                   <input
                     type="text"
+                    maxLength={100}
                     className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="Örn: 2,3,4"
-                    id="extra-kasa-input-new"
+                    placeholder="Kasa adı"
+                    value={extraKasaName}
+                    onChange={(e) => setExtraKasaName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const input = e.currentTarget;
-                        const values = input.value
-                          .split(',')
-                          .map((v) => parseInt(v.trim()))
-                          .filter((v) => !isNaN(v));
-                        if (values.length > 0) {
-                          setKasalar(Array.from(new Set([...kasalar, ...values])));
-                          input.value = '';
-                        }
+                        addExtraKasa();
                       }
                     }}
                   />
                   <button
                     type="button"
                     className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
-                    onClick={() => {
-                      const input = document.getElementById(
-                        'extra-kasa-input-new',
-                      ) as HTMLInputElement | null;
-                      if (!input) return;
-                      const values = input.value
-                        .split(',')
-                        .map((v) => parseInt(v.trim()))
-                        .filter((v) => !isNaN(v));
-                      if (values.length > 0) {
-                        setKasalar(Array.from(new Set([...kasalar, ...values])));
-                        input.value = '';
-                      }
-                    }}
+                    onClick={addExtraKasa}
                   >
                     Ekle
                   </button>
                 </div>
                 {kasalar.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 space-y-2">
                     {kasalar.map((k, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold"
+                      <div
+                        key={k.kasa_no}
+                        className="flex items-center gap-2 rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-1.5"
                       >
-                        Kasa {k}
+                        <span className="text-xs font-bold text-indigo-700 shrink-0">
+                          #{k.kasa_no}
+                        </span>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          className="flex-1 min-w-0 rounded border border-indigo-100 bg-white px-2 py-1 text-sm"
+                          placeholder="Kasa adı"
+                          value={k.name}
+                          onChange={(e) => {
+                            const next = [...kasalar];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setKasalar(next);
+                          }}
+                        />
                         <button
                           type="button"
-                          className="ml-1 text-indigo-500 hover:text-indigo-700"
+                          className="text-indigo-500 hover:text-indigo-700 font-bold px-1"
                           onClick={() => setKasalar(kasalar.filter((_, i) => i !== idx))}
                         >
                           ×
                         </button>
-                      </span>
+                      </div>
                     ))}
                   </div>
                 )}

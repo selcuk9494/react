@@ -382,34 +382,66 @@ export class ReportsService {
             (b: any) => String(b?.id) === String(user.selected_branch_id),
           ) || user.branches[branchIndex]
         : user.branches?.[branchIndex];
-    if (!branch) return { kasas: [] as number[] };
+    if (!branch) return { kasas: [] as number[], kasa_list: [] as any[] };
 
-    const primary = Number(branch.kasa_no) || 1;
-    let kasas: number[] = [primary];
-    if (Array.isArray(branch.kasalar) && branch.kasalar.length > 0) {
-      kasas = Array.from(
-        new Set([
-          primary,
-          ...branch.kasalar
-            .map((k: any) => Number(k))
-            .filter((k: number) => Number.isFinite(k) && k > 0),
-        ]),
-      );
-    } else if (branch.id) {
+    const nameByNo = new Map<number, string | null>();
+    const remember = (no: any, name?: any) => {
+      const n = Number(no);
+      if (!Number.isFinite(n) || n <= 0) return;
+      const nm =
+        name != null && String(name).trim()
+          ? String(name).trim().slice(0, 100)
+          : null;
+      if (!nameByNo.has(n)) nameByNo.set(n, nm);
+      else if (nm) nameByNo.set(n, nm);
+    };
+
+    remember(branch.kasa_no);
+
+    let listRaw = branch.kasa_list;
+    if (typeof listRaw === 'string') {
+      try {
+        listRaw = JSON.parse(listRaw);
+      } catch {
+        listRaw = [];
+      }
+    }
+    if (Array.isArray(listRaw) && listRaw.length > 0) {
+      for (const item of listRaw) {
+        if (item != null && typeof item === 'object') {
+          remember(item.kasa_no ?? item.no, item.name ?? item.kasa_name);
+        } else {
+          remember(item);
+        }
+      }
+    } else if (Array.isArray(branch.kasalar) && branch.kasalar.length > 0) {
+      for (const k of branch.kasalar) remember(k);
+    }
+
+    if (branch.id) {
       try {
         const mainPool = this.db.getMainPool();
         const rows = await this.db.executeQuery(
           mainPool,
-          'SELECT kasa_no FROM branch_kasas WHERE branch_id = $1 ORDER BY kasa_no',
+          `SELECT kasa_no, kasa_name
+           FROM branch_kasas
+           WHERE branch_id = $1
+           ORDER BY kasa_no`,
           [branch.id],
         );
-        const extras = rows
-          .map((r: any) => parseInt(r.kasa_no, 10))
-          .filter((n: any) => Number.isFinite(n) && n > 0);
-        kasas = Array.from(new Set([primary, ...extras]));
+        for (const r of rows) {
+          remember(r.kasa_no, r.kasa_name);
+        }
       } catch {}
     }
-    return { kasas: kasas.sort((a, b) => a - b) };
+
+    const kasa_list = Array.from(nameByNo.entries())
+      .map(([kasa_no, name]) => ({ kasa_no, name }))
+      .sort((a, b) => a.kasa_no - b.kasa_no);
+    return {
+      kasas: kasa_list.map((e) => e.kasa_no),
+      kasa_list,
+    };
   }
 
   private async getBranchPool(user: any) {

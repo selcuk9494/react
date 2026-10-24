@@ -81,8 +81,57 @@ export function persistKasaNo(kasaNo: string) {
   writeLS(KASA_KEY, String(kasaNo));
 }
 
-/** Secili subenin kasa listesi (Tumu + numaralar). */
-export function getBranchKasaOptions(user: any): number[] {
+export type KasaEntry = { kasa_no: number; name: string };
+
+function parseBranchKasaList(branch: any): KasaEntry[] {
+  if (!branch) return [];
+  const map = new Map<number, string>();
+  const put = (rawNo: any, rawName?: any) => {
+    const n = Number(rawNo);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const name =
+      rawName != null && String(rawName).trim()
+        ? String(rawName).trim()
+        : '';
+    if (!map.has(n) || name) map.set(n, name || map.get(n) || '');
+  };
+
+  put(branch.kasa_no);
+
+  let list = branch.kasa_list;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = [];
+    }
+  }
+  if (Array.isArray(list)) {
+    for (const item of list) {
+      if (item != null && typeof item === 'object') {
+        put(item.kasa_no ?? item.no, item.name ?? item.kasa_name);
+      } else {
+        put(item);
+      }
+    }
+  }
+
+  const extras = Array.isArray(branch.kasalar) ? branch.kasalar : [];
+  for (const k of extras) {
+    if (k != null && typeof k === 'object') {
+      put((k as any).kasa_no, (k as any).name ?? (k as any).kasa_name);
+    } else {
+      put(k);
+    }
+  }
+
+  return Array.from(map.entries())
+    .map(([kasa_no, name]) => ({ kasa_no, name }))
+    .sort((a, b) => a.kasa_no - b.kasa_no);
+}
+
+/** Secili subenin kasa listesi (numara + isim). */
+export function getBranchKasaEntries(user: any): KasaEntry[] {
   if (!user?.branches?.length) return [];
   const idx =
     typeof user.selected_branch === 'number' ? user.selected_branch : 0;
@@ -93,16 +142,23 @@ export function getBranchKasaOptions(user: any): number[] {
       )) ||
     user.branches[idx] ||
     user.branches[0];
-  if (!branch) return [];
-  const nos: number[] = [];
-  const primary = Number(branch.kasa_no);
-  if (Number.isFinite(primary) && primary > 0) nos.push(primary);
-  const extras = Array.isArray(branch.kasalar) ? branch.kasalar : [];
-  for (const k of extras) {
-    const n = Number(k);
-    if (Number.isFinite(n) && n > 0) nos.push(n);
-  }
-  return Array.from(new Set(nos)).sort((a, b) => a - b);
+  return parseBranchKasaList(branch);
+}
+
+/** Secili subenin kasa numaralari. */
+export function getBranchKasaOptions(user: any): number[] {
+  return getBranchKasaEntries(user).map((e) => e.kasa_no);
+}
+
+export function formatKasaLabel(
+  kasaNo: number | string,
+  entries?: KasaEntry[] | null,
+): string {
+  const n = Number(kasaNo);
+  if (!Number.isFinite(n) || n <= 0) return 'Kasa';
+  const found = (entries || []).find((e) => e.kasa_no === n);
+  if (found?.name) return found.name;
+  return `Kasa ${n}`;
 }
 
 /** Dashboard + tum raporlar icin ortak period/kasa state. */

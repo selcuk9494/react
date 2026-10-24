@@ -190,7 +190,15 @@ export class AgentService {
 
   async pairToUser(
     userId: string,
-    data: { code: string; name?: string; kasa_no?: number; closing_hour?: number; kasalar?: number[] },
+    data: {
+      code: string;
+      name?: string;
+      kasa_no?: number;
+      kasa_name?: string;
+      closing_hour?: number;
+      kasalar?: Array<number | { kasa_no?: number; name?: string; kasa_name?: string }>;
+      kasa_list?: Array<{ kasa_no?: number; name?: string; kasa_name?: string }>;
+    },
   ) {
     const code = String(data?.code || '')
       .trim()
@@ -225,18 +233,33 @@ export class AgentService {
       [userId, name, `agent:${agent.id}`, kasaNo, closingHour, agent.id],
     );
     const branch = branchRows[0];
-    const kasalar = Array.from(
-      new Set(
-        [kasaNo, ...(Array.isArray(data?.kasalar) ? data.kasalar : [])]
-          .map((n) => parseInt(String(n), 10))
-          .filter((n) => Number.isFinite(n)),
-      ),
-    );
-    for (const kasa of kasalar) {
+    const nameByNo = new Map<number, string | null>();
+    const put = (rawNo: any, rawName?: any) => {
+      const n = parseInt(String(rawNo), 10);
+      if (!Number.isFinite(n) || n <= 0) return;
+      const nm =
+        rawName != null && String(rawName).trim()
+          ? String(rawName).trim().slice(0, 100)
+          : null;
+      if (!nameByNo.has(n)) nameByNo.set(n, nm);
+      else if (nm) nameByNo.set(n, nm);
+    };
+    put(kasaNo, data?.kasa_name);
+    for (const item of [
+      ...(Array.isArray(data?.kasa_list) ? data.kasa_list : []),
+      ...(Array.isArray(data?.kasalar) ? data.kasalar : []),
+    ]) {
+      if (item != null && typeof item === 'object') {
+        put((item as any).kasa_no, (item as any).name ?? (item as any).kasa_name);
+      } else {
+        put(item);
+      }
+    }
+    for (const [kasa, kasaName] of nameByNo.entries()) {
       await this.db.executeQuery(
         pool,
-        'INSERT INTO branch_kasas (branch_id, kasa_no) VALUES ($1, $2)',
-        [branch.id, kasa],
+        'INSERT INTO branch_kasas (branch_id, kasa_no, kasa_name) VALUES ($1, $2, $3)',
+        [branch.id, kasa, kasaName],
       );
     }
     await this.db.executeQuery(
