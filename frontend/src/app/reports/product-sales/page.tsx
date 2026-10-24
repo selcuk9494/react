@@ -230,6 +230,19 @@ function ProductSalesContent() {
     persistBusinessId(id);
   };
 
+  // Şube değişince Street Life eşlemesi başka müşteride kalmasın
+  const branchScopeKey = `${user?.selected_branch_id ?? ''}:${user?.selected_branch ?? ''}`;
+  useEffect(() => {
+    setBusinesses([]);
+    setBusinessesLoaded(false);
+    setBusinessBreakdown([]);
+    setBusinessBreakdownLoading(false);
+    setSelectedBusinessId('');
+    setShowBizModal(false);
+    setDraftBusinesses([]);
+    setApiKasaList([]);
+  }, [branchScopeKey]);
+
   const kasaEntries = useMemo(() => {
     const map = new Map<number, string>();
     for (const e of [...userKasaEntries, ...apiKasaList]) {
@@ -697,6 +710,7 @@ function ProductSalesContent() {
     customEndDate,
     kasaNo,
     fallbackKasasForBusiness,
+    branchScopeKey,
   ]);
 
   const scrollToProducts = () => {
@@ -726,11 +740,13 @@ function ProductSalesContent() {
       return;
     }
     let cancelled = false;
+    const scopeAtStart = branchScopeKey;
     (async () => {
       try {
         const res = await axios.get(`${getApiUrl()}/reports/businesses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (cancelled || scopeAtStart !== branchScopeKey) return;
         const list: Biz[] = (res.data?.businesses || [])
           .map((b: any, index: number) => ({
             id: Number(b.id),
@@ -745,12 +761,10 @@ function ProductSalesContent() {
             ),
           }))
           .filter((b: Biz) => Number.isFinite(b.id) && b.name);
-        if (!cancelled) {
-          setBusinesses(list);
-          setBusinessesLoaded(true);
-        }
+        setBusinesses(list);
+        setBusinessesLoaded(true);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && scopeAtStart === branchScopeKey) {
           setBusinesses([]);
           setBusinessesLoaded(true);
         }
@@ -759,7 +773,7 @@ function ProductSalesContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, user?.selected_branch, user?.selected_branch_id]);
+  }, [token, branchScopeKey]);
 
   useEffect(() => {
     if (!businessesLoaded) return;
@@ -1933,7 +1947,7 @@ function ProductSalesContent() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Şube ismi ↔ Ürün grubu</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  Önce şube isimlerini burada tanımlayın (German Döner, Smash Burger…). Sonra her ürün grubunu bir şubeye bağlayın. Kasa numarası kullanılmaz. Kayıt tüm kullanıcılar için ortaktır.
+                  Önce şube isimlerini burada tanımlayın (German Döner, Smash Burger…). Sonra her ürün grubunu bir şubeye bağlayın. Kasa numarası kullanılmaz. Kayıt yalnızca seçili müşteri/şube için geçerlidir.
                 </p>
               </div>
               <button
