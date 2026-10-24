@@ -35,7 +35,20 @@ Yalnızca FR Rapor main PostgreSQL — içinde **`agent_jobs`** ve **`branch_age
 - **Kullan:** Vercel Nest’in bağlandığı FR Rapor DB  
 - **Kullanma:** `frfood-db` / `yemeksepeti` / başka tenant
 
-Doğrulama (salt okuma, sonraki test aşaması):
+### Render Free + Supabase (IPv4)
+
+Render outbound **IPv4-only**. Supabase **direct** (`db.<ref>.supabase.co`) çoğu planda **IPv6** → `ENETUNREACH`.
+
+| Mod | Port | LISTEN | Render Free |
+|-----|------|--------|-------------|
+| Direct | 5432 | Evet | IPv6 riski — kaçın |
+| **Session pooler** | **5432** (`*.pooler.supabase.com`) | **Evet** | **IPv4 — kullan** |
+| Transaction pooler | 6543 | **Hayır** | LISTEN için kullanma |
+
+Supabase Dashboard → **Connect** → **Session pooler** string’ini `DATABASE_URL` yap.  
+Username genelde `postgres.<project-ref>`. Secret/URL’yi loglama.
+
+Doğrulama (salt okuma):
 
 ```sql
 SELECT to_regclass('public.agent_jobs') AS agent_jobs,

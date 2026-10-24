@@ -2,7 +2,7 @@
 
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const { Pool, Client } = require('pg');
+const { Pool } = require('pg');
 const { loadConfig } = require('./config');
 const { createConnectionRegistry } = require('./connections');
 const {
@@ -13,14 +13,20 @@ const {
   releaseUnsentJobs,
   hashSecret,
 } = require('./jobs');
+const { createListenManager } = require('./listen');
+const { classifyDatabaseTarget, redactErrorMessage } = require('./db-url-meta');
+const { createRuntimeStatus } = require('./runtime-status');
 
 const config = loadConfig();
 const registry = createConnectionRegistry(config.maxAgents);
 const testMode = String(process.env.BRIDGE_TEST_MODE || '') === '1';
+const runtime = createRuntimeStatus();
+let listenManager = null;
 
 function makePool() {
   if (testMode) {
-    // Load/smoke test: gerçek PG yok. Auth load-test-* secret kabul eder.
+    runtime.postgres.ok = true;
+    runtime.postgres.lastCheckAt = new Date().toISOString();
     return {
       async query(sql, params) {
         if (/FROM branch_agents WHERE id/i.test(sql)) {
@@ -46,6 +52,7 @@ function makePool() {
         if (/status = 'processing'/i.test(sql) && /SELECT j\.id/i.test(sql)) {
           return { rows: [] };
         }
+        if (/^SELECT 1\b/i.test(String(sql))) return { rows: [{ ok: 1 }] };
         return { rows: [] };
       },
       async end() {},
@@ -76,6 +83,51 @@ function log(...args) {
   console.log(new Date().toISOString(), ...args);
 }
 
+function makeClientConfig() {
+  if (config.databaseUrl) {
+    return {
+      connectionString: config.databaseUrl,
+      ssl: config.ssl,
+      connectionTimeoutMillis: 8_000,
+    };
+  }
+  return {
+    ...config.db,
+    connectionTimeoutMillis: 8_000,
+  };
+}
+
+async function probePostgres() {
+  try {
+    await pool.query('SELECT 1 AS ok');
+    runtime.postgres.ok = true;
+    runtime.postgres.lastError = null;
+    runtime.postgres.lastCheckAt = new Date().toISOString();
+    return true;
+  } catch (err) {
+    runtime.postgres.ok = false;
+    runtime.postgres.lastError = redactErrorMessage(err.message || err);
+    runtime.postgres.lastCheckAt = new Date().toISOString();
+    return false;
+  }
+}
+
+function syncListenStatus() {
+  if (!listenManager) {
+    runtime.listen.listening = false;
+    return;
+  }
+  const s = listenManager.getStatus();
+  runtime.listen = {
+    listening: !!s.listening,
+    lastError: s.lastError,
+    lastConnectedAt: s.lastConnectedAt,
+    lastNotifyAt: s.lastNotifyAt,
+    attempts: s.attempts,
+    channel: s.channel,
+  };
+}
+
 function send(ws, payload) {
   if (ws.readyState !== 1) return;
   try {
@@ -100,7 +152,7 @@ async function pushJobs(agentId) {
       );
     } else log('pushed jobs', agentId, jobs.length);
   } catch (err) {
-    log('pushJobs error', agentId, err.message || err);
+    log('pushJobs error', agentId, redactErrorMessage(err.message || err));
   }
 }
 
@@ -168,7 +220,7 @@ function attachWs(wss) {
       const type = String(msg.type || '');
       if (type === 'auth') {
         void onAuth(ws, msg).catch((err) => {
-          log('auth error', err.message || err);
+          log('auth error', redactErrorMessage(err.message || err));
           send(ws, { type: 'auth.err', error: 'auth_failed' });
           ws.close(4011, 'auth_failed');
         });
@@ -179,7 +231,9 @@ function attachWs(wss) {
         return;
       }
       if (type === 'ping') {
-        void onPing(ws).catch((err) => log('ping error', err.message || err));
+        void onPing(ws).catch((err) =>
+          log('ping error', redactErrorMessage(err.message || err)),
+        );
         return;
       }
       if (type === 'jobs.ack') {
@@ -197,10 +251,9 @@ function attachWs(wss) {
     });
 
     ws.on('error', (err) => {
-      log('ws error', ws.agentId || '-', err.message || err);
+      log('ws error', ws.agentId || '-', redactErrorMessage(err.message || err));
     });
 
-    // 15s içinde auth yoksa kapat
     setTimeout(() => {
       if (!ws.agentId && ws.readyState === 1) {
         ws.close(4002, 'auth_timeout');
@@ -208,7 +261,6 @@ function attachWs(wss) {
     }, 15_000).unref?.();
   });
 
-  // WS-level keepalive
   const iv = setInterval(() => {
     for (const client of wss.clients) {
       if (client.isAlive === false) {
@@ -226,21 +278,53 @@ function attachWs(wss) {
   iv.unref?.();
 }
 
+function buildHealthPayload() {
+  syncListenStatus();
+  const dbOk = runtime.postgres.ok;
+  const listenWanted = !testMode && !!(config.databaseUrl || config.db);
+  const listenOk = testMode ? true : runtime.listen.listening;
+  // DB zorunlu. LISTEN production'da zorunlu; düşmüşse 503 (safety poll tek başına sağlıklı sayılmaz).
+  const healthy = dbOk && (!listenWanted || listenOk);
+
+  return {
+    ok: healthy,
+    degraded: false,
+    service: 'fr-bridge-server',
+    agents: registry.size(),
+    maxAgents: config.maxAgents,
+    postgres: {
+      ok: runtime.postgres.ok,
+      lastCheckAt: runtime.postgres.lastCheckAt,
+      lastError: runtime.postgres.lastError,
+    },
+    listen: {
+      ok: runtime.listen.listening,
+      channel: runtime.listen.channel || config.channel,
+      lastConnectedAt: runtime.listen.lastConnectedAt,
+      lastError: runtime.listen.lastError,
+      attempts: runtime.listen.attempts,
+    },
+    safetyPoll: {
+      lastOkAt: runtime.safetyPoll.lastOkAt,
+      lastErrorAt: runtime.safetyPoll.lastErrorAt,
+      consecutiveFailures: runtime.safetyPoll.consecutiveFailures,
+      lastError: runtime.safetyPoll.lastError,
+    },
+    time: new Date().toISOString(),
+  };
+}
+
 function startHttp() {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          ok: true,
-          service: 'fr-bridge-server',
-          agents: registry.size(),
-          maxAgents: config.maxAgents,
-          time: new Date().toISOString(),
-        }),
-      );
+      await probePostgres();
+      syncListenStatus();
+      const body = buildHealthPayload();
+      const code = body.ok ? 200 : 503;
+      res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
       return;
     }
 
@@ -292,69 +376,109 @@ function startHttp() {
   return { server, wss };
 }
 
-async function startListen() {
+function startListen() {
   if (testMode || (!config.databaseUrl && !config.db)) {
     log('LISTEN skipped (test mode or no DB)');
+    runtime.listen.listening = testMode;
     return null;
   }
-  const listenClient = config.databaseUrl
-    ? new Client({
-        connectionString: config.databaseUrl,
-        ssl: config.ssl,
-      })
-    : new Client(config.db);
 
-  const connectWithRetry = async (attempt = 1) => {
-    try {
-      await listenClient.connect();
-    } catch (err) {
-      if (attempt >= 5) throw err;
-      const wait = Math.min(30_000, 1000 * attempt);
-      log('LISTEN connect retry', attempt, err.message || err);
-      await new Promise((r) => setTimeout(r, wait));
-      return connectWithRetry(attempt + 1);
-    }
-  };
-  await connectWithRetry();
-  await listenClient.query(`LISTEN ${config.channel}`);
-  listenClient.on('notification', (msg) => {
-    if (msg.channel !== config.channel) return;
-    try {
-      const data = msg.payload ? JSON.parse(msg.payload) : {};
-      const agentId = String(data.agentId || '').trim();
-      if (agentId) void pushJobs(agentId);
-    } catch (err) {
-      log('notify parse error', err.message || err);
-    }
+  const meta = classifyDatabaseTarget(config.databaseUrl, config.db);
+  log(
+    'DB target class=',
+    meta.kind,
+    'ipv4Hint=',
+    meta.ipv4Hint,
+    'listenProtocolOk=',
+    meta.listenOk,
+  );
+  log('DB advice:', meta.advice);
+  if (!meta.listenOk) {
+    log('WARNING: current DATABASE_URL class is not suitable for LISTEN');
+  }
+
+  listenManager = createListenManager({
+    channel: config.channel,
+    makeClientConfig,
+    log,
+    onNotify(msg) {
+      try {
+        const data = msg.payload ? JSON.parse(msg.payload) : {};
+        const agentId = String(data.agentId || '').trim();
+        if (agentId) void pushJobs(agentId);
+      } catch (err) {
+        log('notify parse error', redactErrorMessage(err.message || err));
+      }
+    },
   });
-  listenClient.on('error', (err) => {
-    log('LISTEN client error — safety poll continues', err.message || err);
-  });
-  log('LISTEN', config.channel);
-  return listenClient;
+  listenManager.start();
+  return listenManager;
 }
 
 function startSafetyPoll() {
+  let tickRunning = false;
   const iv = setInterval(() => {
-    for (const agentId of registry.listIds()) {
-      void pushJobs(agentId);
-    }
+    void (async () => {
+      if (tickRunning) return;
+      tickRunning = true;
+      try {
+        const dbOk = await probePostgres();
+        if (!dbOk) {
+          runtime.safetyPoll.consecutiveFailures += 1;
+          runtime.safetyPoll.lastErrorAt = new Date().toISOString();
+          runtime.safetyPoll.lastError = runtime.postgres.lastError;
+          log(
+            'safety poll: PostgreSQL unreachable',
+            `failures=${runtime.safetyPoll.consecutiveFailures}`,
+            runtime.postgres.lastError,
+          );
+          return;
+        }
+        runtime.safetyPoll.consecutiveFailures = 0;
+        runtime.safetyPoll.lastOkAt = new Date().toISOString();
+        runtime.safetyPoll.lastError = null;
+
+        const ids = registry.listIds();
+        for (const agentId of ids) {
+          try {
+            await pushJobs(agentId);
+          } catch (err) {
+            log(
+              'safety poll pushJobs error',
+              agentId,
+              redactErrorMessage(err.message || err),
+            );
+          }
+        }
+      } finally {
+        tickRunning = false;
+      }
+    })();
   }, config.safetyPollMs);
   iv.unref?.();
-  log('safety poll ms=', config.safetyPollMs);
+  log('safety poll ms=', config.safetyPollMs, '(reports DB errors; timer alone ≠ healthy)');
 }
 
 async function main() {
   startHttp();
-  try {
-    await startListen();
-  } catch (err) {
-    log('LISTEN failed (HTTP notify + safety poll still work):', err.message || err);
+  await probePostgres();
+  if (!runtime.postgres.ok && !testMode) {
+    log('WARNING: initial PostgreSQL probe failed:', runtime.postgres.lastError);
   }
+  startListen();
   startSafetyPoll();
 }
 
-main().catch((err) => {
-  console.error('fatal', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('fatal', redactErrorMessage(err && err.message ? err.message : err));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildHealthPayload,
+  probePostgres,
+  runtime,
+  classifyDatabaseTarget,
+};
