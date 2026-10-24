@@ -6,23 +6,23 @@ import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilt
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 import axios from 'axios';
-import { 
-  ArrowLeft, 
-  Users, 
-  TrendingUp, 
+import {
+  Users,
+  TrendingUp,
   ShoppingBag,
   Award,
   RefreshCcw,
-  Calendar,
-  ChevronDown,
   AlertCircle,
   Star,
   Gift,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  Receipt,
 } from 'lucide-react';
-import Link from 'next/link';
 import clsx from 'clsx';
+import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import ReportExportButtons from '@/components/ReportExportButtons';
 
 interface PersonnelData {
@@ -62,26 +62,17 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-const periodLabels: Record<string, string> = {
-  today: 'Bugün',
-  yesterday: 'Dün',
-  week: 'Bu Hafta',
-  last7days: 'Son 7 Gün',
-  month: 'Bu Ay',
-  lastmonth: 'Geçen Ay',
-};
-
 export default function PersonnelReportPage() {
-  const { token, user  } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
   const kasaOptions = getBranchKasaOptions(user);
-  const [showPeriodMenu, setShowPeriodMenu] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<PersonnelData | null>(null);
-  
+  const [reloadTick, setReloadTick] = useState(0);
+
   const prevPeriodRef = useRef(period);
   const prevBranchRef = useRef(user?.selected_branch);
 
@@ -90,6 +81,7 @@ export default function PersonnelReportPage() {
       router.replace('/auth/login');
       return;
     }
+    if (period === 'custom' && (!customStartDate || !customEndDate)) return;
 
     const fetchData = async () => {
       // Period veya branch değiştiyse veriyi temizle
@@ -98,13 +90,16 @@ export default function PersonnelReportPage() {
         prevPeriodRef.current = period;
         prevBranchRef.current = user?.selected_branch;
       }
-      
+
       setLoading(true);
       setError(null);
-      
+
       try {
         let url = `${getApiUrl()}/reports/personnel?period=${period}`;
         if (kasaNo) url += `&kasa_no=${kasaNo}`;
+        if (period === 'custom') {
+          url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+        }
         const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 15000
@@ -120,103 +115,62 @@ export default function PersonnelReportPage() {
     };
 
     fetchData();
-  }, [token, period, user?.selected_branch, router, kasaNo]);
+  }, [token, period, customStartDate, customEndDate, user?.selected_branch, router, kasaNo, reloadTick]);
 
   const handleRefresh = () => {
     setData(null);
     setLoading(true);
-    setPeriod(period);
+    setReloadTick((n) => n + 1);
   };
 
   // Sıralı personel listesi (toplam satışa göre)
-  const sortedPersonnel = data?.personnel?.sort((a, b) => b.total_sales - a.total_sales) || [];
-  
-  // En iyi performans gösteren
+  const sortedPersonnel = data?.personnel?.slice().sort((a, b) => b.total_sales - a.total_sales) || [];
   const topPerformer = sortedPersonnel[0];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 pb-20">
-      {/* Header */}
-      <div className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Link 
-                href="/dashboard" 
-                className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 transition-all"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Personel Raporu
-                </h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <ReportExportButtons
-                title="Personel Raporu"
-                rows={sortedPersonnel}
-                columns={[
-                  { key: 'name', label: 'Personel' },
-                  { key: 'order_count', label: 'Adisyon' },
-                  { key: 'closed_order_count', label: 'Kapalı' },
-                  { key: 'open_order_count', label: 'Açık' },
-                  { key: 'total_sales', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
-                  { key: 'avg_ticket', label: 'Ortalama', format: (value) => formatCurrency(Number(value || 0)) },
-                  { key: 'ikram_total', label: 'İkram', format: (value) => formatCurrency(Number(value || 0)) },
-                  { key: 'iade_total', label: 'İade', format: (value) => formatCurrency(Number(value || 0)) },
-                  { key: 'iptal_total', label: 'İptal', format: (value) => formatCurrency(Number(value || 0)) },
-                ]}
-              />
-              {/* Period Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowPeriodMenu(!showPeriodMenu)}
-                  className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-xl text-sm font-medium border border-purple-200"
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>{periodLabels[period]}</span>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                
-                {showPeriodMenu && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
-                    {Object.entries(periodLabels).map(([key, label]) => (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          setPeriod(key);
-                          setShowPeriodMenu(false);
-                        }}
-                        className={clsx(
-                          "w-full px-4 py-2 text-left text-sm hover:bg-purple-50 transition-all",
-                          period === key ? "bg-purple-100 text-purple-700 font-semibold" : "text-gray-700"
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <button 
-                onClick={handleRefresh}
-                disabled={loading}
-                className="p-2 bg-purple-50 hover:bg-purple-100 rounded-xl text-purple-600 transition-all disabled:opacity-50"
-              >
-                <RefreshCcw className={clsx("w-5 h-5", loading && "animate-spin")} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
+      <ReportHeader
+        title="Personel Raporu"
+        period={period}
+        setPeriod={setPeriod}
+        customStartDate={customStartDate}
+        setCustomStartDate={setCustomStartDate}
+        customEndDate={customEndDate}
+        setCustomEndDate={setCustomEndDate}
+        actions={
+          <>
+            <ReportExportButtons
+              title="Personel Raporu"
+              rows={sortedPersonnel}
+              columns={[
+                { key: 'name', label: 'Personel' },
+                { key: 'order_count', label: 'Adisyon' },
+                { key: 'closed_order_count', label: 'Kapalı' },
+                { key: 'open_order_count', label: 'Açık' },
+                { key: 'total_sales', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
+                { key: 'avg_ticket', label: 'Ortalama', format: (value) => formatCurrency(Number(value || 0)) },
+                { key: 'ikram_total', label: 'İkram', format: (value) => formatCurrency(Number(value || 0)) },
+                { key: 'iade_total', label: 'İade', format: (value) => formatCurrency(Number(value || 0)) },
+                { key: 'iptal_total', label: 'İptal', format: (value) => formatCurrency(Number(value || 0)) },
+              ]}
+            />
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              title="Yenile"
+              type="button"
+            >
+              <RefreshCcw className={clsx('w-4 h-4', loading && 'animate-spin')} />
+            </button>
+          </>
+        }
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+      />
 
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
-        {/* Error State */}
+      <ReportShell>
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-500" />
@@ -224,179 +178,137 @@ export default function PersonnelReportPage() {
           </div>
         )}
 
-        {/* Loading State */}
-        {loading && !data && (
+        {loading && !data ? (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl p-6 animate-pulse">
-              <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-              <div className="h-12 bg-gray-200 rounded w-1/2"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+              ))}
             </div>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-xl p-4 animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-1/4 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </div>
-            ))}
+            <div className="h-80 bg-white rounded-2xl border border-slate-200 animate-pulse" />
           </div>
-        )}
-
-        {/* Summary Card */}
-        {data && (
+        ) : data ? (
           <>
-            <div className="bg-gradient-to-br from-purple-500 via-indigo-500 to-blue-600 rounded-2xl p-5 text-white shadow-xl shadow-purple-500/30">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Award className="w-6 h-6" />
-                  <span className="font-bold text-lg">Toplam Performans</span>
-                </div>
-                <span className="text-purple-200 text-sm">{periodLabels[period]}</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-purple-200 text-xs mb-1">Toplam Satış</p>
-                  <p className="text-2xl font-black">{formatCurrency(data.summary.total_sales)}</p>
-                </div>
-                <div>
-                  <p className="text-purple-200 text-xs mb-1">Toplam Sipariş</p>
-                  <p className="text-2xl font-black">{data.summary.total_orders}</p>
-                </div>
-                <div>
-                  <p className="text-purple-200 text-xs mb-1">Personel Sayısı</p>
-                  <p className="text-xl font-bold">{data.summary.personnel_count}</p>
-                </div>
-                <div>
-                  <p className="text-purple-200 text-xs mb-1">Kişi Başı Ort.</p>
-                  <p className="text-xl font-bold">{formatCurrency(data.summary.avg_per_personnel)}</p>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatTile tone="dark" label="Toplam Satış" value={formatCurrency(data.summary.total_sales)} sub={`${data.summary.personnel_count} personel`} icon={Award} />
+              <StatTile accent="indigo" label="Toplam Sipariş" value={data.summary.total_orders} icon={Receipt} />
+              <StatTile accent="purple" label="Personel" value={data.summary.personnel_count} icon={Users} />
+              <StatTile accent="emerald" label="Kişi Başı Ort." value={formatCurrency(data.summary.avg_per_personnel)} icon={TrendingUp} />
             </div>
 
-            {/* Top Performer Banner */}
             {topPerformer && (
-              <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-xl p-4 text-white flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <Star className="w-6 h-6" />
+              <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-white flex items-center gap-3 shadow-sm">
+                <div className="w-11 h-11 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                  <Star className="w-5 h-5" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-amber-100 text-xs">En İyi Performans</p>
-                  <p className="font-bold text-lg">{topPerformer.name}</p>
+                  <p className="font-bold text-lg truncate">{topPerformer.name}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <p className="text-amber-100 text-xs">Satış</p>
                   <p className="font-bold">{formatCurrency(topPerformer.total_sales)}</p>
                 </div>
               </div>
             )}
 
-            {/* Personnel List */}
-            <div className="space-y-3">
-              <h2 className="font-bold text-gray-800 px-1">Personel Detayları</h2>
-              
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900">Personel Detayları</h2>
+                <span className="text-sm text-slate-500">{sortedPersonnel.length} personel</span>
+              </div>
+
               {sortedPersonnel.length === 0 ? (
-                <div className="bg-white rounded-xl p-8 text-center">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">Bu dönemde personel verisi bulunamadı</p>
+                <div className="p-10 text-center">
+                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500">Bu dönemde personel verisi bulunamadı</p>
                 </div>
               ) : (
-                sortedPersonnel.map((person, index) => (
-                  <div 
-                    key={person.id}
-                    onClick={() => setSelectedPersonnel(selectedPersonnel?.id === person.id ? null : person)}
-                    className={clsx(
-                      "bg-white rounded-xl p-4 shadow-sm border transition-all cursor-pointer",
-                      selectedPersonnel?.id === person.id 
-                        ? "border-purple-300 shadow-purple-100" 
-                        : "border-gray-100 hover:border-purple-200"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Rank Badge */}
-                      <div className={clsx(
-                        "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
-                        index === 0 ? "bg-amber-100 text-amber-700" :
-                        index === 1 ? "bg-gray-200 text-gray-600" :
-                        index === 2 ? "bg-orange-100 text-orange-700" :
-                        "bg-purple-50 text-purple-600"
-                      )}>
-                        {index + 1}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 truncate">{person.name}</h3>
-                        <p className="text-xs text-gray-500">
-                          {person.order_count} sipariş • Ort: {formatCurrency(person.avg_ticket)}
-                        </p>
-                      </div>
-                      
-                      <div className="text-right">
-                        <p className="font-bold text-purple-600">{formatCurrency(person.total_sales)}</p>
-                        {period === 'today' && person.open_order_count > 0 && (
-                          <p className="text-xs text-orange-500">{person.open_order_count} açık</p>
-                        )}
-                      </div>
+                <div className="divide-y divide-slate-100">
+                  {sortedPersonnel.map((person, index) => (
+                    <div key={person.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPersonnel(selectedPersonnel?.id === person.id ? null : person)}
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition"
+                      >
+                        <div className={clsx(
+                          'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0',
+                          index === 0 ? 'bg-amber-100 text-amber-700' :
+                            index === 1 ? 'bg-slate-200 text-slate-600' :
+                              index === 2 ? 'bg-orange-100 text-orange-700' :
+                                'bg-purple-50 text-purple-600'
+                        )}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-slate-900 truncate">{person.name}</h3>
+                          <p className="text-xs text-slate-500">{person.order_count} sipariş • Ort: {formatCurrency(person.avg_ticket)}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-slate-900">{formatCurrency(person.total_sales)}</p>
+                          {period === 'today' && person.open_order_count > 0 && (
+                            <p className="text-xs text-orange-500">{person.open_order_count} açık</p>
+                          )}
+                        </div>
+                      </button>
+
+                      {selectedPersonnel?.id === person.id && (
+                        <div className="px-4 pb-4 grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50/60">
+                          <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                            <ShoppingBag className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                            <p className="text-xs text-emerald-600">Kapalı</p>
+                            <p className="font-bold text-emerald-700">{formatCurrency(person.closed_sales)}</p>
+                            <p className="text-xs text-emerald-500">{person.closed_order_count} sipariş</p>
+                          </div>
+                          {period === 'today' && (
+                            <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                              <TrendingUp className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+                              <p className="text-xs text-orange-600">Açık</p>
+                              <p className="font-bold text-orange-700">{formatCurrency(person.open_sales)}</p>
+                              <p className="text-xs text-orange-500">{person.open_order_count} sipariş</p>
+                            </div>
+                          )}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                            <Award className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                            <p className="text-xs text-purple-600">Ort. Fiş</p>
+                            <p className="font-bold text-purple-700">{formatCurrency(person.avg_ticket)}</p>
+                          </div>
+                          {(person.ikram_count > 0 || person.iade_count > 0 || person.iptal_count > 0) && (
+                            <div className="col-span-2 md:col-span-3 flex flex-wrap gap-2">
+                              {person.ikram_count > 0 && (
+                                <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-lg text-xs">
+                                  <Gift className="w-3 h-3 text-blue-500" />
+                                  <span className="text-blue-700">{person.ikram_count} İkram</span>
+                                  <span className="text-blue-500">({formatCurrency(person.ikram_total)})</span>
+                                </div>
+                              )}
+                              {person.iade_count > 0 && (
+                                <div className="flex items-center gap-1 px-2 py-1 bg-amber-50 rounded-lg text-xs">
+                                  <RotateCcw className="w-3 h-3 text-amber-500" />
+                                  <span className="text-amber-700">{person.iade_count} İade</span>
+                                  <span className="text-amber-500">({formatCurrency(person.iade_total)})</span>
+                                </div>
+                              )}
+                              {person.iptal_count > 0 && (
+                                <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-lg text-xs">
+                                  <XCircle className="w-3 h-3 text-red-500" />
+                                  <span className="text-red-700">{person.iptal_count} İptal</span>
+                                  <span className="text-red-500">({formatCurrency(person.iptal_total)})</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Expanded Details */}
-                    {selectedPersonnel?.id === person.id && (
-                      <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-3">
-                        <div className="bg-emerald-50 rounded-lg p-3 text-center">
-                          <ShoppingBag className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-                          <p className="text-xs text-emerald-600">Kapalı</p>
-                          <p className="font-bold text-emerald-700">{formatCurrency(person.closed_sales)}</p>
-                          <p className="text-xs text-emerald-500">{person.closed_order_count} sipariş</p>
-                        </div>
-                        
-                        {period === 'today' && (
-                          <div className="bg-orange-50 rounded-lg p-3 text-center">
-                            <TrendingUp className="w-5 h-5 text-orange-600 mx-auto mb-1" />
-                            <p className="text-xs text-orange-600">Açık</p>
-                            <p className="font-bold text-orange-700">{formatCurrency(person.open_sales)}</p>
-                            <p className="text-xs text-orange-500">{person.open_order_count} sipariş</p>
-                          </div>
-                        )}
-                        
-                        <div className="bg-purple-50 rounded-lg p-3 text-center">
-                          <Award className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                          <p className="text-xs text-purple-600">Ort. Fiş</p>
-                          <p className="font-bold text-purple-700">{formatCurrency(person.avg_ticket)}</p>
-                        </div>
-                        
-                        {/* İkram/İade/İptal */}
-                        {(person.ikram_count > 0 || person.iade_count > 0 || person.iptal_count > 0) && (
-                          <div className="col-span-3 flex gap-2 mt-2">
-                            {person.ikram_count > 0 && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-lg text-xs">
-                                <Gift className="w-3 h-3 text-blue-500" />
-                                <span className="text-blue-700">{person.ikram_count} İkram</span>
-                                <span className="text-blue-500">({formatCurrency(person.ikram_total)})</span>
-                              </div>
-                            )}
-                            {person.iade_count > 0 && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-amber-50 rounded-lg text-xs">
-                                <RotateCcw className="w-3 h-3 text-amber-500" />
-                                <span className="text-amber-700">{person.iade_count} İade</span>
-                                <span className="text-amber-500">({formatCurrency(person.iade_total)})</span>
-                              </div>
-                            )}
-                            {person.iptal_count > 0 && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-lg text-xs">
-                                <XCircle className="w-3 h-3 text-red-500" />
-                                <span className="text-red-700">{person.iptal_count} İptal</span>
-                                <span className="text-red-500">({formatCurrency(person.iptal_total)})</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
-            </div>
+            </section>
           </>
-        )}
-      </div>
+        ) : null}
+      </ReportShell>
     </div>
   );
 }

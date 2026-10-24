@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { AlertCircle, Banknote, Database } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { AlertCircle, Banknote, Database, Hash, Wallet } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +28,7 @@ export default function CashReportPage() {
 
   const rows = Array.isArray(data?.rows) ? data.rows : [];
   const totalAmount = useMemo(() => Number(data?.totals?.toplam ?? 0), [data]);
+  const totalTx = useMemo(() => rows.reduce((s: number, r: any) => s + Number(r.tc ?? 0), 0), [rows]);
 
   const displayDate = (date: string) => {
     if (!date) return '';
@@ -35,7 +38,7 @@ export default function CashReportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
       <ReportHeader
         title={t('cash_report')}
         period={period}
@@ -54,83 +57,101 @@ export default function CashReportPage() {
               { key: 'tc', label: t('transaction_count') },
               { key: 'tutar', label: t('amount'), format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-        />
+          />
         }
         kasaNo={kasaNo}
         setKasaNo={setKasaNo}
         kasaOptions={kasaOptions}
-        />
+      />
 
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+      <ReportShell>
         {isLoading ? (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-emerald-500 to-sky-600 rounded-3xl p-8 animate-pulse">
-              <div className="h-4 bg-white/30 rounded w-32 mx-auto mb-3"></div>
-              <div className="h-12 bg-white/40 rounded w-48 mx-auto"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+              ))}
             </div>
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="bg-white rounded-3xl p-5 shadow-lg animate-pulse">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                    <div className="h-3 bg-gray-100 rounded w-24"></div>
-                  </div>
-                  <div className="h-6 bg-gray-200 rounded w-24"></div>
-                </div>
-              </div>
-            ))}
+            <div className="h-80 bg-white rounded-2xl border border-slate-200 animate-pulse" />
           </div>
         ) : error ? (
-          <div className="text-center py-12">
-            <AlertCircle className="w-16 h-16 text-red-300 mx-auto mb-4" />
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <AlertCircle className="w-14 h-14 text-red-300 mx-auto mb-4" />
             <p className="text-red-500">{t('operation_failed')}</p>
           </div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-12">
-            <Banknote className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">{t('not_found')}</p>
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <Banknote className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">{t('not_found')}</p>
           </div>
         ) : (
           <>
-            <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-sky-600 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-              <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-40 h-40 bg-sky-300 opacity-20 rounded-full blur-3xl"></div>
-              <div className="relative z-10">
-                <p className="text-emerald-100 text-sm font-bold mb-3 uppercase tracking-wide">{t('total_sales')}</p>
-                <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalAmount)}</h2>
-                {data?.period?.start && data?.period?.end && (
-                  <p className="text-emerald-100 text-sm mt-4 font-semibold">
-                    {displayDate(data.period.start)} - {displayDate(data.period.end)}
-                  </p>
-                )}
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatTile
+                tone="dark"
+                label={t('total_sales')}
+                value={formatCurrency(totalAmount)}
+                sub={data?.period?.start && data?.period?.end ? `${displayDate(data.period.start)} - ${displayDate(data.period.end)}` : undefined}
+                icon={Wallet}
+              />
+              <StatTile accent="emerald" label={t('transaction_count')} value={totalTx} icon={Hash} />
+              <StatTile accent="sky" label="Kayıt" value={rows.length} icon={Database} />
             </div>
 
-            <div className="space-y-3">
-              {rows.map((row: any, index: number) => (
-                <div key={`${row.tarih ?? index}-${row.kasa ?? index}`} className="bg-white rounded-3xl p-5 shadow-lg border border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                      <Database className="w-6 h-6 text-emerald-600" />
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900">{t('cash_report')}</h2>
+                <span className="text-sm text-slate-500">{rows.length} kayıt</span>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr className="text-left">
+                      <th className="px-4 py-3 font-semibold">{t('date')}</th>
+                      <th className="px-4 py-3 font-semibold">{t('cash_no')}</th>
+                      <th className="px-4 py-3 font-semibold text-right">{t('transaction_count')}</th>
+                      <th className="px-4 py-3 font-semibold text-right">{t('amount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row: any, index: number) => (
+                      <tr key={`${row.tarih ?? index}-${row.kasa ?? index}`} className="border-t border-slate-100 hover:bg-emerald-50/40">
+                        <td className="px-4 py-3 font-semibold text-slate-900">{displayDate(row.tarih)}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.kasa ?? '-'}</td>
+                        <td className="px-4 py-3 text-right text-slate-700">{row.tc ?? 0}</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatCurrency(Number(row.tutar ?? 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden divide-y divide-slate-100">
+                {rows.map((row: any, index: number) => (
+                  <div key={`${row.tarih ?? index}-${row.kasa ?? index}`} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+                      <Database className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-gray-900">{displayDate(row.tarih)}</h3>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <div className="font-bold text-slate-900">{displayDate(row.tarih)}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
                         {t('cash_no')}: {row.kasa ?? '-'} · {t('transaction_count')}: {row.tc ?? 0}
-                      </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 mb-1">{t('amount')}</p>
-                      <p className="text-lg font-black text-emerald-600">{formatCurrency(Number(row.tutar ?? 0))}</p>
-                    </div>
+                    <div className="font-black text-emerald-600 shrink-0">{formatCurrency(Number(row.tutar ?? 0))}</div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-100 bg-emerald-50/60 px-4 py-3">
+                <span className="text-sm font-semibold text-emerald-700">Toplam</span>
+                <span className="text-lg font-black text-emerald-700">{formatCurrency(totalAmount)}</span>
+              </div>
+            </section>
           </>
         )}
-      </main>
+      </ReportShell>
     </div>
   );
 }

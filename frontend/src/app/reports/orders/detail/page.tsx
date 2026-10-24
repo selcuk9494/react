@@ -380,9 +380,9 @@ function OrderDetailContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
+    <div className="min-h-screen bg-slate-50 pb-10 font-sans safe-bottom">
       {/* Header */}
-      <div className="bg-white px-4 py-4 sticky top-0 z-30 shadow-md border-b-2 border-indigo-100 flex items-center justify-between backdrop-blur-sm bg-white/95 no-print">
+      <div className="bg-white px-4 py-4 sticky top-0 z-30 shadow-sm border-b border-slate-200 flex items-center justify-between backdrop-blur-sm bg-white/95 no-print">
         <div className="flex items-center space-x-4">
             <button 
                 onClick={() => router.back()}
@@ -439,9 +439,9 @@ function OrderDetailContent() {
         </div>
       </div>
 
-      <div className="p-4 max-w-3xl mx-auto w-full print-content">
+      <div className="p-4 sm:px-6 lg:px-8 max-w-4xl mx-auto w-full print-content">
         {/* Info Card */}
-        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-6 shadow-2xl mb-6 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 shadow-xl mb-6 text-white relative overflow-hidden">
              {/* Decorative Background Elements */}
              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl"></div>
              <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-purple-400 opacity-10 rounded-full blur-2xl"></div>

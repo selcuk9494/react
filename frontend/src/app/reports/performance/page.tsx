@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { Users } from 'lucide-react';
+import { Users, Trophy, Receipt } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
-import AutoFitText from '@/components/AutoFitText';
 
 export default function PerformancePage() {
   const { token, user } = useAuth();
@@ -25,28 +26,28 @@ export default function PerformancePage() {
     kasaNo,
   });
 
-  // Debug log
-  useEffect(() => {
-    console.log('Performance Data:', { data, isLoading, error, dataType: typeof data, isArray: Array.isArray(data) });
-  }, [data, isLoading, error]);
-
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
   // Safe data handling - backend returns object with waiters array
-  const performanceData = Array.isArray(data) 
-    ? data 
+  const performanceData = Array.isArray(data)
+    ? data
     : (data && typeof data === 'object' && data.waiters && Array.isArray(data.waiters))
-      ? data.waiters 
+      ? data.waiters
       : [];
-      
+
   const totalSales = Array.isArray(performanceData) && performanceData.length > 0
-    ? performanceData.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) 
+    ? performanceData.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0)
     : (data && data.totals && data.totals.total_sales) || 0;
+  const totalOrders = performanceData.reduce(
+    (acc: number, curr: any) => acc + (Number(curr.order_count ?? curr.count ?? 0) || 0),
+    0,
+  );
+  const nameOf = (item: any) => item.waiter_name || item.name || item.personnel_name || 'N/A';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 safe-bottom">
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
       <ReportHeader
         title={t('performance_title')}
         period={period}
@@ -64,80 +65,93 @@ export default function PerformancePage() {
               { key: 'order_count', label: 'Adisyon', format: (value, row) => value || row.count || 0 },
               { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-        />
+          />
         }
         kasaNo={kasaNo}
         setKasaNo={setKasaNo}
         kasaOptions={kasaOptions}
-        />
+      />
 
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+      <ReportShell>
         {isLoading ? (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-3xl p-8 animate-pulse">
-              <div className="h-4 bg-white/30 rounded w-32 mx-auto mb-3"></div>
-              <div className="h-12 bg-white/40 rounded w-48 mx-auto"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+              ))}
             </div>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-3xl p-5 shadow-lg animate-pulse">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                    <div className="h-3 bg-gray-100 rounded w-20"></div>
-                  </div>
-                  <div className="h-6 bg-gray-200 rounded w-24"></div>
-                </div>
-              </div>
-            ))}
+            <div className="h-80 bg-white rounded-2xl border border-slate-200 animate-pulse" />
           </div>
         ) : error ? (
-          <div className="text-center py-12">
-            <Users className="w-16 h-16 text-red-300 mx-auto mb-4" />
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <Users className="w-14 h-14 text-red-300 mx-auto mb-4" />
             <p className="text-red-500">Error: {error.message}</p>
-            <details className="mt-4 text-left max-w-md mx-auto bg-red-50 p-4 rounded-lg">
-              <summary className="cursor-pointer text-red-700 font-medium">Debug Info</summary>
-              <pre className="mt-2 text-xs text-red-600 overflow-auto">{JSON.stringify({ data, error }, null, 2)}</pre>
-            </details>
           </div>
         ) : !performanceData || performanceData.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">{t('no_data')}</p>
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <Users className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">{t('no_data')}</p>
           </div>
         ) : (
           <>
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-3xl p-8 text-center text-white shadow-2xl">
-              <p className="text-purple-100 text-sm font-bold mb-3">🎯 {t('total_performance')}</p>
-              <AutoFitText
-                text={formatCurrency(totalSales)}
-                className="font-black tracking-tight drop-shadow-lg"
-                maxPx={48}
-                minPx={24}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatTile tone="dark" label={t('total_performance')} value={formatCurrency(totalSales)} sub={`${performanceData.length} personel`} icon={Trophy} />
+              <StatTile accent="purple" label="Personel" value={performanceData.length} icon={Users} />
+              <StatTile accent="indigo" label={t('orders')} value={totalOrders} icon={Receipt} />
             </div>
 
-            <div className="space-y-3">
-              {performanceData.map((item: any, index: number) => (
-                <div key={index} className="bg-white rounded-3xl p-5 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900">{t('performance_title')}</h2>
+                <span className="text-sm text-slate-500">{performanceData.length} personel</span>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr className="text-left">
+                      <th className="px-4 py-3 font-semibold w-12">#</th>
+                      <th className="px-4 py-3 font-semibold">Personel</th>
+                      <th className="px-4 py-3 font-semibold text-right">{t('orders')}</th>
+                      <th className="px-4 py-3 font-semibold text-right">Toplam</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performanceData.map((item: any, index: number) => (
+                      <tr key={index} className="border-t border-slate-100 hover:bg-purple-50/40">
+                        <td className="px-4 py-3 text-slate-400 font-medium">{index + 1}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{nameOf(item)}</td>
+                        <td className="px-4 py-3 text-right text-slate-700">{item.order_count || item.count || 0}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(item.total || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden divide-y divide-slate-100">
+                {performanceData.map((item: any, index: number) => (
+                  <div key={index} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
                       {index + 1}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900">{item.waiter_name || item.name || item.personnel_name || 'N/A'}</h3>
-                      <p className="text-sm text-gray-500">{item.order_count || item.count || 0} {t('orders')}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-slate-900 truncate">{nameOf(item)}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{item.order_count || item.count || 0} {t('orders')}</div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">{formatCurrency(item.total || 0)}</p>
-                    </div>
+                    <div className="font-bold text-slate-900 shrink-0">{formatCurrency(item.total || 0)}</div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-100 bg-purple-50/60 px-4 py-3">
+                <span className="text-sm font-semibold text-purple-700">{t('total_performance')}</span>
+                <span className="text-lg font-black text-purple-700">{formatCurrency(totalSales)}</span>
+              </div>
+            </section>
           </>
         )}
-      </main>
+      </ReportShell>
     </div>
   );
 }

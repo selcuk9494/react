@@ -3,16 +3,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { CreditCard as CreditCardIcon, AlertCircle } from 'lucide-react';
+import { CreditCard as CreditCardIcon, AlertCircle, Wallet, Hash, PieChart as PieIcon, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useReportData } from '@/utils/useReportData';
 import { useRouter } from 'next/navigation';
 import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
+const CHART_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+
 export default function PaymentTypesPage() {
-  const { token, user  } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
   const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
@@ -49,7 +53,7 @@ export default function PaymentTypesPage() {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
   };
 
-  const totalAmount = useMemo(() => 
+  const totalAmount = useMemo(() =>
     data ? data.reduce((acc: number, curr: any) => acc + curr.total, 0) : 0,
     [data]
   );
@@ -64,15 +68,6 @@ export default function PaymentTypesPage() {
   const getPercent = (value: number) => {
     if (!totalAmount) return 0;
     return Math.round((value / totalAmount) * 100);
-  };
-
-  const getChartColors = () => {
-    return ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
-  };
-
-  const getIconForPayment = (name: string, index: number) => {
-      const color = getChartColors()[index % getChartColors().length];
-      return <CreditCardIcon className="w-6 h-6" style={{ color }} />;
   };
 
   const ordersParams = useMemo(() => {
@@ -121,8 +116,16 @@ export default function PaymentTypesPage() {
     { key: 'iskonto', label: 'İndirim', format: (value) => formatCurrency(Number(value || 0)) },
   ];
 
+  const pieData = Array.isArray(data)
+    ? data.map((item: any, index: number) => ({
+        name: item.payment_name,
+        value: item.total,
+        color: CHART_COLORS[index % CHART_COLORS.length],
+      }))
+    : [];
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
       <ReportHeader
         title={t('payments_title')}
         period={period}
@@ -154,277 +157,240 @@ export default function PaymentTypesPage() {
         kasaOptions={kasaOptions}
       />
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
+      <ReportShell>
         {notice && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm font-semibold">
             {notice}
           </div>
         )}
         {isLoading ? (
-            <div className="space-y-4">
-              {/* Shimmer Summary Card */}
-              <div className="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl p-8 animate-pulse">
-                <div className="h-4 bg-white/30 rounded w-32 mx-auto mb-3"></div>
-                <div className="h-12 bg-white/40 rounded w-48 mx-auto mb-4"></div>
-                <div className="h-3 bg-white/20 rounded w-24 mx-auto"></div>
-              </div>
-
-              {/* Chart Skeleton */}
-              <div className="bg-white rounded-3xl p-6 shadow-lg">
-                <div className="h-48 bg-gray-100 rounded-2xl animate-pulse"></div>
-              </div>
-
-              {/* List Skeletons */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-3xl p-5 shadow-lg animate-pulse">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                      <div className="h-3 bg-gray-100 rounded w-20"></div>
-                    </div>
-                    <div className="h-6 bg-gray-200 rounded w-24"></div>
-                  </div>
-                </div>
+                <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
               ))}
             </div>
+            <div className="h-80 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+          </div>
         ) : error || !data || data.length === 0 ? (
-            <div className="text-center py-12">
-                <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{t('period_no_sales_products')}</p>
-            </div>
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <AlertCircle className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">{t('period_no_sales_products')}</p>
+          </div>
         ) : (
-            <>
-                {/* Total Summary Card */}
-                <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 -mr-20 -mt-20 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-40 h-40 bg-teal-400 opacity-20 rounded-full blur-3xl"></div>
-                    <div className="relative z-10">
-                        <p className="text-emerald-100 text-sm font-bold mb-3 uppercase tracking-wide">💰 {t('total_payment')}</p>
-                        <h2 className="text-5xl font-black tracking-tight drop-shadow-lg">{formatCurrency(totalAmount)}</h2>
-                        <p className="text-emerald-200 text-base mt-4 font-semibold">{data.length} {t('payment_types_count')}</p>
-                    </div>
-                </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatTile tone="dark" label={t('total_payment')} value={formatCurrency(totalAmount)} sub={`${data.length} ${t('payment_types_count')}`} icon={Wallet} />
+              <StatTile accent="emerald" label={t('payment_types_count')} value={data.length} icon={CreditCardIcon} />
+              <StatTile accent="indigo" label={t('transaction')} value={totalCount} icon={Hash} />
+            </div>
 
-                {/* Pie Chart Section */}
-                <div className="bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-6 shadow-xl border-2 border-indigo-100">
-                    <h3 className="text-xl font-black text-indigo-900 mb-4 px-1 flex items-center gap-2">
-                        📊 {t('distribution')}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+              {/* Pie */}
+              <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <PieIcon className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-bold text-slate-900">{t('distribution')}</h3>
+                </div>
+                <div className="w-full h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {pieData.map((_, index: number) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: any, name: any) => [`${formatCurrency(Number(value))}`, name]}
+                        contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+
+              {/* List */}
+              <section className="lg:col-span-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900">{t('detailed_info')}</h3>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {data.map((item: any, index: number) => {
+                    const color = CHART_COLORS[index % CHART_COLORS.length];
+                    const active = selectedPayment?.otip === item.otip;
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        className={[
+                          'w-full text-left px-4 py-3 flex items-center gap-4 transition',
+                          canDrilldown ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-70 cursor-not-allowed',
+                          active ? 'bg-emerald-50/60' : '',
+                        ].join(' ')}
+                        onClick={() => {
+                          setNotice(null);
+                          if (!canDrilldown) {
+                            setNotice('Bu detay için yetkiniz yok. Admin panelden "Ödeme Tipleri (Detay)" yetkisini açın.');
+                            return;
+                          }
+                          setSelectedPayment(item);
+                          setMultiOnly(false);
+                          setOrdersPage(1);
+                        }}
+                      >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}1f` }}>
+                          <CreditCardIcon className="w-5 h-5" style={{ color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-bold text-slate-900 truncate">{item.payment_name}</h4>
+                            <span className="text-sm font-bold text-emerald-600 shrink-0">{formatCurrency(item.total)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <p className="text-xs text-slate-500">{item.count} {t('transaction')}</p>
+                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">%{getPercent(item.total)}</span>
+                          </div>
+                          <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${getPercent(item.total)}%`, backgroundColor: color }} />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+
+            {canDrilldown && selectedPayment && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-slate-900 truncate">
+                      {selectedPayment.payment_name} • Adisyonlar
                     </h3>
-                    <div className="w-full h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data.map((item: any, index: number) => ({
-                                        name: item.payment_name,
-                                        value: item.total,
-                                        color: getChartColors()[index % getChartColors().length],
-                                    }))}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={90}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {data.map((item: any, index: number) => (
-                                        <Cell key={`cell-${index}`} fill={getChartColors()[index % getChartColors().length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(value: any, name: any) => [`${formatCurrency(Number(value))}`, name]} />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* List Section */}
-                <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">{t('detailed_info')}</h3>
-                    
-                    <div className="space-y-3">
-                        {data.map((item: any, index: number) => {
-                            const color = getChartColors()[index % getChartColors().length];
-                            
-                            return (
-                                <div 
-                                    key={index} 
-                                    className={[
-                                      "bg-gradient-to-br from-white to-gray-50 rounded-3xl p-5 shadow-lg border-2 transition-all duration-200",
-                                      canDrilldown ? "hover:shadow-xl hover:scale-[1.02] cursor-pointer" : "opacity-60 cursor-not-allowed",
-                                      selectedPayment?.otip === item.otip ? "ring-2 ring-emerald-400/60" : "",
-                                    ].join(' ')}
-                                    style={{ borderColor: `${color}40` }}
-                                    onClick={() => {
-                                        setNotice(null);
-                                        if (!canDrilldown) {
-                                          setNotice('Bu detay için yetkiniz yok. Admin panelden "Ödeme Tipleri (Detay)" yetkisini açın.');
-                                          return;
-                                        }
-                                        setSelectedPayment(item);
-                                        setMultiOnly(false);
-                                        setOrdersPage(1);
-                                    }}
-                                >
-                                    <div className="flex items-center">
-                                        {/* Icon */}
-                                        <div 
-                                            className="w-12 h-12 rounded-xl flex items-center justify-center mr-4"
-                                            style={{ backgroundColor: `${color}20` }}
-                                        >
-                                            <CreditCardIcon className="w-6 h-6" style={{ color }} />
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-base font-bold text-gray-900 truncate">{item.payment_name}</h4>
-                                            <p className="text-sm text-gray-500 mt-0.5">{item.count} {t('transaction')}</p>
-                                            
-                                            {/* Progress Bar Container */}
-                                            <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full rounded-full" 
-                                                    style={{ width: `${getPercent(item.total)}%`, backgroundColor: color }}
-                                                ></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Amount & Percent */}
-                                        <div className="ml-4 text-right">
-                                            <p className="text-base font-bold text-emerald-600">{formatCurrency(item.total)}</p>
-                                            <div className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded-lg inline-block mt-1">
-                                                %{getPercent(item.total)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {canDrilldown && selectedPayment && (
-                  <div className="bg-white rounded-3xl p-5 shadow-lg border-2 border-gray-100">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-base font-black text-gray-900 truncate">
-                          {selectedPayment.payment_name} • Adisyonlar
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Toplam: {ordersTotal} • Sayfa: {ordersPage}/{ordersTotalPages}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700"
-                        onClick={() => setSelectedPayment(null)}
-                      >
-                        Kapat
-                      </button>
-                    </div>
-
-                    <div className="mt-4 flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={multiOnly}
-                          onChange={(e) => {
-                            setMultiOnly(e.target.checked);
-                            setOrdersPage(1);
-                          }}
-                        />
-                        Sadece çok ürünlü adisyonlar
-                      </label>
-                      <button
-                        type="button"
-                        className="ml-auto px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-sm font-bold text-emerald-700"
-                        onClick={() => exportRowsAsExcel(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
-                      >
-                        Excel
-                      </button>
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-sm font-bold text-red-700"
-                        onClick={() => exportRowsAsPdf(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
-                      >
-                        PDF
-                      </button>
-                    </div>
-
-                    <div className="mt-4">
-                      {ordersLoading ? (
-                        <div className="text-sm text-gray-500">Yükleniyor...</div>
-                      ) : ordersError ? (
-                        <div className="text-sm text-red-600">
-                          Adisyonlar alınamadı.
-                        </div>
-                      ) : orders.length === 0 ? (
-                        <div className="text-sm text-gray-500">Adisyon bulunamadı.</div>
-                      ) : (
-                        <div className="space-y-2">
-                          {orders.map((o: any, idx: number) => (
-                            <button
-                              key={`${o.adsno}-${o.adtur}-${idx}`}
-                              type="button"
-                              className="w-full text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-3"
-                              onClick={() => {
-                                const id = o.adsno;
-                                const adtur = typeof o.adtur !== 'undefined' && o.adtur !== null ? String(o.adtur) : '';
-                                router.push(`/reports/orders/detail?id=${encodeURIComponent(String(id))}&type=closed${adtur ? `&adtur=${encodeURIComponent(adtur)}` : ''}`);
-                              }}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-black text-gray-900 truncate">
-                                    #{o.adsno}
-                                    {typeof o.masa_no !== 'undefined' && o.masa_no !== null ? ` • Masa ${o.masa_no}` : ''}
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {o.tarih ? new Date(o.tarih).toLocaleString('tr-TR') : ''}
-                                    {o.garson_adi ? ` • ${o.garson_adi}` : ''}
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-black text-emerald-700">
-                                    {formatCurrency(Number(o.order_total ?? o.tutar ?? 0))}
-                                  </div>
-                                  {Number.isFinite(Number(o.item_count)) && (
-                                    <div className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg inline-block mt-1">
-                                      {Number(o.item_count)} ürün
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50"
-                        disabled={ordersPage <= 1}
-                        onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
-                      >
-                        Önceki
-                      </button>
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50"
-                        disabled={ordersPage >= ordersTotalPages}
-                        onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
-                      >
-                        Sonraki
-                      </button>
-                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Toplam: {ordersTotal} • Sayfa: {ordersPage}/{ordersTotalPages}
+                    </p>
                   </div>
-                )}
-            </>
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    onClick={() => setSelectedPayment(null)}
+                    title="Kapat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={multiOnly}
+                      onChange={(e) => {
+                        setMultiOnly(e.target.checked);
+                        setOrdersPage(1);
+                      }}
+                    />
+                    Sadece çok ürünlü adisyonlar
+                  </label>
+                  <button
+                    type="button"
+                    className="ml-auto px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-sm font-bold text-emerald-700"
+                    onClick={() => exportRowsAsExcel(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
+                  >
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-sm font-bold text-red-700"
+                    onClick={() => exportRowsAsPdf(`${selectedPayment.payment_name} Ödeme Detayı`, orderColumns, orders)}
+                  >
+                    PDF
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  {ordersLoading ? (
+                    <div className="text-sm text-slate-500">Yükleniyor...</div>
+                  ) : ordersError ? (
+                    <div className="text-sm text-red-600">Adisyonlar alınamadı.</div>
+                  ) : orders.length === 0 ? (
+                    <div className="text-sm text-slate-500">Adisyon bulunamadı.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {orders.map((o: any, idx: number) => (
+                        <button
+                          key={`${o.adsno}-${o.adtur}-${idx}`}
+                          type="button"
+                          className="w-full text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-4 py-3"
+                          onClick={() => {
+                            const id = o.adsno;
+                            const adtur = typeof o.adtur !== 'undefined' && o.adtur !== null ? String(o.adtur) : '';
+                            router.push(`/reports/orders/detail?id=${encodeURIComponent(String(id))}&type=closed${adtur ? `&adtur=${encodeURIComponent(adtur)}` : ''}`);
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-black text-slate-900 truncate">
+                                #{o.adsno}
+                                {typeof o.masa_no !== 'undefined' && o.masa_no !== null ? ` • Masa ${o.masa_no}` : ''}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                {o.tarih ? new Date(o.tarih).toLocaleString('tr-TR') : ''}
+                                {o.garson_adi ? ` • ${o.garson_adi}` : ''}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-black text-emerald-700">
+                                {formatCurrency(Number(o.order_total ?? o.tutar ?? 0))}
+                              </div>
+                              {Number.isFinite(Number(o.item_count)) && (
+                                <div className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block mt-1">
+                                  {Number(o.item_count)} ürün
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700 disabled:opacity-50"
+                    disabled={ordersPage <= 1}
+                    onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                  >
+                    Önceki
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700 disabled:opacity-50"
+                    disabled={ordersPage >= ordersTotalPages}
+                    onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
+                  >
+                    Sonraki
+                  </button>
+                </div>
+              </section>
+            )}
+          </>
         )}
-      </main>
+      </ReportShell>
     </div>
   );
 }

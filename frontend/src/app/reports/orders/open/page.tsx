@@ -1,23 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { 
-  ArrowLeft, 
-  Search, 
-  Calendar, 
-  X, 
-  Receipt, 
-  ChevronRight, 
-  User, 
-  Clock, 
-  MapPin, 
+import {
+  ArrowLeft,
+  Search,
+  Calendar,
+  X,
+  Receipt,
+  ChevronRight,
+  User,
+  Clock,
+  MapPin,
   Users,
   Timer,
   FileText,
-  Tag 
+  Tag,
 } from 'lucide-react';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
@@ -34,13 +34,13 @@ function OpenOrdersContent() {
   const [allOrders, setAllOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  
+
   const [filterMasa, setFilterMasa] = useState('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDateFilter, setShowDateFilter] = useState(false);
-  const [scope, setScope] = useState<'today'|'all'>('all');
-  const [adturFilter, setAdturFilter] = useState<'all'|0|1>('all');
+  const [scope, setScope] = useState<'today' | 'all'>('all');
+  const [adturFilter, setAdturFilter] = useState<'all' | 0 | 1>('all');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -73,11 +73,11 @@ function OpenOrdersContent() {
       if (startDate && endDate) {
         url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${startDate}&end_date=${endDate}&page=${page}&limit=100`;
       } else if (searchParams.get('start_date') && searchParams.get('end_date')) {
-         const s = searchParams.get('start_date');
-         const e = searchParams.get('end_date');
-         url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
-         if (s) setStartDate(s);
-         if (e) setEndDate(e);
+        const s = searchParams.get('start_date');
+        const e = searchParams.get('end_date');
+        url = `${getApiUrl()}/reports/open-orders?period=custom&start_date=${s}&end_date=${e}&page=${page}&limit=100`;
+        if (s) setStartDate(s);
+        if (e) setEndDate(e);
       }
 
       const res = await axios.get(url, {
@@ -85,7 +85,7 @@ function OpenOrdersContent() {
       });
 
       const data = res.data.data || res.data;
-      
+
       if (append) {
         setAllOrders(prev => [...prev, ...data]);
       } else {
@@ -107,13 +107,13 @@ function OpenOrdersContent() {
   const applyFilters = () => {
     let filtered = [...allOrders];
     if (filterMasa) {
-      filtered = filtered.filter(o => 
-        o.masa_no?.toString().includes(filterMasa) || 
+      filtered = filtered.filter(o =>
+        o.masa_no?.toString().includes(filterMasa) ||
         o.adsno?.toString().includes(filterMasa) ||
         o.id?.toString().includes(filterMasa)
       );
     }
-    const pickType = (o:any) => {
+    const pickType = (o: any) => {
       if (typeof o.adtur !== 'undefined') return Number(o.adtur);
       if (typeof o.sipyer !== 'undefined') {
         const s = Number(o.sipyer);
@@ -132,12 +132,12 @@ function OpenOrdersContent() {
     } else {
       const adturParam = searchParams.get('adtur');
       if (adturParam !== null) {
-        const t = Number(adturParam);
+        const tv = Number(adturParam);
         filtered = filtered.filter(o => {
           const a = pickType(o);
-          if (t === 0) return a === 0;
-          if (t === 1) return a === 1;
-          if (t === 3) return a === 3;
+          if (tv === 0) return a === 0;
+          if (tv === 1) return a === 1;
+          if (tv === 3) return a === 3;
           return true;
         });
         if (filtered.length === 0) {
@@ -203,6 +203,11 @@ function OpenOrdersContent() {
     return Math.floor(diff / 60000);
   };
 
+  const typeLabel = (order: any) =>
+    typeof order.adtur !== 'undefined'
+      ? (order.adtur === 0 ? t('order_type_adisyon') : order.adtur === 1 ? t('order_type_paket') : order.adtur === 3 ? t('order_type_hizli') : 'Diğer')
+      : (order.type_label || (order.sipyer === 2 ? t('order_type_paket') : t('order_type_adisyon')));
+
   const exportColumns = [
     { key: 'adsno', label: 'Adisyon No' },
     { key: 'masa_no', label: 'Masa', format: (value: any, row: any) => value ?? row.masano ?? '' },
@@ -216,303 +221,219 @@ function OpenOrdersContent() {
     { key: 'tutar', label: 'Tutar', format: (value: any) => formatCurrency(Number(value || 0)) },
   ];
 
+  const segBtn = (active: boolean, accent = 'bg-amber-500') =>
+    `px-3 py-1.5 text-xs font-bold flex-1 transition ${active ? `${accent} text-white` : 'bg-white text-slate-700 hover:bg-slate-50'}`;
+
   if (loading && !allOrders.length) {
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500" />
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
+    <div className="min-h-screen bg-slate-50 pb-10 font-sans safe-bottom">
       {/* Header */}
-      <div className="bg-white px-4 py-4 sticky top-0 z-40 shadow-sm border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-            <button 
-                onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-full transition text-gray-700"
-            >
-                <ArrowLeft className="w-6 h-6" />
+      <div className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-40 shadow-sm" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">{t('open_orders')}</h1>
+            <h1 className="text-lg font-bold text-slate-900 truncate">{t('open_orders')}</h1>
+            <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md shrink-0">{orders.length}</span>
+          </div>
+          <ReportExportButtons title={t('open_orders')} columns={exportColumns} rows={orders} />
         </div>
-        <ReportExportButtons title={t('open_orders')} columns={exportColumns} rows={orders} />
       </div>
 
-      <div className="p-4 max-w-3xl mx-auto w-full">
-        {/* Filter Section */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
-            <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
-                <Search className="w-4 h-4 mr-2 text-gray-500" />
-                {t('filter_title')}
-            </h2>
-            
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">{t('table_no_label')}</label>
-                <input 
-                    type="text" 
-                    placeholder="Örn: 5"
-                    className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition font-medium"
-                    value={filterMasa}
-                    onChange={(e) => setFilterMasa(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">Tip</label>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
-                    <button
-                      onClick={() => setAdturFilter('all')}
-                      className={`px-3 py-1.5 text-xs font-bold flex-1 ${adturFilter==='all' ? 'bg-amber-600 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                      Tümü
-                    </button>
-                    <button
-                      onClick={() => setAdturFilter(0)}
-                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===0 ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                      {t('order_type_adisyon')}
-                    </button>
-                    <button
-                      onClick={() => setAdturFilter(1)}
-                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${adturFilter===1 ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                      {t('order_type_paket')}
-                    </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-900 mb-1 font-bold">{t('show')}:</label>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden w-full">
-                    <button
-                        onClick={() => setScope('today')}
-                        className={`px-3 py-1.5 text-xs font-bold flex-1 ${scope==='today' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Sadece bugün
-                    </button>
-                    <button
-                        onClick={() => setScope('all')}
-                        className={`px-3 py-1.5 text-xs font-bold border-l border-gray-200 flex-1 ${scope==='all' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'}`}
-                    >
-                        Tümü
-                    </button>
-                </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+        {/* Filters */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center">
+            <Search className="w-4 h-4 mr-2 text-slate-500" />
+            {t('filter_title')}
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('table_no_label')}</label>
+              <input
+                type="text"
+                placeholder="Örn: 5"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+                value={filterMasa}
+                onChange={(e) => setFilterMasa(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Tip</label>
+              <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden w-full">
+                <button onClick={() => setAdturFilter('all')} className={segBtn(adturFilter === 'all', 'bg-slate-900')}>Tümü</button>
+                <button onClick={() => setAdturFilter(0)} className={`border-l border-slate-200 ${segBtn(adturFilter === 0, 'bg-emerald-600')}`}>{t('order_type_adisyon')}</button>
+                <button onClick={() => setAdturFilter(1)} className={`border-l border-slate-200 ${segBtn(adturFilter === 1)}`}>{t('order_type_paket')}</button>
               </div>
             </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('show')}:</label>
+              <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden w-full">
+                <button onClick={() => setScope('today')} className={segBtn(scope === 'today')}>Sadece bugün</button>
+                <button onClick={() => setScope('all')} className={`border-l border-slate-200 ${segBtn(scope === 'all')}`}>Tümü</button>
+              </div>
+            </div>
+          </div>
 
-            {/* Date Filter Dropdown */}
-            {showDateFilter && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">{t('start_date')}</label>
-                            <input 
-                                type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-gray-500 mb-1">{t('end_date')}</label>
-                            <input 
-                                type="date" 
-                                className="w-full border-gray-300 rounded-lg text-sm text-gray-900"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                        <button 
-                            onClick={() => setShowDateFilter(false)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition"
-                        >
-                            {t('cancel')}
-                        </button>
-                        <button 
-                            onClick={handleDateSubmit}
-                            className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
-                        >
-                            {t('apply')}
-                        </button>
-                    </div>
+          {showDateFilter && (
+            <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">{t('start_date')}</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
-            )}
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">{t('end_date')}</label>
+                  <input type="date" className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowDateFilter(false)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition">{t('cancel')}</button>
+                <button onClick={handleDateSubmit} className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition">{t('apply')}</button>
+              </div>
+            </div>
+          )}
 
-            {(filterMasa || (startDate && endDate)) && (
-                <button 
-                    onClick={clearFilters}
-                    className="mt-3 flex items-center text-xs font-bold text-red-500 hover:text-red-700 transition"
-                >
-                    <X className="w-3 h-3 mr-1" />
-                    {t('clear_filters')}
-                </button>
-            )}
-            
-            
+          {(filterMasa || (startDate && endDate) || adturFilter !== 'all') && (
+            <button onClick={clearFilters} className="mt-3 flex items-center text-xs font-bold text-red-500 hover:text-red-700 transition">
+              <X className="w-3 h-3 mr-1" />
+              {t('clear_filters')}
+            </button>
+          )}
         </div>
 
-        {/* Count */}
-        <p className="text-sm text-gray-500 mb-4 px-1">{orders.length} {t('count_orders')}</p>
-
-        
         {/* List */}
-        <div className="space-y-3">
-            {orders.map((order, idx) => (
-                <button
-                    key={idx}
-                    onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=open${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
-                    className="w-full bg-gradient-to-br from-white to-amber-50/30 rounded-3xl p-5 shadow-md border-2 border-amber-100 hover:shadow-xl hover:border-amber-300 transition-all duration-200 text-left group"
-                >
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center space-x-3">
-                            <div className="bg-amber-500 p-2 rounded-xl shadow-md">
-                                <Receipt className="w-6 h-6 text-white" />
-                            </div>
-                            <h3 className="text-lg font-black text-gray-900">
-                                #{order.adsno || order.id}
-                            </h3>
-                            {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
-                                <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                    {typeof order.adtur !== 'undefined' 
-                                        ? (order.adtur===0 ? t('order_type_adisyon') : (order.adtur===1 ? t('order_type_paket') : (order.adtur===3 ? t('order_type_hizli') : 'Diğer')))
-                                        : (order.type_label || (order.sipyer === 2 ? t('order_type_paket') : t('order_type_adisyon')))}
-                                </span>
-                            )}
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-500 transition-colors" />
-                    </div>
-
-                    <div className="flex flex-row justify-between items-center">
-                        <div className="mr-4">
-                            <p className="text-2xl font-black text-amber-600 whitespace-nowrap drop-shadow-sm">
-                                {formatCurrency(order.tutar)}
-                            </p>
-                        </div>
-                        
-                        <div className="flex-1 space-y-1.5 border-l border-gray-100 pl-4">
-                            {(order.garson || order.garson_adi) && (
-                                <div className="flex items-center">
-                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
-                                </div>
-                            )}
-                            {order.customer_name && (
-                                <div className="flex items-center">
-                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 truncate">Müşteri: {order.customer_name}</span>
-                                </div>
-                            )}
-                            {order.customer_phone && (
-                                <div className="flex items-center">
-                                    <User className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 truncate">Telefon: {order.customer_phone}</span>
-                                </div>
-                            )}
-                            {order.customer_address && (
-                                <div className="flex items-start">
-                                    <MapPin className="w-3.5 h-3.5 mr-2 mt-0.5 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 line-clamp-2">Adres: {order.customer_address}</span>
-                                </div>
-                            )}
-                            {typeof order.iskonto !== 'undefined' && order.iskonto > 0 && (
-                                <div className="flex items-center">
-                                    <Tag className="w-3.5 h-3.5 mr-2 text-emerald-500 flex-shrink-0" />
-                                    <span className="text-xs text-emerald-600 font-semibold">İndirim: {formatCurrency(order.iskonto)}</span>
-                                </div>
-                            )}
-                            {typeof order.iskonto !== 'undefined' && order.iskonto > 0 && (
-                                <div className="flex items-center">
-                                    <Tag className="w-3.5 h-3.5 mr-2 text-emerald-500 flex-shrink-0" />
-                                    <span className="text-xs text-emerald-600 font-semibold">İndirim: {formatCurrency(order.iskonto)}</span>
-                                </div>
-                            )}
-                            <div className="flex items-center">
-                                <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                <span className="text-base font-bold text-gray-900 truncate">Masa No: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
-                            </div>
-                            {Number(order.person_count || 0) > 0 && (
-                                <div className="flex items-center">
-                                    <Users className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">Kişi Sayısı: {order.person_count}</span>
-                                </div>
-                            )}
-                            {(order.country_name || order.country_code) && (
-                                <div className="flex items-center">
-                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">Milliyet: {order.country_name || order.country_code}</span>
-                                </div>
-                            )}
-                            {order.acilis_saati && (
-                                <div className="flex items-center">
-                                    <Clock className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
-                                </div>
-                            )}
-                            {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
-                                <div className="flex items-center">
-                                    <MapPin className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className="text-xs text-gray-600">
-                                        {t('order_place')} {typeof order.adtur !== 'undefined' 
-                                            ? (order.adtur===0 ? 'Adisyon' : (order.adtur===1 ? 'Paket' : (order.adtur===3 ? 'Hızlı Satış' : 'Diğer')))
-                                            : (order.type_label || ((order.sipyer === 2) ? 'Paket' : 'Adisyon'))}
-                                    </span>
-                                </div>
-                            )}
-                            {order.acilis_saati && (
-                                <div className="flex items-center">
-                                    <Timer className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                    <span className={clsx(
-                                        "text-xs font-medium",
-                                        getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? "text-red-600 font-bold" : "text-gray-600"
-                                    )}>
-                                        {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
-                                    </span>
-                                </div>
-                            )}
-                            <div className="flex items-center pt-1 mt-1 border-t border-gray-50">
-                                <Calendar className="w-3.5 h-3.5 mr-2 text-gray-400 flex-shrink-0" />
-                                <span className="text-[10px] text-gray-400">{formatDate(order.tarih)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </button>
-            ))}
-
-            {orders.length === 0 && !loading && (
-                <div className="text-center py-12">
-                    <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-gray-900 font-medium mb-1">{t('not_found')}</h3>
-                    <p className="text-gray-500 text-sm">{t('try_changing_filters')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {orders.map((order, idx) => (
+            <button
+              key={idx}
+              onClick={() => router.push(`/reports/orders/detail?id=${order.adsno}&type=open${typeof order.adtur !== 'undefined' ? `&adtur=${order.adtur}` : ''}`)}
+              className="w-full bg-white rounded-2xl p-5 shadow-sm border border-slate-200 border-l-4 border-l-amber-400 hover:shadow-md hover:border-l-amber-500 transition text-left group"
+            >
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="bg-amber-500 p-2 rounded-xl shadow-sm shrink-0">
+                    <Receipt className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900">#{order.adsno || order.id}</h3>
+                  {(typeof order.adtur !== 'undefined' || order.type_label || order.sipyer) && (
+                    <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md">{typeLabel(order)}</span>
+                  )}
                 </div>
-            )}
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-amber-500 transition-colors" />
+              </div>
+
+              <p className="text-2xl font-black text-amber-600 mb-3">{formatCurrency(order.tutar)}</p>
+
+              <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                <div className="flex items-center">
+                  <MapPin className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                  <span className="text-sm font-bold text-slate-900 truncate">Masa: {typeof order.masa_no !== 'undefined' ? order.masa_no : '-'}</span>
+                </div>
+                {(order.garson || order.garson_adi) && (
+                  <div className="flex items-center">
+                    <User className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600 truncate">{t('waiter')}: {order.garson || order.garson_adi}</span>
+                  </div>
+                )}
+                {order.customer_name && (
+                  <div className="flex items-center">
+                    <User className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600 truncate">Müşteri: {order.customer_name}</span>
+                  </div>
+                )}
+                {order.customer_phone && (
+                  <div className="flex items-center">
+                    <User className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600 truncate">Telefon: {order.customer_phone}</span>
+                  </div>
+                )}
+                {order.customer_address && (
+                  <div className="flex items-start">
+                    <MapPin className="w-3.5 h-3.5 mr-2 mt-0.5 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600 line-clamp-2">Adres: {order.customer_address}</span>
+                  </div>
+                )}
+                {typeof order.iskonto !== 'undefined' && order.iskonto > 0 && (
+                  <div className="flex items-center">
+                    <Tag className="w-3.5 h-3.5 mr-2 text-emerald-500 shrink-0" />
+                    <span className="text-xs text-emerald-600 font-semibold">İndirim: {formatCurrency(order.iskonto)}</span>
+                  </div>
+                )}
+                {Number(order.person_count || 0) > 0 && (
+                  <div className="flex items-center">
+                    <Users className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600">Kişi: {order.person_count}</span>
+                  </div>
+                )}
+                {(order.country_name || order.country_code) && (
+                  <div className="flex items-center">
+                    <MapPin className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600">Milliyet: {order.country_name || order.country_code}</span>
+                  </div>
+                )}
+                {order.acilis_saati && (
+                  <div className="flex items-center">
+                    <Clock className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-600 font-medium">{t('opening')}: {formatTime(order.acilis_saati)}</span>
+                  </div>
+                )}
+                {order.acilis_saati && (
+                  <div className="flex items-center">
+                    <Timer className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                    <span className={clsx('text-xs font-medium', getElapsedMinutes(order.tarih, order.acilis_saati) > 60 ? 'text-red-600 font-bold' : 'text-slate-600')}>
+                      {t('elapsed')}: {getElapsed(order.tarih, order.acilis_saati)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center pt-1 mt-1 border-t border-slate-50">
+                  <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
+                  <span className="text-[10px] text-slate-400">{formatDate(order.tarih)}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+
+          {orders.length === 0 && !loading && (
+            <div className="md:col-span-2 xl:col-span-3 text-center py-16 bg-white rounded-2xl border border-slate-200">
+              <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="text-slate-900 font-bold mb-1">{t('not_found')}</h3>
+              <p className="text-slate-500 text-sm">{t('try_changing_filters')}</p>
+            </div>
+          )}
         </div>
 
         {/* Load More */}
         {currentPage < totalPages && (
-            <button
-                onClick={() => fetchOrders(currentPage + 1, true)}
-                disabled={loadingMore}
-                className="w-full mt-6 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition disabled:opacity-70 flex items-center justify-center"
-            >
-                {loadingMore ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                    t('load_more')
-                )}
-            </button>
+          <button
+            onClick={() => fetchOrders(currentPage + 1, true)}
+            disabled={loadingMore}
+            className="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition disabled:opacity-70 flex items-center justify-center"
+          >
+            {loadingMore ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              t('load_more')
+            )}
+          </button>
         )}
 
-        {/* Pagination Info */}
         {total > 0 && (
-            <div className="text-center mt-4 space-y-1">
-                <p className="text-xs text-gray-500">{orders.length} / {total} {t('showing')}</p>
-                <p className="text-xs text-gray-400">{t('page')} {currentPage} / {totalPages}</p>
-            </div>
+          <div className="text-center space-y-1">
+            <p className="text-xs text-slate-500">{orders.length} / {total} {t('showing')}</p>
+            <p className="text-xs text-slate-400">{t('page')} {currentPage} / {totalPages}</p>
+          </div>
         )}
       </div>
     </div>
@@ -521,7 +442,7 @@ function OpenOrdersContent() {
 
 export default function OpenOrdersPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
+    <Suspense fallback={<div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" /></div>}>
       <OpenOrdersContent />
     </Suspense>
   );

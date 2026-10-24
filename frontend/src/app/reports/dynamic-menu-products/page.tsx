@@ -3,13 +3,14 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { LayoutList, Search } from 'lucide-react';
+import { LayoutList, Search, Wallet, Package, Hash } from 'lucide-react';
 import clsx from 'clsx';
 import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
-import AutoFitText from '@/components/AutoFitText';
 
 type MenuProductRow = {
   plu: number | string;
@@ -128,7 +129,7 @@ export default function DynamicMenuProductsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans safe-bottom">
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
       <ReportHeader
         title={t('dynamic_menu_products')}
         period={period}
@@ -142,119 +143,143 @@ export default function DynamicMenuProductsPage() {
             title={t('dynamic_menu_products')}
             columns={exportColumns}
             rows={exportRows}
-        />
+          />
         }
         kasaNo={kasaNo}
         setKasaNo={setKasaNo}
         kasaOptions={kasaOptions}
-        />
+      />
 
-      <main
-        className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4"
-        style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}
-      >
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 h-11">
-            <Search className="w-4 h-4 text-gray-400" />
+      <ReportShell>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={lang === 'tr' ? 'PLU, ürün veya grup ara...' : 'Search PLU, product or group...'}
-              className="flex-1 bg-transparent text-sm outline-none"
+              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
             />
           </div>
           <button
             type="button"
             onClick={() => setIncludeMenu((prev) => !prev)}
             className={clsx(
-              'w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-colors',
+              'flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border text-sm font-semibold transition-colors shrink-0',
               includeMenu
                 ? 'bg-violet-600 text-white border-violet-600'
                 : 'bg-violet-50 text-violet-800 border-violet-200',
             )}
           >
-            <span>
-              {includeMenu
-                ? t('dynamic_menu_show_on')
-                : t('dynamic_menu_show_off')}
-            </span>
-            <span className="text-xs opacity-80">
-              {includeMenu ? (lang === 'tr' ? 'Açık' : 'On') : lang === 'tr' ? 'Kapalı' : 'Off'}
-            </span>
+            <span>{includeMenu ? t('dynamic_menu_show_on') : t('dynamic_menu_show_off')}</span>
+            <span className="text-xs opacity-80">{includeMenu ? (lang === 'tr' ? 'Açık' : 'On') : lang === 'tr' ? 'Kapalı' : 'Off'}</span>
           </button>
-          <p className="text-[11px] text-gray-500 leading-4">
-            {t('dynamic_menu_filter_hint')}
-          </p>
         </div>
+        <p className="text-[11px] text-slate-500 leading-4 -mt-2 px-1">{t('dynamic_menu_filter_hint')}</p>
 
         {isLoading ? (
-          <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-3xl p-8 animate-pulse h-36" />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+              ))}
+            </div>
+            <div className="h-80 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+          </div>
         ) : error ? (
-          <div className="text-center py-12 text-gray-500">{error.message}</div>
+          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-slate-500">{error.message}</div>
         ) : (
           <>
-            <div className="bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 rounded-3xl p-8 text-center text-white shadow-2xl">
-              <p className="text-violet-100 text-sm font-bold mb-3">
-                {lang === 'tr' ? 'ÜRÜN TOPLAMI / CİRO' : 'PRODUCT TOTAL / REVENUE'}
-              </p>
-              <AutoFitText
-                text={formatCurrency(totalSales)}
-                className="font-black tracking-tight drop-shadow-lg"
-                maxPx={48}
-                minPx={24}
-              />
-              <p className="text-violet-100 text-base mt-4 font-semibold">
-                {filtered.length} {lang === 'tr' ? 'ürün' : 'products'} • {totalQty} {lang === 'tr' ? 'adet' : 'qty'}
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatTile tone="dark" label={lang === 'tr' ? 'Ürün Toplamı / Ciro' : 'Product Total / Revenue'} value={formatCurrency(totalSales)} sub={`${filtered.length} ${lang === 'tr' ? 'ürün' : 'products'}`} icon={Wallet} />
+              <StatTile accent="violet" label={lang === 'tr' ? 'Ürün' : 'Products'} value={filtered.length} icon={Package} />
+              <StatTile accent="indigo" label={lang === 'tr' ? 'Adet' : 'Qty'} value={totalQty} icon={Hash} />
             </div>
 
             {filtered.length === 0 ? (
-              <div className="text-center py-12">
-                <LayoutList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{t('no_data_selected_range')}</p>
+              <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+                <LayoutList className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">{t('no_data_selected_range')}</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filtered.map((item) => (
-                  <div
-                    key={`${item.plu}-${item.product_name}`}
-                    className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                            PLU {item.plu}
-                          </span>
-                          {(item.is_dynamic_menu || isMenuName(item)) && (
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">
-                              {lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu'}
-                            </span>
-                          )}
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <h2 className="font-bold text-slate-900">{t('dynamic_menu_products')}</h2>
+                  <span className="text-sm text-slate-500">{filtered.length} kayıt</span>
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr className="text-left">
+                        <th className="px-4 py-3 font-semibold">PLU</th>
+                        <th className="px-4 py-3 font-semibold">{lang === 'tr' ? 'Ürün' : 'Product'}</th>
+                        <th className="px-4 py-3 font-semibold">{lang === 'tr' ? 'Grup' : 'Group'}</th>
+                        <th className="px-4 py-3 font-semibold text-right">{lang === 'tr' ? 'Adet' : 'Qty'}</th>
+                        <th className="px-4 py-3 font-semibold text-right">{lang === 'tr' ? 'Fiyat' : 'Price'}</th>
+                        <th className="px-4 py-3 font-semibold text-right">{lang === 'tr' ? 'Toplam' : 'Total'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((item) => (
+                        <tr key={`${item.plu}-${item.product_name}`} className="border-t border-slate-100 hover:bg-violet-50/40">
+                          <td className="px-4 py-3 text-slate-500">{item.plu}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-900">{productTitle(item)}</span>
+                              {(item.is_dynamic_menu || isMenuName(item)) && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">
+                                  {lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {isBarePluName(item)
+                              ? (lang === 'tr' ? 'Ürün listesinde yok' : 'Missing from product list')
+                              : item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-700">{asNumber(item.quantity)}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(asNumber(item.price))}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(asNumber(item.total))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filtered.map((item) => (
+                    <div key={`${item.plu}-${item.product_name}`} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">PLU {item.plu}</span>
+                            {(item.is_dynamic_menu || isMenuName(item)) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700">{lang === 'tr' ? 'Dinamik menü' : 'Dynamic menu'}</span>
+                            )}
+                          </div>
+                          <div className="font-bold text-slate-900 mt-1 truncate">{productTitle(item)}</div>
+                          <div className="text-xs text-slate-500">{item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}</div>
                         </div>
-                        <h3 className="font-bold text-gray-900 mt-1 truncate">{productTitle(item)}</h3>
-                        <p className="text-xs text-gray-500">
-                          {isBarePluName(item)
-                            ? lang === 'tr'
-                              ? 'Satış kaydında var, ürün listesinde yok (silinmiş olabilir)'
-                              : 'On the ticket, missing from the product list (may be deleted)'
-                            : item.group_name || (lang === 'tr' ? 'Grup yok' : 'No group')}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-black text-gray-900">{formatCurrency(asNumber(item.total))}</p>
-                        <p className="text-xs text-gray-500">
-                          {asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'} • {formatCurrency(asNumber(item.price))}
-                        </p>
+                        <div className="text-right shrink-0">
+                          <div className="font-black text-slate-900">{formatCurrency(asNumber(item.total))}</div>
+                          <div className="text-xs text-slate-500">{asNumber(item.quantity)} {lang === 'tr' ? 'adet' : 'qty'}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 bg-violet-50/60 px-4 py-3">
+                  <span className="text-sm font-semibold text-violet-700">{lang === 'tr' ? 'Toplam' : 'Total'}</span>
+                  <span className="text-lg font-black text-violet-700">{formatCurrency(totalSales)}</span>
+                </div>
+              </section>
             )}
           </>
         )}
-      </main>
+      </ReportShell>
     </div>
   );
 }

@@ -108,35 +108,34 @@ export default function ReportHeader({
             `}</style>
             {/* Quick Periods */}
             {[
-              { id: 'today', label: 'Bugün', icon: '📅' },
-              { id: 'yesterday', label: 'Dün', icon: '⏪' },
-              { id: 'week', label: 'Bu Hafta', icon: '📆' },
-              { id: 'last7days', label: 'Son 7 Gün', icon: '🗓️' },
-              { id: 'month', label: 'Bu Ay', icon: '📊' },
-              { id: 'lastmonth', label: 'Geçen Ay', icon: '📁' },
+              { id: 'today', label: 'Bugün' },
+              { id: 'yesterday', label: 'Dün' },
+              { id: 'week', label: 'Bu Hafta' },
+              { id: 'last7days', label: 'Son 7 Gün' },
+              { id: 'month', label: 'Bu Ay' },
+              { id: 'lastmonth', label: 'Geçen Ay' },
             ].map(p => (
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
                 className={clsx(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
+                  "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200",
                   period === p.id
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
                 )}
                 type="button"
               >
-                <span className="text-xs">{p.icon}</span>
                 {p.label}
               </button>
             ))}
             <button
               onClick={() => setShowCustomDateModal(true)}
               className={clsx(
-                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200",
+                "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200",
                 period === 'custom'
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
-                  : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-white text-slate-600 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
               )}
               type="button"
             >

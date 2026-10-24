@@ -3,15 +3,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
-import { useI18n } from '@/contexts/I18nContext';
-import { useRouter } from 'next/navigation';
-import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
-import { Calendar, BarChart2 } from 'lucide-react';
+import { BarChart2, Search, XCircle, CalendarDays } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import ReportShell from '@/components/ReportShell';
+import StatTile from '@/components/StatTile';
 import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 
 interface UnsoldCancelItem {
   urun_adi: string;
@@ -26,13 +33,11 @@ interface UnsoldCancelItem {
 
 export default function UnsoldCancelsPage() {
   const { token, user } = useAuth();
-  const { t } = useI18n();
-  const router = useRouter();
   const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
   const kasaOptions = getBranchKasaOptions(user);
-  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<UnsoldCancelItem[]>([]);
+  const [query, setQuery] = useState('');
   const reqIdRef = useRef(0);
 
   useEffect(() => {
@@ -66,7 +71,15 @@ export default function UnsoldCancelsPage() {
     fetchData();
   }, [token, period, customStartDate, customEndDate, kasaNo]);
 
-  const filteredItems = useMemo(() => items, [items]);
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      i =>
+        (i.urun_adi || '').toLowerCase().includes(q) ||
+        (i.personel_adi || '').toLowerCase().includes(q),
+    );
+  }, [items, query]);
 
   const chartData = useMemo(() => {
     const map = new Map<string, { tarih: string; toplam_tutar: number; adet: number }>();
@@ -79,22 +92,23 @@ export default function UnsoldCancelsPage() {
     });
     return Array.from(map.values()).sort((a, b) => a.tarih.localeCompare(b.tarih));
   }, [filteredItems]);
-  
+
   const totalTutar = useMemo(() => filteredItems.reduce((sum, i) => sum + (Number(i.tutar) || 0), 0), [filteredItems]);
   const totalCount = filteredItems.length;
 
-  const handleCustomDateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPeriod('custom');
-    setShowCustomDateModal(false);
-  };
-
   const formatCurrency = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
+  const formatCompact = (val: number) => new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(val);
 
-  if (loading && items.length === 0) return <div className="flex h-screen items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+  if (loading && items.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-800" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-slate-50 font-sans safe-bottom">
       <ReportHeader
         title="Satılmadan İptal Edilenler"
         period={period}
@@ -115,115 +129,120 @@ export default function UnsoldCancelsPage() {
               { key: 'miktar', label: 'Miktar' },
               { key: 'tutar', label: 'Tutar', format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-        />
+          />
         }
         kasaNo={kasaNo}
         setKasaNo={setKasaNo}
         kasaOptions={kasaOptions}
-        />
+      />
 
-      <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between">
-          <button onClick={() => router.back()} className="px-3 py-2 rounded bg-gray-200 text-gray-900">Geri</button>
+      <ReportShell>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatTile tone="dark" label="Toplam Tutar" value={formatCurrency(totalTutar)} sub={`${totalCount} kayıt`} icon={XCircle} />
+          <StatTile accent="violet" label="Kayıt Sayısı" value={totalCount} icon={XCircle} />
+          <StatTile accent="indigo" label="Gün Sayısı" value={chartData.length} icon={CalendarDays} />
         </div>
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
-          <div className="flex items-center mb-3">
-            <BarChart2 className="w-5 h-5 text-indigo-600 mr-2" />
-            <h2 className="text-lg font-bold text-gray-900">Günlük Toplam Tutar</h2>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart2 className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base font-bold text-slate-900">Günlük Toplam Tutar</h2>
           </div>
-          <div className="w-full h-56">
+          <div className="w-full h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="tarih" />
-                <YAxis />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Legend />
-                <Bar dataKey="toplam_tutar" fill="#6366f1" name="Toplam Tutar" />
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="tarih" tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                <YAxis tickFormatter={formatCompact} tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} width={48} />
+                <Tooltip
+                  formatter={(v: any) => [formatCurrency(Number(v)), 'Toplam Tutar']}
+                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
+                  cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                />
+                <Bar dataKey="toplam_tutar" fill="#6366f1" radius={[6, 6, 0, 0]} name="Toplam Tutar" />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </section>
 
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">Detaylar</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-100 rounded-xl overflow-hidden">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Ürün</th>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Personel</th>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Tarih</th>
-                  <th className="text-left text-xs font-semibold text-gray-700 px-3 py-2">Saat</th>
-                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Miktar</th>
-                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Birim Fiyat</th>
-                  <th className="text-right text-xs font-semibold text-gray-700 px-3 py-2">Tutar</th>
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="font-bold text-slate-900">Detaylar</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Ürün / personel ara..."
+                  className="w-full sm:w-60 pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                />
+              </div>
+              <span className="text-sm text-slate-500 whitespace-nowrap">{totalCount} kayıt</span>
+            </div>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr className="text-left">
+                  <th className="px-4 py-3 font-semibold">Ürün</th>
+                  <th className="px-4 py-3 font-semibold">Personel</th>
+                  <th className="px-4 py-3 font-semibold">Tarih</th>
+                  <th className="px-4 py-3 font-semibold">Saat</th>
+                  <th className="px-4 py-3 font-semibold text-right">Miktar</th>
+                  <th className="px-4 py-3 font-semibold text-right">Birim Fiyat</th>
+                  <th className="px-4 py-3 font-semibold text-right">Tutar</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((i, idx) => (
-                  <tr key={idx} className="border-t">
-                    <td className="px-3 py-2 text-sm text-gray-900">{i.urun_adi}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{i.personel_adi || i.pers_id}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{i.tarih}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{i.saat}</td>
-                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{i.miktar}</td>
-                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.bfiyat || 0)}</td>
-                    <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(i.tutar || 0)}</td>
+                  <tr key={idx} className="border-t border-slate-100 hover:bg-indigo-50/40">
+                    <td className="px-4 py-3 font-semibold text-slate-900">{i.urun_adi}</td>
+                    <td className="px-4 py-3 text-slate-600">{i.personel_adi || i.pers_id}</td>
+                    <td className="px-4 py-3 text-slate-600">{i.tarih}</td>
+                    <td className="px-4 py-3 text-slate-600">{i.saat}</td>
+                    <td className="px-4 py-3 text-right text-slate-700">{i.miktar}</td>
+                    <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(i.bfiyat || 0)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-indigo-700">{formatCurrency(i.tutar || 0)}</td>
                   </tr>
                 ))}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">Kayıt bulunamadı.</td>
+                    <td colSpan={7} className="px-4 py-6 text-center text-slate-500">Kayıt bulunamadı.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
-            <div className="text-sm font-semibold text-indigo-700">Toplam Kayıt: {totalCount}</div>
-            <div className="text-lg font-bold text-indigo-700">Toplam Tutar: {formatCurrency(totalTutar)}</div>
-          </div>
-        </div>
-      </main>
 
-      {showCustomDateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Tarih Aralığı Seç</h3>
-              <button onClick={() => setShowCustomDateModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <form onSubmit={handleCustomDateSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Başlangıç Tarihi</label>
-                <input 
-                  type="date" 
-                  required
-                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                />
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredItems.map((i, idx) => (
+              <div key={idx} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 truncate">{i.urun_adi}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {i.personel_adi || i.pers_id} · {i.tarih} {i.saat}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">{i.miktar} adet</div>
+                  </div>
+                  <div className="font-bold text-indigo-700 shrink-0">{formatCurrency(i.tutar || 0)}</div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bitiş Tarihi</label>
-                <input 
-                  type="date" 
-                  required
-                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                />
-              </div>
-              <button 
-                type="submit"
-                className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 transition"
-              >
-                Uygula
-              </button>
-            </form>
+            ))}
+            {filteredItems.length === 0 && (
+              <div className="px-4 py-6 text-center text-slate-500">Kayıt bulunamadı.</div>
+            )}
           </div>
-        </div>
-      )}
+
+          <div className="flex items-center justify-between border-t border-slate-100 bg-indigo-50/60 px-4 py-3">
+            <span className="text-sm font-semibold text-indigo-700">Toplam Kayıt: {totalCount}</span>
+            <span className="text-lg font-black text-indigo-700">{formatCurrency(totalTutar)}</span>
+          </div>
+        </section>
+      </ReportShell>
     </div>
   );
 }
