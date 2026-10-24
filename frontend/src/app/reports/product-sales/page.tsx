@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, Suspense, useEffect, useMemo } from 'react';
+import React, { useState, Suspense, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Package, Layers, ArrowUpDown, ReceiptText, X, Store, Plus } from 'lucide-react';
+import { Package, Layers, ArrowUpDown, ReceiptText, X, Store, Plus, ChevronDown, Check } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import {
   useSharedReportFilters,
@@ -23,6 +23,121 @@ import AutoFitText from '@/components/AutoFitText';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import ReportExportButtons from '@/components/ReportExportButtons';
+
+/** Tablo sütunu için çoklu seçimli filtre. */
+function ColMultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = 'Seç…',
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((o) => o.toLowerCase().includes(needle));
+  }, [options, q]);
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) onChange(selected.filter((v) => v !== value));
+    else onChange([...selected, value]);
+  };
+
+  const label =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} seçili`;
+
+  return (
+    <div ref={rootRef} className="relative w-full min-w-[7rem]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={clsx(
+          'w-full flex items-center justify-between gap-1 rounded-md border bg-white px-2 py-1 text-xs font-normal text-left',
+          selected.length
+            ? 'border-indigo-300 text-indigo-900'
+            : 'border-slate-200 text-slate-600',
+        )}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute z-40 left-0 right-0 mt-1 min-w-[12rem] max-h-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="p-1.5 border-b border-slate-100 flex gap-1">
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Ara…"
+              className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs"
+              autoFocus
+            />
+            {selected.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-[10px] font-semibold text-slate-600 px-1.5 rounded hover:bg-slate-100"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-2 text-xs text-slate-400">Sonuç yok</p>
+            ) : (
+              filtered.map((opt) => {
+                const on = selected.includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => toggle(opt)}
+                    className={clsx(
+                      'w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-slate-50',
+                      on && 'bg-indigo-50 text-indigo-900',
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
+                        on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300',
+                      )}
+                    >
+                      {on && <Check className="w-2.5 h-2.5" />}
+                    </span>
+                    <span className="truncate">{opt || '(boş)'}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProductSalesContent() {
   const { token, user } = useAuth();
@@ -45,9 +160,9 @@ function ProductSalesContent() {
   >('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [colFilters, setColFilters] = useState({
-    product_name: '',
-    group_name: '',
-    plu: '',
+    product_name: [] as string[],
+    group_name: [] as string[],
+    plu: [] as string[],
     quantity: '',
     total: '',
     pct_total: '',
@@ -635,11 +750,33 @@ function ProductSalesContent() {
     router.push(`/reports/orders/detail?${params.toString()}`);
   };
 
-  const matchesColFilter = (raw: string, filter: string) => {
-    const f = filter.trim().toLowerCase();
-    if (!f) return true;
-    return String(raw ?? '').toLowerCase().includes(f);
+  const matchesMultiFilter = (raw: string, selected: string[]) => {
+    if (!selected.length) return true;
+    const v = String(raw ?? '');
+    return selected.some((s) => s === v);
   };
+
+  const filterOptions = useMemo(() => {
+    const products = new Set<string>();
+    const groups = new Set<string>();
+    const plus = new Set<string>();
+    for (const item of data || []) {
+      const p = String(item?.product_name ?? '').trim();
+      const g = String(item?.group_name ?? '').trim();
+      const plu = String(item?.plu ?? '').trim();
+      if (p) products.add(p);
+      if (g) groups.add(g);
+      else groups.add('');
+      if (plu) plus.add(plu);
+    }
+    const sortTr = (a: string, b: string) =>
+      a.localeCompare(b, 'tr', { sensitivity: 'base' });
+    return {
+      product_name: Array.from(products).sort(sortTr),
+      group_name: Array.from(groups).sort(sortTr),
+      plu: Array.from(plus).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b)),
+    };
+  }, [data]);
 
   const matchesNumFilter = (value: number, filter: string) => {
     const f = filter.trim().replace(',', '.');
@@ -680,9 +817,9 @@ function ProductSalesContent() {
       ) {
         return false;
       }
-      if (!matchesColFilter(item.product_name || '', colFilters.product_name)) return false;
-      if (!matchesColFilter(item.group_name || '', colFilters.group_name)) return false;
-      if (!matchesColFilter(String(item.plu ?? ''), colFilters.plu)) return false;
+      if (!matchesMultiFilter(item.product_name || '', colFilters.product_name)) return false;
+      if (!matchesMultiFilter(item.group_name || '', colFilters.group_name)) return false;
+      if (!matchesMultiFilter(String(item.plu ?? ''), colFilters.plu)) return false;
       return true;
     });
   }, [data, searchQuery, colFilters.product_name, colFilters.group_name, colFilters.plu]);
@@ -788,12 +925,14 @@ function ProductSalesContent() {
     return arr;
   }, [columnFilteredData]);
 
-  const hasActiveColFilters = Object.values(colFilters).some((v) => String(v).trim() !== '');
+  const hasActiveColFilters = Object.values(colFilters).some((v) =>
+    Array.isArray(v) ? v.length > 0 : String(v).trim() !== '',
+  );
   const clearColFilters = () =>
     setColFilters({
-      product_name: '',
-      group_name: '',
-      plu: '',
+      product_name: [],
+      group_name: [],
+      plu: [],
       quantity: '',
       total: '',
       pct_total: '',
@@ -1286,36 +1425,31 @@ function ProductSalesContent() {
                     <tr className="border-t border-slate-100">
                       <th className="px-2 pb-2" />
                       <th className="px-2 pb-2">
-                        <input
-                          type="text"
-                          value={colFilters.product_name}
-                          onChange={(e) =>
-                            setColFilters((p) => ({ ...p, product_name: e.target.value }))
+                        <ColMultiSelect
+                          options={filterOptions.product_name}
+                          selected={colFilters.product_name}
+                          onChange={(product_name) =>
+                            setColFilters((p) => ({ ...p, product_name }))
                           }
-                          placeholder="Filtre…"
-                          className="w-full min-w-[8rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                          placeholder="Ürün seç…"
                         />
                       </th>
                       <th className="px-2 pb-2">
-                        <input
-                          type="text"
-                          value={colFilters.group_name}
-                          onChange={(e) =>
-                            setColFilters((p) => ({ ...p, group_name: e.target.value }))
+                        <ColMultiSelect
+                          options={filterOptions.group_name}
+                          selected={colFilters.group_name}
+                          onChange={(group_name) =>
+                            setColFilters((p) => ({ ...p, group_name }))
                           }
-                          placeholder="Filtre…"
-                          className="w-full min-w-[7rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                          placeholder="Grup seç…"
                         />
                       </th>
                       <th className="px-2 pb-2">
-                        <input
-                          type="text"
-                          value={colFilters.plu}
-                          onChange={(e) =>
-                            setColFilters((p) => ({ ...p, plu: e.target.value }))
-                          }
-                          placeholder="Filtre…"
-                          className="w-full min-w-[4rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                        <ColMultiSelect
+                          options={filterOptions.plu}
+                          selected={colFilters.plu}
+                          onChange={(plu) => setColFilters((p) => ({ ...p, plu }))}
+                          placeholder="PLU seç…"
                         />
                       </th>
                       <th className="px-2 pb-2">
