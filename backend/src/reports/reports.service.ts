@@ -3906,12 +3906,17 @@ export class ReportsService {
     if (useCompanionAttr) {
       params.push(exclusiveIds);
       const exclusiveParam = params.length;
+      // Menü satirlari da companion sayilir (paket menu + icecek atamasi icin)
       const ticketMatch = `c.adsno = l.adsno
               AND c.adtur = l.adtur
-              AND c.kasa = l.kasa
-              AND NOT COALESCE(c.is_menu, false)`;
+              AND c.kasa = l.kasa`;
+      // Menü tutari genelde 0'a katlanir; varlik icin adj veya ham tutar kullan
+      const lineWeight = `CASE
+            WHEN COALESCE(c.adj_tutar, 0) <> 0 THEN c.adj_tutar
+            ELSE COALESCE(c.tutar, 0)
+          END`;
       const anchorAmt = `COALESCE((
-            SELECT SUM(c.adj_tutar)
+            SELECT SUM(${lineWeight})
             FROM adjusted c
             WHERE ${ticketMatch}
               AND c.tip = ANY($${exclusiveParam})
@@ -3927,7 +3932,7 @@ export class ReportsService {
         params.push(rivalIds);
         const rivalParam = params.length;
         const rivalAmt = `COALESCE((
-            SELECT SUM(c.adj_tutar)
+            SELECT SUM(${lineWeight})
             FROM adjusted c
             WHERE ${ticketMatch}
               AND c.tip = ANY($${rivalParam})
