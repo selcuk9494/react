@@ -6,7 +6,7 @@
   "main": "agent.js",
   "scripts": {
     "start": "node agent.js",
-    "test": "node --test poll-policy.test.js queue-safety.test.js ws-transport.test.js sql-safety.test.js"
+    "test": "node --test poll-policy.test.js queue-safety.test.js ws-transport.test.js sql-safety.test.js job-via.test.js"
   },
   "dependencies": {
     "pg": "^8.16.3",

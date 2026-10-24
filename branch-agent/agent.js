@@ -259,18 +259,28 @@ async function buildDashboardSnapshot(pool, meta) {
 
 const loopFlight = createSingleFlight();
 
-async function processJobs(cloud, cfg, pool, jobs) {
+/**
+ * @param {'ws'|'http'} via — job hangi kanaldan geldi (log; secret/SQL yok)
+ */
+async function processJobs(cloud, cfg, pool, jobs, via = 'http') {
   if (!jobs.length) return;
+  const channel = via === 'ws' ? 'ws' : 'http';
+  log(`jobs received via=${channel} count=${jobs.length}`);
   await Promise.all(
     jobs.map(async (job) => {
       const id = String(job.id);
       const prev = localJobState.get(id);
       if (prev === 'done' || prev === 'running' || prev === 'ambiguous') {
-        log(`job ${id} atlandi (local state=${prev}) — cift execution engeli`);
+        log(
+          `job id=${id} via=${channel} atlandi localState=${prev} — cift execution engeli`,
+        );
         return;
       }
       rememberJob(id, 'running');
       const mutating = isMutatingJob(job);
+      const kind = job.sql === '__BATCH__' ? 'batch' : mutating ? 'write' : 'read';
+      const t0 = Date.now();
+      log(`job start id=${id} via=${channel} kind=${kind}`);
       let sqlRan = false;
       try {
         if (job.sql === '__BATCH__') {
@@ -299,6 +309,7 @@ async function processJobs(cloud, cfg, pool, jobs) {
           });
         }
         rememberJob(id, 'done');
+        log(`job done id=${id} via=${channel} kind=${kind} ms=${Date.now() - t0}`);
       } catch (jobErr) {
         const errMsg = jobErr.message || String(jobErr);
         // Yazma SQL calisti ama sonuc belirsiz / hata: otomatik tekrar YOK
@@ -313,9 +324,12 @@ async function processJobs(cloud, cfg, pool, jobs) {
             });
           } catch (_) {
             log(
-              `CRITICAL job ${id}: yazma calisti, job-result yok — sunucu reclaim yazmayi tekrarlamamali`,
+              `CRITICAL job id=${id} via=${channel}: yazma calisti, job-result yok — sunucu reclaim yazmayi tekrarlamamali`,
             );
           }
+          log(
+            `job ambiguous id=${id} via=${channel} kind=${kind} ms=${Date.now() - t0}`,
+          );
           return;
         }
         try {
@@ -326,6 +340,9 @@ async function processJobs(cloud, cfg, pool, jobs) {
             error: errMsg,
           });
           rememberJob(id, 'done');
+          log(
+            `job error-reported id=${id} via=${channel} kind=${kind} ms=${Date.now() - t0}`,
+          );
         } catch (reportErr) {
           if (mutating && sqlRan) {
             rememberJob(id, 'ambiguous');
@@ -333,10 +350,7 @@ async function processJobs(cloud, cfg, pool, jobs) {
             localJobState.delete(id); // read: sunucu reclaim ile tekrar deneyebilir
           }
           log(
-            'job-result gonderilemedi ' +
-              job.id +
-              ': ' +
-              (reportErr.message || reportErr),
+            `job-result gonderilemedi id=${id} via=${channel} err=${reportErr.message || reportErr}`,
           );
         }
       }
@@ -402,10 +416,10 @@ async function mainLoop() {
         (wsUrl ? ` ws=${wsUrl}` : ''),
     );
 
-    const enqueueJobs = (cloud, localCfg, jobs) => {
+    const enqueueJobs = (cloud, localCfg, jobs, via) => {
       if (!jobs?.length) return;
       jobChain = jobChain
-        .then(() => processJobs(cloud, localCfg, pool, jobs))
+        .then(() => processJobs(cloud, localCfg, pool, jobs, via))
         .catch((err) => log('jobChain hata: ' + (err.message || err)));
       return jobChain;
     };
@@ -428,7 +442,7 @@ async function mainLoop() {
           void maybePushSnapshot(cloud, localCfg, pool, session, lastSnapshotAtRef);
         },
         onJobs(jobs) {
-          return enqueueJobs(cloud, localCfg, jobs);
+          return enqueueJobs(cloud, localCfg, jobs, 'ws');
         },
       });
       wsBridge.start();
@@ -467,7 +481,7 @@ async function mainLoop() {
           }
           const jobs = poll.jobs || [];
           hadJobs = jobs.length > 0;
-          await enqueueJobs(cloud, cfg, jobs);
+          await enqueueJobs(cloud, cfg, jobs, 'http');
           await maybePushSnapshot(cloud, cfg, pool, poll, lastSnapshotAtRef);
 
           errorStreak = 0;
