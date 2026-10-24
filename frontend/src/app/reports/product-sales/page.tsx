@@ -173,6 +173,11 @@ function ProductSalesContent() {
     { kasa: number; total: number; qty: number; products: number }[]
   >([]);
   const [kasaBreakdownLoading, setKasaBreakdownLoading] = useState(false);
+  const [businessBreakdown, setBusinessBreakdown] = useState<
+    { id: number; name: string; index: number; total: number; qty: number; products: number }[]
+  >([]);
+  const [businessBreakdownLoading, setBusinessBreakdownLoading] = useState(false);
+  const productsSectionRef = useRef<HTMLDivElement>(null);
   type Biz = { id: number; name: string; group_ids: number[]; sort_order?: number };
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [businessesLoaded, setBusinessesLoaded] = useState(false);
@@ -511,6 +516,112 @@ function ProductSalesContent() {
     knownGroupKey,
     rivalGroupKey,
   ]);
+
+  // Şube kartları: her işletmenin satış özeti (ortak grup kurallarıyla)
+  useEffect(() => {
+    if (!token || !businessesLoaded || businesses.length < 1) {
+      setBusinessBreakdown([]);
+      setBusinessBreakdownLoading(false);
+      return;
+    }
+    if (period === 'custom' && (!customStartDate || !customEndDate)) {
+      setBusinessBreakdownLoading(false);
+      return;
+    }
+    const sharedIds = [...groupToBusinesses.entries()]
+      .filter(([, list]) => list.length > 1)
+      .map(([gid]) => gid);
+    const sharedSet = new Set(sharedIds);
+    const knownIds = allMappedGroupIds;
+    const controller = new AbortController();
+    let active = true;
+    (async () => {
+      setBusinessBreakdownLoading(true);
+      try {
+        const rows = await Promise.all(
+          businesses.map(async (b, index) => {
+            const groupIds = (b.group_ids || [])
+              .map((n) => Number(n))
+              .filter((n) => Number.isFinite(n));
+            if (!groupIds.length) {
+              return { id: b.id, name: b.name, index, total: 0, qty: 0, products: 0 };
+            }
+            const exclusive = groupIds.filter((id) => !sharedSet.has(id));
+            const sharedIn = groupIds.filter((id) => sharedSet.has(id));
+            const rivals = new Set<number>();
+            for (const other of businesses) {
+              if (other.id === b.id) continue;
+              for (const gid of other.group_ids || []) {
+                const n = Number(gid);
+                if (Number.isFinite(n) && !sharedSet.has(n)) rivals.add(n);
+              }
+            }
+            const params = new URLSearchParams({ period });
+            if (period === 'custom') {
+              params.set('start_date', customStartDate);
+              params.set('end_date', customEndDate);
+            }
+            if (kasaNo) params.set('kasa_no', String(kasaNo));
+            params.set('group_ids', groupIds.join(','));
+            if (sharedIn.length && exclusive.length) {
+              params.set('shared_group_ids', sharedIn.join(','));
+            }
+            if (knownIds.length && exclusive.length) {
+              params.set('known_group_ids', knownIds.join(','));
+            }
+            if (rivals.size && exclusive.length) {
+              params.set('rival_group_ids', Array.from(rivals).join(','));
+            }
+            const res = await axios.get(
+              `${getApiUrl()}/reports/product-sales?${params.toString()}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: controller.signal,
+                timeout: 90000,
+              },
+            );
+            const items = Array.isArray(res.data) ? res.data : [];
+            const total = items.reduce((a: number, it: any) => a + (Number(it.total) || 0), 0);
+            const qty = items.reduce((a: number, it: any) => a + (Number(it.quantity) || 0), 0);
+            return {
+              id: b.id,
+              name: b.name,
+              index,
+              total,
+              qty,
+              products: items.length,
+            };
+          }),
+        );
+        if (active) setBusinessBreakdown(rows);
+      } catch (err: any) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        if (active) setBusinessBreakdown([]);
+      } finally {
+        if (active) setBusinessBreakdownLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [
+    token,
+    businessesLoaded,
+    businesses,
+    groupToBusinesses,
+    allMappedGroupIds,
+    period,
+    customStartDate,
+    customEndDate,
+    kasaNo,
+  ]);
+
+  const scrollToProducts = () => {
+    requestAnimationFrame(() => {
+      productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -1195,69 +1306,219 @@ function ProductSalesContent() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="sm:col-span-2 xl:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
-                <p className="text-slate-300 text-xs font-semibold uppercase tracking-wide mb-2">
-                  {kasaNo
-                    ? formatKasaLabel(kasaNo, kasaEntries)
-                    : 'Tüm Kasalar'}
-                  {selectedBusiness ? ` · ${selectedBusiness.name}` : ''}{' '}
-                  · {t('total_sales')}
-                </p>
-                <AutoFitText
-                  text={formatCurrency(totalSales)}
-                  className="font-black tracking-tight"
-                  maxPx={36}
-                  minPx={22}
-                />
-                <p className="text-slate-400 text-sm mt-2 font-medium">
-                  {totalQty} {t('total_products')} · {sortedData.length} kalem
-                </p>
+            {/* Kasa kartları — tek sıra, kompakt */}
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-0.5">
+                Kasalar
               </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKasaNo('');
+                    scrollToProducts();
+                  }}
+                  className={clsx(
+                    'text-left rounded-xl p-3 shadow-sm transition border',
+                    !kasaNo
+                      ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400 ring-offset-1'
+                      : 'bg-slate-800 text-white border-slate-800 hover:bg-slate-700',
+                  )}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-300 truncate">
+                    Tüm Kasalar
+                  </p>
+                  <p className="text-base sm:text-lg font-black tracking-tight mt-0.5 truncate">
+                    {formatCurrency(totalSales)}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {totalQty} adet · {sortedData.length} kalem
+                  </p>
+                </button>
 
-              {!kasaNo && allKasaOptions.length > 1 && (
-                (kasaBreakdownLoading && kasaBreakdown.length === 0
-                  ? allKasaOptions.map((k) => (
-                      <div key={k} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
-                    ))
-                  : (kasaBreakdown.length ? kasaBreakdown : allKasaOptions.map((kasa) => ({
-                      kasa,
-                      total: 0,
-                      qty: 0,
-                      products: 0,
-                    }))).map((row) => {
-                      const color = getKasaColor(row.kasa);
-                      return (
-                      <button
-                        key={row.kasa}
-                        type="button"
-                        onClick={() => setKasaNo(String(row.kasa))}
-                        className={clsx(
-                          'text-left rounded-2xl border p-5 shadow-sm hover:shadow-md transition',
-                          color.bg,
-                          color.border,
-                          kasaBreakdownLoading && 'opacity-70',
-                        )}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={clsx('text-xs font-bold px-2 py-0.5 rounded-md border', color.tag)}>
-                            {formatKasaLabel(row.kasa, kasaEntries)}
-                          </span>
-                          <span className={clsx('text-[11px]', color.text, 'opacity-70')}>
-                            {row.products} ürün
-                          </span>
-                        </div>
-                        <p className={clsx('text-xl font-black', color.text)}>
-                          {formatCurrency(row.total)}
-                        </p>
-                        <p className={clsx('text-xs mt-1 opacity-70', color.text)}>
-                          {row.qty} adet
-                        </p>
-                      </button>
-                      );
-                    }))
-              )}
+                {allKasaOptions.length > 1 &&
+                  (kasaBreakdownLoading && kasaBreakdown.length === 0
+                    ? allKasaOptions.map((k) => (
+                        <div
+                          key={k}
+                          className="h-[4.5rem] bg-white rounded-xl border border-slate-200 animate-pulse"
+                        />
+                      ))
+                    : (kasaBreakdown.length
+                        ? kasaBreakdown
+                        : allKasaOptions.map((kasa) => ({
+                            kasa,
+                            total: 0,
+                            qty: 0,
+                            products: 0,
+                          }))
+                      ).map((row) => {
+                        const color = getKasaColor(row.kasa);
+                        const active = String(kasaNo) === String(row.kasa);
+                        return (
+                          <button
+                            key={row.kasa}
+                            type="button"
+                            onClick={() => {
+                              setKasaNo(
+                                active ? '' : String(row.kasa),
+                              );
+                              scrollToProducts();
+                            }}
+                            className={clsx(
+                              'text-left rounded-xl border p-3 shadow-sm hover:shadow transition',
+                              color.bg,
+                              color.border,
+                              active && 'ring-2 ring-offset-1 ring-slate-400',
+                              kasaBreakdownLoading && 'opacity-70',
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <span
+                                className={clsx(
+                                  'text-[10px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[75%]',
+                                  color.tag,
+                                )}
+                              >
+                                {formatKasaLabel(row.kasa, kasaEntries)}
+                              </span>
+                              <span className={clsx('text-[10px] shrink-0 opacity-70', color.text)}>
+                                {row.products}
+                              </span>
+                            </div>
+                            <p className={clsx('text-base sm:text-lg font-black truncate', color.text)}>
+                              {formatCurrency(row.total)}
+                            </p>
+                            <p className={clsx('text-[10px] mt-0.5 opacity-70', color.text)}>
+                              {row.qty} adet
+                            </p>
+                          </button>
+                        );
+                      }))}
+              </div>
             </div>
+
+            {/* Şube kartları */}
+            {businesses.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-0.5">
+                  Şubeler
+                </div>
+                <div
+                  className={clsx(
+                    'grid gap-2',
+                    businesses.length <= 2
+                      ? 'grid-cols-2 sm:grid-cols-3'
+                      : businesses.length === 3
+                        ? 'grid-cols-2 sm:grid-cols-4'
+                        : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBusinessId('');
+                      setSelectedGroups([]);
+                      scrollToProducts();
+                    }}
+                    className={clsx(
+                      'text-left rounded-xl p-3 shadow-sm transition border',
+                      !selectedBusinessId
+                        ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400 ring-offset-1'
+                        : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300',
+                    )}
+                  >
+                    <p
+                      className={clsx(
+                        'text-[10px] font-semibold uppercase tracking-wide truncate',
+                        !selectedBusinessId ? 'text-slate-300' : 'text-slate-500',
+                      )}
+                    >
+                      Tüm Şubeler
+                    </p>
+                    <p className="text-base sm:text-lg font-black tracking-tight mt-0.5 truncate">
+                      {formatCurrency(
+                        businessBreakdown.length
+                          ? businessBreakdown.reduce((a, r) => a + r.total, 0)
+                          : totalSales,
+                      )}
+                    </p>
+                    <p
+                      className={clsx(
+                        'text-[10px] mt-0.5',
+                        !selectedBusinessId ? 'text-slate-400' : 'text-slate-500',
+                      )}
+                    >
+                      {businessBreakdown.reduce((a, r) => a + r.qty, 0) || totalQty} adet
+                    </p>
+                  </button>
+
+                  {businessBreakdownLoading && businessBreakdown.length === 0
+                    ? businesses.map((b) => (
+                        <div
+                          key={b.id}
+                          className="h-[4.5rem] bg-white rounded-xl border border-slate-200 animate-pulse"
+                        />
+                      ))
+                    : (businessBreakdown.length
+                        ? businessBreakdown
+                        : businesses.map((b, index) => ({
+                            id: b.id,
+                            name: b.name,
+                            index,
+                            total: 0,
+                            qty: 0,
+                            products: 0,
+                          }))
+                      ).map((row) => {
+                        const color = getBusinessColor(row.index);
+                        const active = String(selectedBusinessId) === String(row.id);
+                        return (
+                          <button
+                            key={row.id}
+                            type="button"
+                            onClick={() => {
+                              if (active) {
+                                setSelectedBusinessId('');
+                                setSelectedGroups([]);
+                              } else {
+                                setSelectedBusinessId(String(row.id));
+                              }
+                              scrollToProducts();
+                            }}
+                            className={clsx(
+                              'text-left rounded-xl border p-3 shadow-sm hover:shadow transition',
+                              color.bg,
+                              color.border,
+                              active && 'ring-2 ring-offset-1 ring-slate-400',
+                              businessBreakdownLoading && 'opacity-70',
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <span
+                                className={clsx(
+                                  'text-[10px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[75%]',
+                                  color.tag,
+                                )}
+                              >
+                                {row.name}
+                              </span>
+                              <span className={clsx('text-[10px] shrink-0 opacity-70', color.text)}>
+                                {row.products}
+                              </span>
+                            </div>
+                            <p className={clsx('text-base sm:text-lg font-black truncate', color.text)}>
+                              {formatCurrency(row.total)}
+                            </p>
+                            <p className={clsx('text-[10px] mt-0.5 opacity-70', color.text)}>
+                              {row.qty} adet
+                            </p>
+                          </button>
+                        );
+                      })}
+                </div>
+              </div>
+            )}
 
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
@@ -1392,7 +1653,10 @@ function ProductSalesContent() {
               </div>
             )}
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div
+              ref={productsSectionRef}
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-36"
+            >
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
                 <h2 className="font-bold text-slate-900">Ürünler</h2>
                 <div className="flex items-center gap-2">
