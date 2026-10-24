@@ -39,8 +39,19 @@ function ProductSalesContent() {
   const [productOrders, setProductOrders] = useState<any[]>([]);
   const [productOrdersLoading, setProductOrdersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'total' | 'quantity' | 'pct_total' | 'pct_qty'>('total');
+  const [sortBy, setSortBy] = useState<
+    'product_name' | 'group_name' | 'plu' | 'total' | 'quantity' | 'pct_total' | 'pct_qty'
+  >('total');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [colFilters, setColFilters] = useState({
+    product_name: '',
+    group_name: '',
+    plu: '',
+    quantity: '',
+    total: '',
+    pct_total: '',
+    pct_qty: '',
+  });
   const [apiKasaList, setApiKasaList] = useState<KasaEntry[]>([]);
   const [kasaBreakdown, setKasaBreakdown] = useState<
     { kasa: number; total: number; qty: number; products: number }[]
@@ -519,26 +530,147 @@ function ProductSalesContent() {
     router.push(`/reports/orders/detail?${params.toString()}`);
   };
 
-  const filteredData = (data || []).filter((item: any) => {
+  const matchesColFilter = (raw: string, filter: string) => {
+    const f = filter.trim().toLowerCase();
+    if (!f) return true;
+    return String(raw ?? '').toLowerCase().includes(f);
+  };
+
+  const matchesNumFilter = (value: number, filter: string) => {
+    const f = filter.trim().replace(',', '.');
+    if (!f) return true;
+    // "10-50" aralık, ">10", "<10" veya düz metin/contains
+    const range = f.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/);
+    if (range) {
+      const min = Number(range[1]);
+      const max = Number(range[2]);
+      return value >= Math.min(min, max) && value <= Math.max(min, max);
+    }
+    if (f.startsWith('>=')) return value >= Number(f.slice(2));
+    if (f.startsWith('<=')) return value <= Number(f.slice(2));
+    if (f.startsWith('>')) return value > Number(f.slice(1));
+    if (f.startsWith('<')) return value < Number(f.slice(1));
+    if (!Number.isNaN(Number(f)) && f !== '') {
+      // sayısal eşitlik veya string contains (15.5 → 15)
+      return (
+        Math.abs(value - Number(f)) < 0.0001 ||
+        String(value).includes(f) ||
+        value.toFixed(1).includes(f) ||
+        value.toFixed(2).includes(f)
+      );
+    }
+    return String(value).toLowerCase().includes(f);
+  };
+
+  const filteredData = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return item.product_name?.toLowerCase().includes(q) || item.plu?.toString().includes(q);
-  });
+    return (data || []).filter((item: any) => {
+      if (
+        q &&
+        !(
+          item.product_name?.toLowerCase().includes(q) ||
+          item.plu?.toString().includes(q) ||
+          item.group_name?.toLowerCase().includes(q)
+        )
+      ) {
+        return false;
+      }
+      if (!matchesColFilter(item.product_name || '', colFilters.product_name)) return false;
+      if (!matchesColFilter(item.group_name || '', colFilters.group_name)) return false;
+      if (!matchesColFilter(String(item.plu ?? ''), colFilters.plu)) return false;
+      return true;
+    });
+  }, [data, searchQuery, colFilters.product_name, colFilters.group_name, colFilters.plu]);
 
-  const totalSales = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.total), 0);
-  const totalQty = filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.quantity), 0);
+  const baseTotalSales = useMemo(
+    () => filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.total), 0),
+    [filteredData],
+  );
+  const baseTotalQty = useMemo(
+    () => filteredData.reduce((acc: number, curr: any) => acc + asNumber(curr.quantity), 0),
+    [filteredData],
+  );
 
-  const sortedData = [...filteredData].sort((a, b) => {
-    const aTotal = asNumber(a.total);
-    const bTotal = asNumber(b.total);
-    const aQty = asNumber(a.quantity);
-    const bQty = asNumber(b.quantity);
-    const aVal = sortBy === 'total' ? aTotal : sortBy === 'quantity' ? aQty : sortBy === 'pct_total' ? (totalSales > 0 ? aTotal / totalSales : 0) : (totalQty > 0 ? aQty / totalQty : 0);
-    const bVal = sortBy === 'total' ? bTotal : sortBy === 'quantity' ? bQty : sortBy === 'pct_total' ? (totalSales > 0 ? bTotal / totalSales : 0) : (totalQty > 0 ? bQty / totalQty : 0);
-    return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
-  });
+  const columnFilteredData = useMemo(() => {
+    return filteredData.filter((item: any) => {
+      const qty = asNumber(item.quantity);
+      const total = asNumber(item.total);
+      const pctTotal = baseTotalSales > 0 ? (total / baseTotalSales) * 100 : 0;
+      const pctQty = baseTotalQty > 0 ? (qty / baseTotalQty) * 100 : 0;
+      if (!matchesNumFilter(qty, colFilters.quantity)) return false;
+      if (!matchesNumFilter(total, colFilters.total)) return false;
+      if (!matchesNumFilter(pctTotal, colFilters.pct_total)) return false;
+      if (!matchesNumFilter(pctQty, colFilters.pct_qty)) return false;
+      return true;
+    });
+  }, [
+    filteredData,
+    baseTotalSales,
+    baseTotalQty,
+    colFilters.quantity,
+    colFilters.total,
+    colFilters.pct_total,
+    colFilters.pct_qty,
+  ]);
+
+  const totalSales = columnFilteredData.reduce(
+    (acc: number, curr: any) => acc + asNumber(curr.total),
+    0,
+  );
+  const totalQty = columnFilteredData.reduce(
+    (acc: number, curr: any) => acc + asNumber(curr.quantity),
+    0,
+  );
+
+  const toggleSort = (
+    key: 'product_name' | 'group_name' | 'plu' | 'total' | 'quantity' | 'pct_total' | 'pct_qty',
+  ) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortBy(key);
+      setSortDir(
+        key === 'product_name' || key === 'group_name' || key === 'plu' ? 'asc' : 'desc',
+      );
+    }
+  };
+
+  const sortedData = useMemo(() => {
+    const rows = [...columnFilteredData];
+    rows.sort((a, b) => {
+      const aTotal = asNumber(a.total);
+      const bTotal = asNumber(b.total);
+      const aQty = asNumber(a.quantity);
+      const bQty = asNumber(b.quantity);
+      const aPctT = totalSales > 0 ? aTotal / totalSales : 0;
+      const bPctT = totalSales > 0 ? bTotal / totalSales : 0;
+      const aPctQ = totalQty > 0 ? aQty / totalQty : 0;
+      const bPctQ = totalQty > 0 ? bQty / totalQty : 0;
+
+      let cmp = 0;
+      if (sortBy === 'product_name') {
+        cmp = String(a.product_name || '').localeCompare(String(b.product_name || ''), 'tr');
+      } else if (sortBy === 'group_name') {
+        cmp = String(a.group_name || '').localeCompare(String(b.group_name || ''), 'tr');
+      } else if (sortBy === 'plu') {
+        cmp = asNumber(a.plu) - asNumber(b.plu);
+      } else if (sortBy === 'quantity') {
+        cmp = aQty - bQty;
+      } else if (sortBy === 'pct_total') {
+        cmp = aPctT - bPctT;
+      } else if (sortBy === 'pct_qty') {
+        cmp = aPctQ - bPctQ;
+      } else {
+        cmp = aTotal - bTotal;
+      }
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+    return rows;
+  }, [columnFilteredData, sortBy, sortDir, totalSales, totalQty]);
+
   const groupAgg = useMemo(() => {
     const m = new Map<number, { name: string; total: number; qty: number }>();
-    filteredData.forEach((it: any) => {
+    columnFilteredData.forEach((it: any) => {
       const gid = it.group_id ?? -1;
       const name = it.group_name ?? 'Diğer';
       const prev = m.get(gid) || { name, total: 0, qty: 0 };
@@ -549,7 +681,46 @@ function ProductSalesContent() {
     const arr = Array.from(m.entries()).map(([id, v]) => ({ id, ...v }));
     arr.sort((a, b) => b.total - a.total);
     return arr;
-  }, [filteredData]);
+  }, [columnFilteredData]);
+
+  const hasActiveColFilters = Object.values(colFilters).some((v) => String(v).trim() !== '');
+  const clearColFilters = () =>
+    setColFilters({
+      product_name: '',
+      group_name: '',
+      plu: '',
+      quantity: '',
+      total: '',
+      pct_total: '',
+      pct_qty: '',
+    });
+
+  const SortTh = ({
+    label,
+    col,
+    align = 'left',
+  }: {
+    label: string;
+    col: typeof sortBy;
+    align?: 'left' | 'right';
+  }) => (
+    <th
+      className={clsx(
+        'px-4 pt-3 pb-1 font-semibold cursor-pointer select-none hover:text-slate-800',
+        align === 'right' ? 'text-right' : 'text-left',
+        sortBy === col ? 'text-indigo-700' : '',
+      )}
+      onClick={() => toggleSort(col)}
+      title="Sırala"
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {sortBy === col && (
+          <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+        )}
+      </span>
+    </th>
+  );
 
   const exportColumns = [
     { key: 'product_name', label: 'Ürün' },
@@ -957,49 +1128,152 @@ function ProductSalesContent() {
             )}
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
                 <h2 className="font-bold text-slate-900">Ürünler</h2>
-                <span className="text-sm text-slate-500">{sortedData.length} kayıt</span>
+                <div className="flex items-center gap-2">
+                  {hasActiveColFilters && (
+                    <button
+                      type="button"
+                      onClick={clearColFilters}
+                      className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md bg-slate-100"
+                    >
+                      Filtreleri temizle
+                    </button>
+                  )}
+                  <span className="text-sm text-slate-500">{sortedData.length} kayıt</span>
+                </div>
               </div>
 
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500">
-                    <tr className="text-left">
-                      <th className="px-4 py-3 font-semibold w-12">#</th>
-                      <th className="px-4 py-3 font-semibold">Ürün</th>
-                      <th className="px-4 py-3 font-semibold">Grup</th>
-                      <th className="px-4 py-3 font-semibold">PLU</th>
-                      <th className="px-4 py-3 font-semibold text-right">Adet</th>
-                      <th className="px-4 py-3 font-semibold text-right">Tutar</th>
-                      <th className="px-4 py-3 font-semibold text-right">Tutar %</th>
-                      <th className="px-4 py-3 font-semibold text-right">Adet %</th>
+                    <tr>
+                      <th className="px-4 pt-3 pb-1 font-semibold w-12 text-left">#</th>
+                      <SortTh label="Ürün" col="product_name" />
+                      <SortTh label="Grup" col="group_name" />
+                      <SortTh label="PLU" col="plu" />
+                      <SortTh label="Adet" col="quantity" align="right" />
+                      <SortTh label="Tutar" col="total" align="right" />
+                      <SortTh label="Tutar %" col="pct_total" align="right" />
+                      <SortTh label="Adet %" col="pct_qty" align="right" />
+                    </tr>
+                    <tr className="border-t border-slate-100">
+                      <th className="px-2 pb-2" />
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.product_name}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, product_name: e.target.value }))
+                          }
+                          placeholder="Filtre…"
+                          className="w-full min-w-[8rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.group_name}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, group_name: e.target.value }))
+                          }
+                          placeholder="Filtre…"
+                          className="w-full min-w-[7rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.plu}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, plu: e.target.value }))
+                          }
+                          placeholder="Filtre…"
+                          className="w-full min-w-[4rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.quantity}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, quantity: e.target.value }))
+                          }
+                          placeholder=">10 / 5-20"
+                          title="Örn: 10, >10, 5-20"
+                          className="w-full min-w-[4.5rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal text-right"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.total}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, total: e.target.value }))
+                          }
+                          placeholder=">1000"
+                          title="Örn: 1000, >1000, 500-2000"
+                          className="w-full min-w-[5rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal text-right"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.pct_total}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, pct_total: e.target.value }))
+                          }
+                          placeholder=">5"
+                          title="Örn: 5, >5, 1-10"
+                          className="w-full min-w-[4rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal text-right"
+                        />
+                      </th>
+                      <th className="px-2 pb-2">
+                        <input
+                          type="text"
+                          value={colFilters.pct_qty}
+                          onChange={(e) =>
+                            setColFilters((p) => ({ ...p, pct_qty: e.target.value }))
+                          }
+                          placeholder=">2"
+                          title="Örn: 2, >2, 1-5"
+                          className="w-full min-w-[4rem] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 font-normal text-right"
+                        />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedData.map((item: any, index: number) => (
-                      <tr
-                        key={`${item.plu}-${index}`}
-                        className="border-t border-slate-100 hover:bg-indigo-50/40 cursor-pointer"
-                        onClick={() => {
-                          setSelectedPlu(item.plu ?? null);
-                          setSelectedProductName(item.product_name || '');
-                        }}
-                      >
-                        <td className="px-4 py-3 text-slate-400 font-medium">{index + 1}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900">{item.product_name}</td>
-                        <td className="px-4 py-3 text-slate-600">{item.group_name || '-'}</td>
-                        <td className="px-4 py-3 text-slate-500">{item.plu ?? '-'}</td>
-                        <td className="px-4 py-3 text-right font-medium">{asNumber(item.quantity)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(asNumber(item.total))}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {(totalSales > 0 ? (asNumber(item.total) / totalSales) * 100 : 0).toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {(totalQty > 0 ? (asNumber(item.quantity) / totalQty) * 100 : 0).toFixed(1)}%
+                    {sortedData.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                          Filtreye uyan ürün yok.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      sortedData.map((item: any, index: number) => (
+                        <tr
+                          key={`${item.plu}-${index}`}
+                          className="border-t border-slate-100 hover:bg-indigo-50/40 cursor-pointer"
+                          onClick={() => {
+                            setSelectedPlu(item.plu ?? null);
+                            setSelectedProductName(item.product_name || '');
+                          }}
+                        >
+                          <td className="px-4 py-3 text-slate-400 font-medium">{index + 1}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-900">{item.product_name}</td>
+                          <td className="px-4 py-3 text-slate-600">{item.group_name || '-'}</td>
+                          <td className="px-4 py-3 text-slate-500">{item.plu ?? '-'}</td>
+                          <td className="px-4 py-3 text-right font-medium">{asNumber(item.quantity)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(asNumber(item.total))}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">
+                            {(totalSales > 0 ? (asNumber(item.total) / totalSales) * 100 : 0).toFixed(1)}%
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-600">
+                            {(totalQty > 0 ? (asNumber(item.quantity) / totalQty) * 100 : 0).toFixed(1)}%
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
