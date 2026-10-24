@@ -248,6 +248,7 @@ function ProductSalesContent() {
     setKasaBreakdownLoading(false);
     setSelectedBusinessId('');
     setSelectedGroups([]);
+    setGroups([]);
     setShowBizModal(false);
     setDraftBusinesses([]);
     setApiKasaList([]);
@@ -745,18 +746,29 @@ function ProductSalesContent() {
   };
 
   useEffect(() => {
-    const fetchGroups = async () => {
+    if (!token || selectedBranchId == null) {
+      setGroups([]);
+      return;
+    }
+    let cancelled = false;
+    const scopeAtStart = branchScopeKey;
+    (async () => {
       try {
         const res = await axios.get(`${getApiUrl()}/reports/product-groups`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { branch_id: selectedBranchId },
         });
-        setGroups(res.data);
+        if (cancelled || scopeAtStart !== branchScopeKey) return;
+        setGroups(Array.isArray(res.data) ? res.data : []);
       } catch (e) {
         console.error(e);
+        if (!cancelled && scopeAtStart === branchScopeKey) setGroups([]);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    if (token) fetchGroups();
-  }, [token]);
+  }, [token, selectedBranchId, branchScopeKey]);
 
   useEffect(() => {
     if (!token) {

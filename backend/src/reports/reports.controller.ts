@@ -604,8 +604,13 @@ export class ReportsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/product-groups')
-  async getProductGroups(@Request() req) {
-    return this.reportsService.getProductGroups(req.user);
+  async getProductGroups(
+    @Request() req,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.reportsService.getProductGroups(
+      this.withKasa(req.user, undefined, branchId),
+    );
   }
 
   @UseGuards(JwtAuthGuard)

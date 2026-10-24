@@ -4587,8 +4587,12 @@ export class ReportsService {
   }
 
   async getProductGroups(user: any) {
-    const branchIndex = user.selected_branch || 0;
-    const branchId = user.branches[branchIndex]?.id;
+    const { pool } = await this.getBranchPool(user);
+    const branchId =
+      Number(user?._branch_id) ||
+      Number(user?.selected_branch_id) ||
+      Number(user?.branches?.[user?.selected_branch || 0]?.id) ||
+      0;
     const cacheKey = this.cache.generateKey(
       'product_groups',
       branchId || 'default',
@@ -4599,7 +4603,6 @@ export class ReportsService {
       return cached;
     }
 
-    const { pool } = await this.getBranchPool(user);
     const q = `
       SELECT id, adi as name
       FROM product_group
