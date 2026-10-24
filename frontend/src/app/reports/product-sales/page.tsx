@@ -1215,7 +1215,7 @@ function ProductSalesContent() {
 
       <main
         className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5"
-        style={{ paddingTop: 'calc(140px + env(safe-area-inset-top))' }}
+        style={{ paddingTop: 'calc(158px + env(safe-area-inset-top))' }}
       >
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
