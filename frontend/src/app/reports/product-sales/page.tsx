@@ -429,24 +429,33 @@ function ProductSalesContent() {
     ]);
   };
 
-  const toggleDraftGroup = (bizKey: string, groupId: number) => {
+  /** Bir ürün grubunu tek şubeye bağla (veya aynı şubeye tekrar basınca kaldır). */
+  const assignGroupToSube = (groupId: number, bizKey: string) => {
     setDraftBusinesses((prev) =>
       prev.map((b) => {
-        if (b.key !== bizKey) {
-          // bir grup tek işletmede kalsın
+        if (b.key === bizKey) {
+          const on = b.group_ids.includes(groupId);
           return {
             ...b,
-            group_ids: b.group_ids.filter((id) => id !== groupId),
+            group_ids: on
+              ? b.group_ids.filter((id) => id !== groupId)
+              : [...b.group_ids.filter((id) => id !== groupId), groupId],
           };
         }
-        const has = b.group_ids.includes(groupId);
         return {
           ...b,
-          group_ids: has
-            ? b.group_ids.filter((id) => id !== groupId)
-            : [...b.group_ids, groupId],
+          group_ids: b.group_ids.filter((id) => id !== groupId),
         };
       }),
+    );
+  };
+
+  const clearGroupSube = (groupId: number) => {
+    setDraftBusinesses((prev) =>
+      prev.map((b) => ({
+        ...b,
+        group_ids: b.group_ids.filter((id) => id !== groupId),
+      })),
     );
   };
 
@@ -490,7 +499,7 @@ function ProductSalesContent() {
       setShowBizModal(false);
     } catch (e) {
       console.error(e);
-      alert('İşletmeler kaydedilemedi.');
+      alert('Şube tanımları kaydedilemedi.');
     } finally {
       setBizSaving(false);
     }
@@ -576,14 +585,14 @@ function ProductSalesContent() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2 shrink-0">
               <Store className="w-5 h-5 text-emerald-700" />
-              <span className="text-sm font-semibold text-slate-700">İşletme</span>
+              <span className="text-sm font-semibold text-slate-700">Şube</span>
               <button
                 type="button"
                 onClick={openBizModal}
                 className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
-                İşletme / Grup
+                Şube tanımla
               </button>
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
@@ -600,7 +609,7 @@ function ProductSalesContent() {
                     : 'bg-white text-slate-700 border-slate-200',
                 )}
               >
-                Tüm İşletmeler
+                Tüm Şubeler
               </button>
               {businesses.map((b, index) => {
                 const color = getBusinessColor(index);
@@ -732,7 +741,7 @@ function ProductSalesContent() {
           {selectedBusiness && (
             <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
               <span className="font-bold text-slate-800">{selectedBusiness.name}</span>
-              {' '}ürün raporu — gruplar bu işletmeye bağlı. Kasa filtresi üstte ayrı çalışır.
+              {' '}ürün raporu — gruplar bu şubeye bağlı. Kasa filtresi üstte ayrı çalışır (kasa eşlemesi yok).
             </p>
           )}
         </div>
@@ -1008,14 +1017,14 @@ function ProductSalesContent() {
           onClick={() => !bizSaving && setShowBizModal(false)}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] shadow-xl flex flex-col"
+            className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">İşletmeler ve Ürün Grupları</h3>
+                <h3 className="text-lg font-bold text-slate-900">Şube ismi ↔ Ürün grubu</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  German Döner, Smash Burger gibi işletmeleri ekleyin; ürün gruplarını işletmelere bağlayın. Kayıt şube ortakıdır. Kasa filtresi bundan bağımsızdır.
+                  Önce şube isimlerini burada tanımlayın (German Döner, Smash Burger…). Sonra her ürün grubunu bir şubeye bağlayın. Kasa numarası kullanılmaz. Kayıt tüm kullanıcılar için ortaktır.
                 </p>
               </div>
               <button
@@ -1028,67 +1037,128 @@ function ProductSalesContent() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-5 py-4 space-y-4">
-              {draftBusinesses.map((b, index) => {
-                const color = getBusinessColor(index);
-                return (
-                  <div key={b.key} className={clsx('rounded-xl border p-4', color.bg, color.border)}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="text"
-                        maxLength={120}
-                        placeholder="İşletme adı"
-                        className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
-                        value={b.name}
-                        onChange={(e) =>
-                          setDraftBusinesses((prev) =>
-                            prev.map((x) => (x.key === b.key ? { ...x, name: e.target.value } : x)),
-                          )
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="text-xs font-bold text-rose-600 px-2 py-1"
-                        onClick={() =>
-                          setDraftBusinesses((prev) => prev.filter((x) => x.key !== b.key))
-                        }
+            <div className="overflow-y-auto px-5 py-4 space-y-5">
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-bold text-slate-800">1. Şube isimleri</h4>
+                  <button
+                    type="button"
+                    onClick={addDraftBusiness}
+                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                  >
+                    + Şube ekle
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {draftBusinesses.map((b, index) => {
+                    const color = getBusinessColor(index);
+                    return (
+                      <div
+                        key={b.key}
+                        className={clsx(
+                          'flex items-center gap-2 rounded-xl border px-3 py-2',
+                          color.bg,
+                          color.border,
+                        )}
                       >
-                        Sil
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {groups.map((g) => {
-                        const on = b.group_ids.includes(g.id);
-                        return (
-                          <button
-                            key={g.id}
-                            type="button"
-                            onClick={() => toggleDraftGroup(b.key, g.id)}
-                            className={clsx(
-                              'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
-                              on
-                                ? `${color.solid} ${color.solidText}`
-                                : 'bg-white text-slate-600 border-slate-200',
+                        <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded-md border', color.tag)}>
+                          #{index + 1}
+                        </span>
+                        <input
+                          type="text"
+                          maxLength={120}
+                          placeholder="Şube adı (örn: German Döner)"
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900"
+                          value={b.name}
+                          onChange={(e) =>
+                            setDraftBusinesses((prev) =>
+                              prev.map((x) =>
+                                x.key === b.key ? { ...x, name: e.target.value } : x,
+                              ),
+                            )
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="text-xs font-bold text-rose-600 px-2 py-1"
+                          onClick={() =>
+                            setDraftBusinesses((prev) => prev.filter((x) => x.key !== b.key))
+                          }
+                        >
+                          Sil
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section>
+                <h4 className="text-sm font-bold text-slate-800 mb-2">2. Grup ↔ Şube eşleme</h4>
+                <p className="text-xs text-slate-500 mb-3">
+                  Her ürün grubu için şube seçin. Kasa butonu yoktur.
+                </p>
+                <div className="space-y-3">
+                  {groups.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-6 text-center">Ürün grubu bulunamadı.</p>
+                  ) : (
+                    groups.map((g) => {
+                      const assigned = draftBusinesses.find((b) =>
+                        b.group_ids.includes(g.id),
+                      );
+                      return (
+                        <div
+                          key={g.id}
+                          className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="font-semibold text-slate-900 text-sm truncate" title={g.name}>
+                              {g.name}
+                            </div>
+                            <button
+                              type="button"
+                              className="text-[11px] font-semibold text-slate-500 hover:underline shrink-0"
+                              onClick={() => clearGroupSube(g.id)}
+                            >
+                              Temizle
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {draftBusinesses
+                              .filter((b) => b.name.trim())
+                              .map((b) => {
+                                const color = getBusinessColor(
+                                  draftBusinesses.findIndex((x) => x.key === b.key),
+                                );
+                                const on = assigned?.key === b.key;
+                                return (
+                                  <button
+                                    key={b.key}
+                                    type="button"
+                                    onClick={() => assignGroupToSube(g.id, b.key)}
+                                    className={clsx(
+                                      'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                                      on
+                                        ? `${color.solid} ${color.solidText}`
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300',
+                                    )}
+                                  >
+                                    {b.name.trim()}
+                                  </button>
+                                );
+                              })}
+                            {draftBusinesses.every((b) => !b.name.trim()) && (
+                              <span className="text-xs text-amber-700">
+                                Önce yukarıdan şube ismi yazın.
+                              </span>
                             )}
-                          >
-                            {g.name}
-                          </button>
-                        );
-                      })}
-                      {groups.length === 0 && (
-                        <span className="text-xs text-slate-500">Ürün grubu yok.</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <button
-                type="button"
-                onClick={addDraftBusiness}
-                className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                + İşletme ekle
-              </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
             </div>
 
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
