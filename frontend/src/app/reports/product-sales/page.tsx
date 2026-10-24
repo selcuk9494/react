@@ -19,7 +19,6 @@ import {
 } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
-import AutoFitText from '@/components/AutoFitText';
 import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import ReportExportButtons from '@/components/ReportExportButtons';
