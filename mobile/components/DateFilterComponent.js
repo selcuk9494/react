@@ -11,6 +11,9 @@ export default function DateFilterComponent({
   endDate,
   setEndDate,
   onApplyCustomDate,
+  kasaNo = '',
+  setKasaNo,
+  kasaOptions = [],
 }) {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -58,6 +61,43 @@ export default function DateFilterComponent({
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {typeof setKasaNo === 'function' && kasaOptions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.kasaScroll}
+          contentContainerStyle={styles.dateFilterContent}
+        >
+          <TouchableOpacity
+            onPress={() => setKasaNo('')}
+            style={[styles.dateFilterButton, !kasaNo && styles.dateFilterButtonActive]}
+          >
+            <Text style={[styles.dateFilterText, !kasaNo && styles.dateFilterTextActive]}>
+              Tüm Kasalar
+            </Text>
+          </TouchableOpacity>
+          {kasaOptions.map((n) => (
+            <TouchableOpacity
+              key={String(n)}
+              onPress={() => setKasaNo(String(n))}
+              style={[
+                styles.dateFilterButton,
+                String(kasaNo) === String(n) && styles.dateFilterButtonActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.dateFilterText,
+                  String(kasaNo) === String(n) && styles.dateFilterTextActive,
+                ]}
+              >
+                Kasa {n}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Custom Date Modal */}
       <Modal
@@ -154,6 +194,10 @@ const styles = StyleSheet.create({
   },
   dateFilterScroll: {
     paddingLeft: 16,
+  },
+  kasaScroll: {
+    paddingLeft: 16,
+    marginTop: 6,
   },
   dateFilterContent: {
     paddingRight: 24,

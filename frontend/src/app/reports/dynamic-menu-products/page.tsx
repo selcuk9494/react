@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { LayoutList, Search } from 'lucide-react';
 import clsx from 'clsx';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 import AutoFitText from '@/components/AutoFitText';
@@ -22,11 +23,10 @@ type MenuProductRow = {
 };
 
 export default function DynamicMenuProductsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t, lang } = useI18n();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [includeMenu, setIncludeMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -39,6 +39,7 @@ export default function DynamicMenuProductsPage() {
     customStartDate,
     customEndDate,
     additionalParams,
+    kasaNo,
   });
 
   const asNumber = (value: any) => {
@@ -141,9 +142,12 @@ export default function DynamicMenuProductsPage() {
             title={t('dynamic_menu_products')}
             columns={exportColumns}
             rows={exportRows}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main
         className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4"

@@ -5,18 +5,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { CreditCard as CreditCardIcon, AlertCircle } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useReportData } from '@/utils/useReportData';
 import { useRouter } from 'next/navigation';
 import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
 export default function PaymentTypesPage() {
-  const { token, user } = useAuth();
+  const { token, user  } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
   const [multiOnly, setMultiOnly] = useState(false);
   const [ordersPage, setOrdersPage] = useState(1);
@@ -29,6 +29,7 @@ export default function PaymentTypesPage() {
     period,
     customStartDate,
     customEndDate,
+    kasaNo,
   });
 
   const canDrilldown = useMemo(() => {
@@ -99,6 +100,7 @@ export default function PaymentTypesPage() {
     customEndDate,
     additionalParams: ordersParams,
     enabled: Boolean(token && canDrilldown && selectedPayment),
+    kasaNo,
   });
 
   const orders = (ordersResponse as any)?.data || [];
@@ -147,6 +149,9 @@ export default function PaymentTypesPage() {
             </button>
           </>
         }
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

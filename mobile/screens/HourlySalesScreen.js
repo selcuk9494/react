@@ -6,14 +6,28 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import { BarChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function HourlySalesScreen({ navigation }) {
+export default function HourlySalesScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [lang, setLang] = useState('tr');
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
@@ -26,12 +40,11 @@ export default function HourlySalesScreen({ navigation }) {
   };
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
   
   useEffect(() => {
     (async () => {
@@ -64,6 +77,7 @@ export default function HourlySalesScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/sales-chart?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -96,8 +110,7 @@ export default function HourlySalesScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) => {
@@ -147,6 +160,9 @@ export default function HourlySalesScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
       </View>
       <ReportExportActions

@@ -3,17 +3,17 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, Banknote, Database } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useReportData } from '@/utils/useReportData';
 
 export default function CashReportPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t, formatCurrency, formatDate } = useI18n();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/cash-report',
@@ -21,6 +21,7 @@ export default function CashReportPage() {
     period,
     customStartDate,
     customEndDate,
+    kasaNo,
   });
 
   const rows = Array.isArray(data?.rows) ? data.rows : [];
@@ -53,9 +54,12 @@ export default function CashReportPage() {
               { key: 'tc', label: t('transaction_count') },
               { key: 'tutar', label: t('amount'), format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (

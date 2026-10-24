@@ -6,6 +6,7 @@ import { API_URL } from '../config';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
@@ -18,10 +19,23 @@ const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
   return { label: value, value };
 });
 
-export default function DiscountScreen({ navigation }) {
+export default function DiscountScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [lang, setLang] = useState('tr');
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
@@ -40,14 +54,13 @@ export default function DiscountScreen({ navigation }) {
   };
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period, startTime, endTime]);
+  }, [ready, period, kasaNo, startTime, endTime]);
 
   useEffect(() => {
     (async () => {
@@ -80,6 +93,7 @@ export default function DiscountScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/discount?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -118,8 +132,7 @@ export default function DiscountScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) => {
@@ -213,6 +226,9 @@ export default function DiscountScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
       </View>
       <ReportExportActions title={T.title} columns={exportColumns} rows={data} />

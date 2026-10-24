@@ -6,6 +6,7 @@ import { Globe2, Search, Users, ReceiptText, type LucideIcon } from 'lucide-reac
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/utils/api';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 
 type ReportRow = {
@@ -32,10 +33,9 @@ type ReportResponse = {
 };
 
 export default function GuestNationalityReportPage() {
-  const { token, user } = useAuth();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { token, user  } = useAuth();
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -57,6 +57,7 @@ export default function GuestNationalityReportPage() {
           params.start_date = customStartDate;
           params.end_date = customEndDate;
         }
+        if (kasaNo) params.kasa_no = String(kasaNo);
         const response = await axios.get(
           `${getApiUrl()}/reports/guest-nationality`,
           {
@@ -71,7 +72,7 @@ export default function GuestNationalityReportPage() {
     };
 
     fetchReport();
-  }, [token, allowed, period, customStartDate, customEndDate]);
+  }, [token, allowed, period, customStartDate, customEndDate, kasaNo]);
 
   const nationalityRows = useMemo(() => {
     const grouped = new Map<string, { nationality: string; person_count: number; order_count: number; total_amount: number }>();
@@ -180,9 +181,12 @@ export default function GuestNationalityReportPage() {
             title="Kişi ve Uyruk Raporu"
             columns={exportColumns}
             rows={nationalityRows}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-5xl mx-auto px-4 pt-[145px] space-y-4">
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">

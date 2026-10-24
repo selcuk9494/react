@@ -6,14 +6,28 @@ import { API_URL } from '../config';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function CourierScreen({ navigation }) {
+export default function CourierScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [courierFilter, setCourierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, open, closed
   const [viewMode, setViewMode] = useState('trips'); // trips, couriers
@@ -48,12 +62,11 @@ export default function CourierScreen({ navigation }) {
   };
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
 
   useEffect(() => {
     (async () => {
@@ -86,6 +99,7 @@ export default function CourierScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/courier-tracking?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -118,8 +132,7 @@ export default function CourierScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const getDuration = (row) => {
@@ -307,6 +320,9 @@ export default function CourierScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
       </View>
       <ReportExportActions

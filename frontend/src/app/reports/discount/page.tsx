@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter } from 'next/navigation';
 import { Tag } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
 import { exportRowsAsExcel, exportRowsAsPdf, ExportColumn } from '@/utils/reportExport';
 
@@ -20,12 +21,11 @@ const END_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
 }));
 
 export default function DiscountPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const additionalParams = useMemo(() => ({
@@ -40,6 +40,7 @@ export default function DiscountPage() {
     customStartDate,
     customEndDate,
     additionalParams,
+    kasaNo,
   });
 
   // Debug log
@@ -105,6 +106,9 @@ export default function DiscountPage() {
             </button>
           </>
         }
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

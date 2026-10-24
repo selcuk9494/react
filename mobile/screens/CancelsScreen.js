@@ -6,14 +6,28 @@ import { API_URL } from '../config';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function CancelsScreen({ navigation }) {
+export default function CancelsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [lang, setLang] = useState('tr');
@@ -69,12 +83,11 @@ export default function CancelsScreen({ navigation }) {
     };
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -100,6 +113,7 @@ export default function CancelsScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/cancelled-items?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -132,8 +146,7 @@ export default function CancelsScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const filteredData = data
@@ -236,6 +249,9 @@ export default function CancelsScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
 
         {/* Type Filter */}

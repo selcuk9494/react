@@ -8,19 +8,19 @@ import { AlertCircle, XCircle, Search, Info, Clock, CheckCircle, Tag } from 'luc
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 
 export default function CancelledItemsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t, lang } = useI18n();
   const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   
   // Filtering states
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,6 +34,7 @@ export default function CancelledItemsPage() {
       setLoading(true);
       try {
         let url = `${getApiUrl()}/reports/cancelled-items?period=${period}`;
+        if (kasaNo) url += `&kasa_no=${kasaNo}`;
         if (period === 'custom') {
             url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
@@ -48,7 +49,7 @@ export default function CancelledItemsPage() {
       }
     };
     fetchData();
-  }, [token, period, customStartDate, customEndDate]);
+  }, [token, period, customStartDate, customEndDate, kasaNo]);
 
   // Helpers
   const getTotalCancelled = () => {
@@ -114,9 +115,12 @@ export default function CancelledItemsPage() {
               { key: 'order_id', label: t('order_no') },
               { key: 'date', label: t('date') },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pt-[140px]">
         {loading ? (

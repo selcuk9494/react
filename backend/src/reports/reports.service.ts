@@ -391,7 +391,9 @@ export class ReportsService {
       kasa_nos = Array.from(
         new Set([
           primary,
-          ...branch.kasalar.filter((k: any) => typeof k === 'number'),
+          ...branch.kasalar
+            .map((k: any) => Number(k))
+            .filter((k: number) => Number.isFinite(k) && k > 0),
         ]),
       );
     } else if (branch.id) {
@@ -433,10 +435,16 @@ export class ReportsService {
     // saniyeler kaybettirir. Admin'de kasa tanimliysa dogrudan kullan.
     const hasExplicitKasas =
       Array.isArray(branch.kasalar) && branch.kasalar.length > 0;
-    const resolvedKasas =
+    let resolvedKasas =
       pool?.__agentId || hasExplicitKasas
         ? kasa_nos
         : await this.expandKasaNosIfStale(pool, kasa_nos);
+
+    // Istemci kasa filtresi (tum raporlar): user._kasa_no
+    const filterKasa = Number(user?._kasa_no);
+    if (Number.isFinite(filterKasa) && filterKasa > 0) {
+      resolvedKasas = [filterKasa];
+    }
 
     return {
       pool,

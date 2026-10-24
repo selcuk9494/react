@@ -5,14 +5,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function UnpayableScreen({ navigation }) {
+export default function UnpayableScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [searchQuery, setSearchQuery] = useState('');
   const [lang, setLang] = useState('tr');
   const fetchControllerRef = useRef(null);
@@ -21,8 +35,6 @@ export default function UnpayableScreen({ navigation }) {
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
     const getLang = async () => {
@@ -35,8 +47,9 @@ export default function UnpayableScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period, lang]);
+  }, [ready, period, kasaNo, lang]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -62,6 +75,7 @@ export default function UnpayableScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/unpayable?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (period === 'custom') {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
@@ -94,8 +108,7 @@ export default function UnpayableScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) => {
@@ -200,6 +213,9 @@ export default function UnpayableScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
           lang={lang}
         />
       </View>

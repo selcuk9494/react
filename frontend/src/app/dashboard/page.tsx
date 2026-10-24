@@ -91,13 +91,37 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [period, setPeriod] = useState(() => {
     if (typeof window === 'undefined') return 'today';
-    const saved = window.localStorage.getItem('dashboard_period');
-    const allowed = ['today', 'yesterday', 'week', 'last7days', 'month', 'lastmonth'];
+    const saved =
+      window.localStorage.getItem('report_period') ||
+      window.localStorage.getItem('dashboard_period');
+    const allowed = [
+      'today',
+      'yesterday',
+      'week',
+      'last7days',
+      'month',
+      'lastmonth',
+      'custom',
+    ];
     if (allowed.includes(saved || '')) return saved as string;
     return 'today';
   });
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return (
+      window.localStorage.getItem('report_start_date') ||
+      window.localStorage.getItem('dashboard_start_date') ||
+      ''
+    );
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return (
+      window.localStorage.getItem('report_end_date') ||
+      window.localStorage.getItem('dashboard_end_date') ||
+      ''
+    );
+  });
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slowInitialLoad, setSlowInitialLoad] = useState(false);
@@ -109,7 +133,18 @@ export default function Dashboard() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('dashboard_period', period);
-  }, [period]);
+    window.localStorage.setItem('report_period', period);
+    if (period === 'custom') {
+      if (customStartDate) {
+        window.localStorage.setItem('dashboard_start_date', customStartDate);
+        window.localStorage.setItem('report_start_date', customStartDate);
+      }
+      if (customEndDate) {
+        window.localStorage.setItem('dashboard_end_date', customEndDate);
+        window.localStorage.setItem('report_end_date', customEndDate);
+      }
+    }
+  }, [period, customStartDate, customEndDate]);
   const navigateWithOverlay = (url: string) => {
     dispatchStart();
     router.push(url);

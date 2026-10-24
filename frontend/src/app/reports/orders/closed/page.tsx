@@ -22,10 +22,11 @@ import axios from 'axios';
 import { getApiUrl } from '@/utils/api';
 import clsx from 'clsx';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions, readStoredPeriod, persistPeriod } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 
 function ClosedOrdersContent() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, lang } = useI18n();
@@ -36,14 +37,17 @@ function ClosedOrdersContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   
   const [filterMasa, setFilterMasa] = useState('');
+  const shared = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [period, setPeriod] = useState(() => {
     const p = searchParams.get('period');
     if (p) return p;
     if (searchParams.get('start_date') && searchParams.get('end_date')) return 'custom';
-    return 'today';
+    return shared.period || readStoredPeriod().period || 'today';
   });
-  const [customStartDate, setCustomStartDate] = useState(searchParams.get('start_date') || '');
-  const [customEndDate, setCustomEndDate] = useState(searchParams.get('end_date') || '');
+  const [customStartDate, setCustomStartDate] = useState(searchParams.get('start_date') || shared.customStartDate || '');
+  const [customEndDate, setCustomEndDate] = useState(searchParams.get('end_date') || shared.customEndDate || '');
+  const { kasaNo, setKasaNo } = shared;
   const [draftStartDate, setDraftStartDate] = useState(searchParams.get('start_date') || '');
   const [draftEndDate, setDraftEndDate] = useState(searchParams.get('end_date') || '');
   const [adturFilter, setAdturFilter] = useState<'all'|0|1|3>('all');
@@ -59,10 +63,14 @@ function ClosedOrdersContent() {
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
+    persistPeriod(period, customStartDate, customEndDate);
+  }, [period, customStartDate, customEndDate]);
+
+  useEffect(() => {
     if (!token) return;
     if (period === 'custom' && (!customStartDate || !customEndDate)) return;
     fetchOrders(1);
-  }, [token, period, customStartDate, customEndDate]);
+  }, [token, period, customStartDate, customEndDate, kasaNo]);
 
   useEffect(() => {
     if (customStartDate) setDraftStartDate(customStartDate);
@@ -98,6 +106,7 @@ function ClosedOrdersContent() {
         setCustomStartDate(s);
         setCustomEndDate(e);
       }
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
 
       const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -250,6 +259,9 @@ function ClosedOrdersContent() {
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
         actions={<ReportExportButtons title={t('closed_orders')} columns={exportColumns} rows={orders} />}
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
       />
 
       <div className="p-4 max-w-3xl mx-auto w-full pt-[140px]">

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/utils/api';
 import axios from 'axios';
@@ -71,12 +72,13 @@ const periodLabels: Record<string, string> = {
 };
 
 export default function PersonnelReportPage() {
-  const { token, user } = useAuth();
+  const { token, user  } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState('today');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<PersonnelData | null>(null);
   
@@ -101,7 +103,9 @@ export default function PersonnelReportPage() {
       setError(null);
       
       try {
-        const res = await axios.get(`${getApiUrl()}/reports/personnel?period=${period}`, {
+        let url = `${getApiUrl()}/reports/personnel?period=${period}`;
+        if (kasaNo) url += `&kasa_no=${kasaNo}`;
+        const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 15000
         });
@@ -116,13 +120,12 @@ export default function PersonnelReportPage() {
     };
 
     fetchData();
-  }, [token, period, user?.selected_branch, router]);
+  }, [token, period, user?.selected_branch, router, kasaNo]);
 
   const handleRefresh = () => {
     setData(null);
     setLoading(true);
-    // Force re-fetch by toggling period
-    setPeriod(p => p);
+    setPeriod(period);
   };
 
   // Sıralı personel listesi (toplam satışa göre)

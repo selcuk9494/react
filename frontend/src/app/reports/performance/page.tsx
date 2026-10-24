@@ -5,16 +5,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { Users } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 import AutoFitText from '@/components/AutoFitText';
 
 export default function PerformancePage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/performance',
@@ -22,6 +22,7 @@ export default function PerformancePage() {
     period,
     customStartDate,
     customEndDate,
+    kasaNo,
   });
 
   // Debug log
@@ -63,9 +64,12 @@ export default function PerformancePage() {
               { key: 'order_count', label: 'Adisyon', format: (value, row) => value || row.count || 0 },
               { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (

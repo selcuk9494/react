@@ -6,14 +6,28 @@ import { API_URL } from '../config';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function PaymentTypesScreen({ navigation }) {
+export default function PaymentTypesScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [lang, setLang] = useState('tr');
   const [user, setUser] = useState(null);
   const fetchControllerRef = useRef(null);
@@ -34,12 +48,11 @@ export default function PaymentTypesScreen({ navigation }) {
   };
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
 
   useEffect(() => {
     (async () => {
@@ -118,6 +131,7 @@ export default function PaymentTypesScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/payment-types?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -150,8 +164,7 @@ export default function PaymentTypesScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) => {
@@ -281,6 +294,9 @@ export default function PaymentTypesScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
       </View>
       <ReportExportActions title={T.title} columns={exportColumns} rows={data} />

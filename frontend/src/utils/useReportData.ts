@@ -15,6 +15,8 @@ interface UseReportDataOptions {
   additionalParams?: Record<string, any>;
   enabled?: boolean;
   branchId?: string | number;
+  /** Bos/undefined = tum kasalar */
+  kasaNo?: string | number;
 }
 
 export function useReportData({
@@ -26,10 +28,12 @@ export function useReportData({
   additionalParams = {},
   enabled = true,
   branchId,
+  kasaNo,
 }: UseReportDataOptions) {
   // Track previous values to detect changes
   const prevPeriodRef = useRef(period);
   const prevBranchRef = useRef(branchId);
+  const prevKasaRef = useRef(kasaNo);
   const [isChanging, setIsChanging] = useState(false);
 
   const apiUrl = useMemo(() => {
@@ -41,11 +45,14 @@ export function useReportData({
       ...(period === 'custom' && customStartDate && customEndDate
         ? { start_date: customStartDate, end_date: customEndDate }
         : {}),
+      ...(kasaNo != null && String(kasaNo).trim() !== ''
+        ? { kasa_no: String(kasaNo) }
+        : {}),
       ...additionalParams,
     });
 
     return `${getApiUrl()}${endpoint}?${params.toString()}`;
-  }, [token, enabled, endpoint, period, customStartDate, customEndDate, additionalParams]);
+  }, [token, enabled, endpoint, period, customStartDate, customEndDate, additionalParams, kasaNo]);
 
   const { data, error, isLoading, mutate } = useSWR(
     apiUrl ? [apiUrl, token] : null,
@@ -62,13 +69,15 @@ export function useReportData({
   useEffect(() => {
     const periodChanged = prevPeriodRef.current !== period;
     const branchChanged = prevBranchRef.current !== branchId;
+    const kasaChanged = prevKasaRef.current !== kasaNo;
     
-    if (periodChanged || branchChanged) {
+    if (periodChanged || branchChanged || kasaChanged) {
       setIsChanging(true);
       prevPeriodRef.current = period;
       prevBranchRef.current = branchId;
+      prevKasaRef.current = kasaNo;
     }
-  }, [period, branchId]);
+  }, [period, branchId, kasaNo]);
 
   // Reset changing state when data arrives
   useEffect(() => {

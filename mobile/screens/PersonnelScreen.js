@@ -5,14 +5,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function PersonnelScreen({ navigation }) {
+export default function PersonnelScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [lang, setLang] = useState('tr');
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
@@ -20,8 +34,6 @@ export default function PersonnelScreen({ navigation }) {
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
   
   // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
     const getLang = async () => {
@@ -34,8 +46,9 @@ export default function PersonnelScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period, lang]);
+  }, [ready, period, kasaNo, lang]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -61,6 +74,7 @@ export default function PersonnelScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/performance?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) {
         url += `&branchId=${branchId}`;
       }
@@ -100,8 +114,7 @@ export default function PersonnelScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) => {
@@ -171,6 +184,9 @@ export default function PersonnelScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
           lang={lang}
         />
       </View>

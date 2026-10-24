@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Circle, G } from 'react-native-svg';
+import { persistPeriod, readStoredPeriod } from '../utils/reportFilters';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -85,6 +86,7 @@ export default function DashboardScreen({ navigation, route }) {
   const [changingBranch, setChangingBranch] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [period, setPeriod] = useState('today');
+  const [periodReady, setPeriodReady] = useState(false);
   const [branchModalVisible, setBranchModalVisible] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -113,6 +115,37 @@ export default function DashboardScreen({ navigation, route }) {
     };
     loadLang();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      const stored = await readStoredPeriod();
+      setPeriod(stored.period || 'today');
+      if (stored.startDate) setStartDate(new Date(stored.startDate));
+      if (stored.endDate) setEndDate(new Date(stored.endDate));
+      setPeriodReady(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!periodReady) return;
+    const startStr = startDate?.toISOString?.()?.slice(0, 10) || '';
+    const endStr = endDate?.toISOString?.()?.slice(0, 10) || '';
+    void persistPeriod(period, period === 'custom' ? startStr : '', period === 'custom' ? endStr : '');
+  }, [period, startDate, endDate, periodReady]);
+
+  const openReport = useCallback(
+    (screen, extra = {}) => {
+      const startStr = startDate?.toISOString?.()?.slice(0, 10) || '';
+      const endStr = endDate?.toISOString?.()?.slice(0, 10) || '';
+      navigation.navigate(screen, {
+        period,
+        start_date: period === 'custom' ? startStr : undefined,
+        end_date: period === 'custom' ? endStr : undefined,
+        ...extra,
+      });
+    },
+    [navigation, period, startDate, endDate],
+  );
 
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
   const T = {
@@ -923,7 +956,7 @@ export default function DashboardScreen({ navigation, route }) {
                         </View>
                     )}
                     {(dashboardData?.odenmez_toplam || 0) > 0 && (
-                        <TouchableOpacity style={styles.unpayableBadge} onPress={() => navigation.navigate('Unpayable')}>
+                        <TouchableOpacity style={styles.unpayableBadge} onPress={() => openReport('Unpayable')}>
                             <Text style={styles.unpayableBadgeText}>{T.unpayableBadge} {formatCurrency(dashboardData.odenmez_toplam)}</Text>
                         </TouchableOpacity>
                     )}
@@ -936,7 +969,7 @@ export default function DashboardScreen({ navigation, route }) {
             {/* Open Orders (Only Today) */}
             {period === 'today' && isReportAllowed('open_orders') && (
                 <View style={[styles.statCard, { borderColor: '#ffedd5', backgroundColor: '#fffbeb' }]}>
-                    <TouchableOpacity onPress={() => navigation.navigate('Orders', { type: 'open' })}>
+                    <TouchableOpacity onPress={() => openReport('Orders', { type: 'open' })}>
                         <View style={styles.statHeader}>
                             <View style={[styles.iconBox, { backgroundColor: '#f97316' }]}>
                                 <Text style={{fontSize: 16}}>🟠</Text>
@@ -971,7 +1004,7 @@ export default function DashboardScreen({ navigation, route }) {
                             styles.breakdownCircle,
                             { backgroundColor: '#ffedd5', borderColor: '#fdba74' },
                           ]}
-                          onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 0 })}
+                          onPress={() => openReport('Orders', { type: 'open', adtur: 0 })}
                         >
                           <Text style={[styles.breakdownCircleLabel, { color: '#ea580c' }]}>
                             {T.order}
@@ -1001,7 +1034,7 @@ export default function DashboardScreen({ navigation, route }) {
                               styles.breakdownCircle,
                               { backgroundColor: '#fef3c7', borderColor: '#facc15' },
                             ]}
-                            onPress={() => navigation.navigate('Orders', { type: 'open', adtur: 1 })}
+                            onPress={() => openReport('Orders', { type: 'open', adtur: 1 })}
                           >
                             <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
                             {T.package}
@@ -1034,7 +1067,7 @@ export default function DashboardScreen({ navigation, route }) {
             {/* Closed Orders */}
             {isReportAllowed('closed_orders') && (
             <View style={[styles.statCard, { borderColor: '#d1fae5', backgroundColor: '#ecfdf5' }]}>
-                <TouchableOpacity onPress={() => navigation.navigate('Orders', { type: 'closed' })}>
+                <TouchableOpacity onPress={() => openReport('Orders', { type: 'closed' })}>
                     <View style={styles.statHeader}>
                         <View style={[styles.iconBox, { backgroundColor: '#10b981' }]}>
                                 <Text style={{fontSize: 16}}>✅</Text>
@@ -1078,7 +1111,7 @@ export default function DashboardScreen({ navigation, route }) {
                           styles.breakdownCircle,
                           { backgroundColor: '#dcfce7', borderColor: '#4ade80' },
                         ]}
-                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 0 })}
+                        onPress={() => openReport('Orders', { type: 'closed', adtur: 0 })}
                       >
                         <Text style={[styles.breakdownCircleLabel, { color: '#059669' }]}>
                           {T.order}
@@ -1108,7 +1141,7 @@ export default function DashboardScreen({ navigation, route }) {
                           styles.breakdownCircle,
                           { backgroundColor: '#fef3c7', borderColor: '#fb923c' },
                         ]}
-                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 1 })}
+                        onPress={() => openReport('Orders', { type: 'closed', adtur: 1 })}
                       >
                           <Text style={[styles.breakdownCircleLabel, { color: '#b45309' }]}>
                             {T.package}
@@ -1137,7 +1170,7 @@ export default function DashboardScreen({ navigation, route }) {
                   {(dashboardData?.dagilim?.hizli?.kapali_toplam || 0) > 0 && (
                     <TouchableOpacity 
                         style={[styles.breakdownItem, { backgroundColor: '#fff', borderColor: '#fbcfe8', marginTop: 8 }]}
-                        onPress={() => navigation.navigate('Orders', { type: 'closed', adtur: 3 })}
+                        onPress={() => openReport('Orders', { type: 'closed', adtur: 3 })}
                     >
                         <View style={styles.breakdownRow}>
                             <View style={[styles.miniIcon, { backgroundColor: '#fdf2f8' }]}><Text>⚡</Text></View>
@@ -1168,7 +1201,7 @@ export default function DashboardScreen({ navigation, route }) {
             {(dashboardData?.odenmez_toplam || 0) > 0 && (
                 <TouchableOpacity
                     style={[styles.statCard, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
-                    onPress={() => navigation.navigate('Unpayable')}
+                    onPress={() => openReport('Unpayable')}
                 >
                     <View style={styles.statHeader}>
                         <View style={[styles.iconBox, { backgroundColor: '#ef4444' }]}>
@@ -1246,7 +1279,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportProductSalesDesc}
                     icon="pie-chart" 
                     colors={['#f97316', '#f59e0b']} 
-                    onPress={() => navigation.navigate('ProductSales')} 
+                    onPress={() => openReport('ProductSales')} 
                 />
                 )}
                 {isReportAllowed('dynamic_menu_products') && (
@@ -1255,7 +1288,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportDynamicMenuDesc}
                     icon="list" 
                     colors={['#8b5cf6', '#d946ef']} 
-                    onPress={() => navigation.navigate('DynamicMenuProducts')} 
+                    onPress={() => openReport('DynamicMenuProducts')} 
                 />
                 )}
                 {isReportAllowed('personnel') && (
@@ -1264,7 +1297,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportPersonnelDesc}
                     icon="users" 
                     colors={['#8b5cf6', '#7c3aed']} 
-                    onPress={() => navigation.navigate('Personnel')} 
+                    onPress={() => openReport('Personnel')} 
                 />
                 )}
                 {isReportAllowed('guest_nationality') && (
@@ -1273,7 +1306,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={lang === 'tr' ? 'Milliyet bazlı kişi ve tutar' : 'Guests and totals by nationality'}
                     icon="globe"
                     colors={['#4f46e5', '#2563eb']}
-                    onPress={() => navigation.navigate('GuestNationality')}
+                    onPress={() => openReport('GuestNationality')}
                 />
                 )}
                 {isReportAllowed('payment_types') && (
@@ -1282,7 +1315,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportPaymentTypesDesc}
                     icon="credit-card" 
                     colors={['#3b82f6', '#0ea5e9']} 
-                    onPress={() => navigation.navigate('PaymentTypes')} 
+                    onPress={() => openReport('PaymentTypes')} 
                 />
                 )}
                 {isReportAllowed('cash_report') && (
@@ -1291,7 +1324,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportCashDesc}
                     icon="dollar-sign" 
                     colors={['#10b981', '#0ea5e9']} 
-                    onPress={() => navigation.navigate('CashReport')} 
+                    onPress={() => openReport('CashReport')} 
                 />
                 )}
                 {isReportAllowed('hourly_sales') && (
@@ -1300,7 +1333,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportHourlySalesDesc}
                     icon="trending-up" 
                     colors={['#ef4444', '#f43f5e']} 
-                    onPress={() => navigation.navigate('HourlySales')} 
+                    onPress={() => openReport('HourlySales')} 
                 />
                 )}
                 {isReportAllowed('cancels') && (
@@ -1309,7 +1342,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportCancelsDesc}
                     icon="x-circle" 
                     colors={['#ec4899', '#f43f5e']} 
-                    onPress={() => navigation.navigate('Cancels')} 
+                    onPress={() => openReport('Cancels')} 
                 />
                 )}
                 {isReportAllowed('discounts') && (
@@ -1318,7 +1351,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportDiscountsDesc}
                     icon="tag" 
                     colors={['#10b981', '#16a34a']} 
-                    onPress={() => navigation.navigate('Discount')} 
+                    onPress={() => openReport('Discount')} 
                 />
                 )}
                 {isReportAllowed('product_prices') && (
@@ -1336,7 +1369,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportDebtsDesc}
                     icon="user-minus" 
                     colors={['#f59e0b', '#d97706']} 
-                    onPress={() => navigation.navigate('Debts')} 
+                    onPress={() => openReport('Debts')} 
                 />
                 )}
                 {isReportAllowed('unpayable') && (
@@ -1345,7 +1378,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportUnpayableDesc}
                     icon="x-circle" 
                     colors={['#ef4444', '#b91c1c']} 
-                    onPress={() => navigation.navigate('Unpayable')} 
+                    onPress={() => openReport('Unpayable')} 
                 />
                 )}
                 {isReportAllowed('courier') && (
@@ -1354,7 +1387,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportCourierDesc}
                     icon="truck" 
                     colors={['#3b82f6', '#2563eb']} 
-                    onPress={() => navigation.navigate('Courier')} 
+                    onPress={() => openReport('Courier')} 
                 />
                 )}
                 {isReportAllowed('unsold_cancels') && (
@@ -1363,7 +1396,7 @@ export default function DashboardScreen({ navigation, route }) {
                     desc={T.reportUnsoldCancelsDesc}
                     icon="x-circle" 
                     colors={['#e11d48', '#be123c']} 
-                    onPress={() => navigation.navigate('UnsoldCancels')} 
+                    onPress={() => openReport('UnsoldCancels')} 
                 />
                 )}
             </View>

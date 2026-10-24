@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Bike } from 'lucide-react';
 import axios from 'axios';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { getApiUrl } from '@/utils/api';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as RC2, PieChart, Pie, Cell, Legend, ResponsiveContainer } from 'recharts';
@@ -22,13 +23,12 @@ interface CourierRow {
 }
 
 export default function CourierTrackingReport() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
   const [data, setData] = useState<CourierRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [courierFilter, setCourierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
   const [durationFilter, setDurationFilter] = useState<'all'|'lt15'|'15to30'|'gt30'>('all');
@@ -42,6 +42,7 @@ export default function CourierTrackingReport() {
     const fetchData = async () => {
       try {
         let url = `${getApiUrl()}/reports/courier-tracking?period=${period}`;
+        if (kasaNo) url += `&kasa_no=${kasaNo}`;
         if (period === 'custom') {
             url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
@@ -56,7 +57,7 @@ export default function CourierTrackingReport() {
       }
     };
     fetchData();
-  }, [token, period, customStartDate, customEndDate]);
+  }, [token, period, customStartDate, customEndDate, kasaNo]);
 
   const parseDateTime = (dateStr: string, timeStr: string | null) => {
     if (!dateStr || !timeStr) return null;
@@ -165,9 +166,12 @@ export default function CourierTrackingReport() {
               { key: 'donus', label: 'Dönüş' },
               { key: 'status', label: 'Durum' },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pt-[140px]">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">

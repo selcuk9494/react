@@ -6,8 +6,9 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import DateFilterComponent from '../components/DateFilterComponent';
 import ReportExportActions from '../components/ReportExportActions';
+import { useReportFilters } from '../hooks/useReportFilters';
 
-export default function ProductSalesScreen({ navigation }) {
+export default function ProductSalesScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -18,23 +19,33 @@ export default function ProductSalesScreen({ navigation }) {
   const [sortBy, setSortBy] = useState('total');
   const [sortDir, setSortDir] = useState('desc');
   const [searchQuery, setSearchQuery] = useState('');
-  const [period, setPeriod] = useState('today');
-  
-  // Custom Date States
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period, selectedGroupIds, selectedProduct]);
+  }, [ready, period, selectedGroupIds, selectedProduct, kasaNo, startDate, endDate]);
 
   useEffect(() => {
     fetchGroups();
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     fetchProductOrders();
-  }, [period, selectedProduct]);
+  }, [ready, period, selectedProduct, kasaNo, startDate, endDate]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -48,6 +59,7 @@ export default function ProductSalesScreen({ navigation }) {
         params.set('start_date', startStr);
         params.set('end_date', endStr);
       }
+      if (kasaNo) params.set('kasa_no', String(kasaNo));
       if (selectedGroupIds.length) params.set('group_ids', selectedGroupIds.join(','));
       if (selectedProduct?.plu) params.set('plu', String(selectedProduct.plu));
 
@@ -91,6 +103,7 @@ export default function ProductSalesScreen({ navigation }) {
         params.set('start_date', startDate.toISOString().split('T')[0]);
         params.set('end_date', endDate.toISOString().split('T')[0]);
       }
+      if (kasaNo) params.set('kasa_no', String(kasaNo));
 
       const response = await axios.get(`${API_URL}/reports/product-sales/orders?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -106,8 +119,7 @@ export default function ProductSalesScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const asNumber = (value) => {
@@ -288,6 +300,9 @@ export default function ProductSalesScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.groupScroll} contentContainerStyle={styles.groupScrollContent}>
           <TouchableOpacity

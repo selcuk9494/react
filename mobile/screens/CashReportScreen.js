@@ -6,18 +6,29 @@ import { API_URL } from '../config';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
-export default function CashReportScreen({ navigation }) {
+export default function CashReportScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({ 
     totals: { toplam: 0 }, 
     rows: [], 
     period: { start: '', end: '' } 
   });
-  const [period, setPeriod] = useState('today');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [lang, setLang] = useState('tr');
@@ -63,11 +74,10 @@ export default function CashReportScreen({ navigation }) {
       fetchData();
     };
     init();
-  }, [period, startDate, endDate]);
+  }, [ready, period, kasaNo, startDate, endDate]);
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const fetchData = async () => {
@@ -99,6 +109,7 @@ export default function CashReportScreen({ navigation }) {
       }
       
       let url = `${API_URL}/reports/cash-report?period=${period}`;
+      if (kasaNo) url += `&kasa_no=${kasaNo}`;
       if (branchId) url += `&branchId=${branchId}`;
       if (period === 'custom') {
         url += `&start_date=${startStr}&end_date=${endStr}`;
@@ -179,6 +190,9 @@ export default function CashReportScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
         />
       </View>
       <ReportExportActions

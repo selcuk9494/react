@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Package, Layers, ArrowUpDown, ReceiptText, ChevronRight, X } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
 import clsx from 'clsx';
 import AutoFitText from '@/components/AutoFitText';
@@ -14,16 +15,15 @@ import { getApiUrl } from '@/utils/api';
 import ReportExportButtons from '@/components/ReportExportButtons';
 
 function ProductSalesContent() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [groups, setGroups] = useState<any[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [selectedPlu, setSelectedPlu] = useState<number | null>(null);
   const [selectedProductName, setSelectedProductName] = useState('');
@@ -48,6 +48,7 @@ function ProductSalesContent() {
     customStartDate,
     customEndDate,
     additionalParams,
+    kasaNo,
   });
 
   useEffect(() => {
@@ -92,6 +93,7 @@ function ProductSalesContent() {
           if (customStartDate) params.set('start_date', customStartDate);
           if (customEndDate) params.set('end_date', customEndDate);
         }
+        if (kasaNo) params.set('kasa_no', String(kasaNo));
         const res = await axios.get(
           `${getApiUrl()}/reports/product-sales/orders?${params.toString()}`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -105,7 +107,7 @@ function ProductSalesContent() {
       }
     };
     fetchProductOrders();
-  }, [token, selectedPlu, period, customStartDate, customEndDate]);
+  }, [token, selectedPlu, period, customStartDate, customEndDate, kasaNo]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val);
@@ -183,6 +185,9 @@ function ProductSalesContent() {
         customEndDate={customEndDate}
         setCustomEndDate={setCustomEndDate}
         actions={<ReportExportButtons title="Ürün Satış Raporu" columns={exportColumns} rows={sortedData} />}
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
       />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>

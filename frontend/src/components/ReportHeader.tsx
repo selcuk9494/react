@@ -15,6 +15,10 @@ interface ReportHeaderProps {
   customEndDate: string;
   setCustomEndDate: (date: string) => void;
   actions?: React.ReactNode;
+  /** Bos = tum kasalar */
+  kasaNo?: string;
+  setKasaNo?: (v: string) => void;
+  kasaOptions?: number[];
 }
 
 export default function ReportHeader({
@@ -26,6 +30,9 @@ export default function ReportHeader({
   customEndDate,
   setCustomEndDate,
   actions,
+  kasaNo = '',
+  setKasaNo,
+  kasaOptions = [],
 }: ReportHeaderProps) {
   const { t, lang } = useI18n();
   const router = useRouter();
@@ -106,41 +113,58 @@ export default function ReportHeader({
             </button>
           </div>
 
-          {/* Date Range Display */}
-          <div className="text-xs text-gray-600 mt-2 px-1">
-            {(() => {
-              const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-              const now = new Date();
-              if (period === 'today') return f(now);
-              if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
-              if (period === 'week') {
-                const end = new Date();
-                const start = new Date(end); const day = start.getDay(); const diff = (day === 0 ? 6 : day - 1);
-                start.setDate(end.getDate() - diff);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'last7days') {
-                const end = new Date();
-                const start = new Date(); start.setDate(end.getDate() - 6);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'month') {
-                const end = new Date();
-                const start = new Date(end.getFullYear(), end.getMonth(), 1);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'lastmonth') {
-                const ref = new Date(); ref.setMonth(ref.getMonth() - 1);
-                const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
-                const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
-                return `${f(start)} - ${f(end)}`;
-              }
-              if (period === 'custom' && customStartDate && customEndDate) {
-                const s = new Date(customStartDate); const e = new Date(customEndDate);
-                return `${f(s)} - ${f(e)}`;
-              }
-              return '';
-            })()}
+          {/* Date Range Display + Kasa filter */}
+          <div className="flex items-center justify-between gap-2 mt-2 px-1">
+            <div className="text-xs text-gray-600">
+              {(() => {
+                const f = (d: Date) => d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+                const now = new Date();
+                if (period === 'today') return f(now);
+                if (period === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); return f(y); }
+                if (period === 'week') {
+                  const end = new Date();
+                  const start = new Date(end); const day = start.getDay(); const diff = (day === 0 ? 6 : day - 1);
+                  start.setDate(end.getDate() - diff);
+                  return `${f(start)} - ${f(end)}`;
+                }
+                if (period === 'last7days') {
+                  const end = new Date();
+                  const start = new Date(); start.setDate(end.getDate() - 6);
+                  return `${f(start)} - ${f(end)}`;
+                }
+                if (period === 'month') {
+                  const end = new Date();
+                  const start = new Date(end.getFullYear(), end.getMonth(), 1);
+                  return `${f(start)} - ${f(end)}`;
+                }
+                if (period === 'lastmonth') {
+                  const ref = new Date(); ref.setMonth(ref.getMonth() - 1);
+                  const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+                  const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+                  return `${f(start)} - ${f(end)}`;
+                }
+                if (period === 'custom' && customStartDate && customEndDate) {
+                  const s = new Date(customStartDate); const e = new Date(customEndDate);
+                  return `${f(s)} - ${f(e)}`;
+                }
+                return '';
+              })()}
+            </div>
+            {setKasaNo && kasaOptions.length > 0 && (
+              <select
+                value={kasaNo}
+                onChange={(e) => setKasaNo(e.target.value)}
+                className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 max-w-[140px]"
+                aria-label="Kasa"
+              >
+                <option value="">{lang === 'tr' ? 'Tüm Kasalar' : 'All Registers'}</option>
+                {kasaOptions.map((n) => (
+                  <option key={n} value={String(n)}>
+                    Kasa {n}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </header>

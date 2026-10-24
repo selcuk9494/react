@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
@@ -12,11 +13,10 @@ import Link from 'next/link';
 const COLORS = ['#4F46E5', '#06B6D4', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#14B8A6', '#F43F5E', '#84CC16', '#0EA5E9'];
 
 export default function ProductGroupSalesPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
@@ -24,6 +24,7 @@ export default function ProductGroupSalesPage() {
     period,
     customStartDate,
     customEndDate,
+    kasaNo,
   });
 
   const totalSales = Array.isArray(data) ? data.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) : 0;
@@ -67,9 +68,12 @@ export default function ProductGroupSalesPage() {
               { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
               { key: 'pct', label: 'Pay %', format: (value) => Number(value || 0).toFixed(1) },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (

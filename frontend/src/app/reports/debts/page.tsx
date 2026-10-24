@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { getApiUrl } from '@/utils/api';
 import { Calendar, BarChart2 } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
@@ -25,12 +26,11 @@ interface DebtItem {
 }
 
 export default function DebtsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
-  const [period, setPeriod] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<DebtItem[]>([]);
@@ -46,6 +46,7 @@ export default function DebtsPage() {
       setItems([]);
       try {
         let url = `${getApiUrl()}/reports/debts?period=${period}`;
+        if (kasaNo) url += `&kasa_no=${kasaNo}`;
         if (period === 'custom') {
           url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
         }
@@ -65,7 +66,7 @@ export default function DebtsPage() {
       }
     };
     fetchData();
-  }, [token, period, customStartDate, customEndDate]);
+  }, [token, period, customStartDate, customEndDate, kasaNo]);
 
   const filteredItems = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
@@ -120,9 +121,12 @@ export default function DebtsPage() {
               { key: 'saat', label: 'Saat' },
               { key: 'borc', label: 'Borç', format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="px-4 py-4 space-y-6 overflow-hidden max-w-full" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between">

@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { API_URL } from '../config';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
 const toDate = (date) => date.toISOString().slice(0, 10);
@@ -13,10 +14,20 @@ const currency = (value) => new Intl.NumberFormat('tr-TR', {
   currency: 'TRY',
 }).format(Number(value || 0));
 
-export default function GuestNationalityScreen({ navigation }) {
-  const [period, setPeriod] = useState('today');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+export default function GuestNationalityScreen({ navigation, route }) {
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -45,7 +56,7 @@ export default function GuestNationalityScreen({ navigation }) {
 
   useEffect(() => {
     if (period !== 'custom') fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
 
   const rows = useMemo(() => {
     const grouped = new Map();
@@ -89,7 +100,10 @@ export default function GuestNationalityScreen({ navigation }) {
         setStartDate={setStartDate}
         endDate={endDate}
         setEndDate={setEndDate}
-        onApplyCustomDate={() => { setPeriod('custom'); fetchData('custom'); }}
+        onApplyCustomDate={() => { setPeriod('custom'); fetchData('custom'); }
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}}
       />
       <ReportExportActions
         title="Kişi ve Uyruk Raporu"

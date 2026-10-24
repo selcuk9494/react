@@ -6,15 +6,15 @@ import { useI18n } from '@/contexts/I18nContext';
 import { BarChart as BarChartIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ReportHeader from '@/components/ReportHeader';
+import { useSharedReportFilters, getBranchKasaOptions } from '@/utils/reportFilters';
 import ReportExportButtons from '@/components/ReportExportButtons';
 import { useReportData } from '@/utils/useReportData';
 
 export default function SalesChartPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useI18n();
-  const [period, setPeriod] = useState('week');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const { period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, kasaNo, setKasaNo } = useSharedReportFilters();
+  const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/sales-chart',
@@ -22,6 +22,7 @@ export default function SalesChartPage() {
     period,
     customStartDate,
     customEndDate,
+    kasaNo,
   });
 
   // Debug log
@@ -59,9 +60,12 @@ export default function SalesChartPage() {
               { key: 'date', label: 'Tarih' },
               { key: 'total', label: 'Toplam', format: (value) => formatCurrency(Number(value || 0)) },
             ]}
-          />
+        />
         }
-      />
+        kasaNo={kasaNo}
+        setKasaNo={setKasaNo}
+        kasaOptions={kasaOptions}
+        />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6" style={{ paddingTop: 'calc(120px + env(safe-area-inset-top))' }}>
         {isLoading ? (

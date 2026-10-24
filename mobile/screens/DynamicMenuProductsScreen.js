@@ -13,17 +13,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { API_URL } from '../config';
 import DateFilterComponent from '../components/DateFilterComponent';
+import { useReportFilters } from '../hooks/useReportFilters';
 import ReportExportActions from '../components/ReportExportActions';
 
-export default function DynamicMenuProductsScreen({ navigation }) {
+export default function DynamicMenuProductsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [period, setPeriod] = useState('today');
+  const {
+    ready,
+    period,
+    setPeriod,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    kasaNo,
+    setKasaNo,
+    kasaOptions,
+    onApplyCustomDate,
+  } = useReportFilters(route);
+  // legacy start/end removed
   const [searchQuery, setSearchQuery] = useState('');
   const [includeMenu, setIncludeMenu] = useState(false);
   const [lang, setLang] = useState('tr');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
   const fetchControllerRef = useRef(null);
   const reqIdRef = useRef(0);
   const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
@@ -54,8 +66,9 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     fetchData();
-  }, [period]);
+  }, [ready, period, kasaNo]);
 
   const fetchData = async () => {
     if (fetchControllerRef.current) {
@@ -96,8 +109,7 @@ export default function DynamicMenuProductsScreen({ navigation }) {
   };
 
   const handleApplyCustomDate = () => {
-    setPeriod('custom');
-    fetchData();
+    onApplyCustomDate();
   };
 
   const formatCurrency = (val) =>
@@ -241,6 +253,9 @@ export default function DynamicMenuProductsScreen({ navigation }) {
           endDate={endDate}
           setEndDate={setEndDate}
           onApplyCustomDate={handleApplyCustomDate}
+          kasaNo={kasaNo}
+          setKasaNo={setKasaNo}
+          kasaOptions={kasaOptions}
           lang={lang}
         />
         <TouchableOpacity
