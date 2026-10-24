@@ -3785,6 +3785,8 @@ export class ReportsService {
     knownGroupIds?: number[],
     /** Diger subelerin ozel (ortak olmayan) gruplari — cift sayimi onlemek icin */
     rivalGroupIds?: number[],
+    /** Sadece icecek fişlerinde bu subeye yazilacak kasa nolari */
+    fallbackKasaNos?: number[],
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(
@@ -3895,6 +3897,9 @@ export class ReportsService {
     const rivalIds = (Array.isArray(rivalGroupIds) ? rivalGroupIds : [])
       .map((n) => Number(n))
       .filter((n) => Number.isFinite(n));
+    const fallbackKasas = (Array.isArray(fallbackKasaNos) ? fallbackKasaNos : [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n) && n > 0);
     const exclusiveIds = useArray
       ? (groupIds as number[]).filter((id) => !sharedSet.has(Number(id)))
       : [];
@@ -3934,6 +3939,9 @@ export class ReportsService {
               AND c.tip = ANY($${exclusiveParam})
           ), 2147483647)`;
       let winsCompanion = anchorExists;
+      const allBrandTips = Array.from(
+        new Set([...exclusiveIds, ...rivalIds].map((n) => Number(n)).filter((n) => Number.isFinite(n))),
+      );
       if (rivalIds.length) {
         params.push(rivalIds);
         const rivalParam = params.length;
@@ -3964,6 +3972,25 @@ export class ReportsService {
               ${anchorAmt} = ${rivalAmt}
               AND ${anchorMinTip} < ${rivalMinTip}
             )
+          )
+        )`;
+      }
+      // Sadece icecek (hicbir marka yemegi yok): kasa -> sube fallback
+      if (fallbackKasas.length && allBrandTips.length) {
+        params.push(allBrandTips);
+        const brandParam = params.length;
+        params.push(fallbackKasas);
+        const fallbackParam = params.length;
+        const noBrandFood = `NOT EXISTS (
+            SELECT 1 FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${brandParam})
+          )`;
+        winsCompanion = `(
+          (${winsCompanion})
+          OR (
+            ${noBrandFood}
+            AND l.kasa = ANY($${fallbackParam})
           )
         )`;
       }

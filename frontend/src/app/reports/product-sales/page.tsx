@@ -321,12 +321,47 @@ function ProductSalesContent() {
     return Array.from(rivals);
   }, [selectedBusinessId, businessesLoaded, businesses, groupToBusinesses]);
 
+  /** Sadece içecek fişlerinde kasa adına göre şube eşlemesi. */
+  const fallbackKasasForBusiness = useMemo(() => {
+    const matchKeys = (businessName: string): string[] => {
+      const bn = businessName.toLowerCase();
+      const keys: string[] = [];
+      if (/german|döner|doner/.test(bn)) keys.push('german', 'döner', 'doner', 'express');
+      if (/smash/.test(bn)) keys.push('smash');
+      if (/sams|chicken/.test(bn)) keys.push('chicken', 'sams');
+      return keys;
+    };
+    const map = new Map<number, number[]>();
+    for (const b of businesses) {
+      const keys = matchKeys(b.name || '');
+      if (!keys.length) {
+        map.set(b.id, []);
+        continue;
+      }
+      const kasas = kasaEntries
+        .filter((e) => {
+          const kn = (e.name || '').toLowerCase();
+          if (!kn || /paket|street/.test(kn)) return false;
+          return keys.some((k) => kn.includes(k));
+        })
+        .map((e) => e.kasa_no);
+      map.set(b.id, Array.from(new Set(kasas)));
+    }
+    return map;
+  }, [businesses, kasaEntries]);
+
+  const selectedFallbackKasas = useMemo(() => {
+    if (!selectedBusinessId) return [] as number[];
+    return fallbackKasasForBusiness.get(Number(selectedBusinessId)) || [];
+  }, [selectedBusinessId, fallbackKasasForBusiness]);
+
   const breakdownKasaOptions = allKasaOptions;
   const breakdownKasaKey = allKasaOptions.join(',');
   const effectiveGroupKey = effectiveGroupIds.join(',');
   const sharedGroupKey = sharedGroupIdsInFilter.join(',');
   const knownGroupKey = allMappedGroupIds.join(',');
   const rivalGroupKey = rivalGroupIds.join(',');
+  const fallbackKasaKey = selectedFallbackKasas.join(',');
 
   const additionalParams = useMemo(() => {
     const params: any = {};
@@ -342,6 +377,9 @@ function ProductSalesContent() {
       if (rivalGroupIds.length) {
         params.rival_group_ids = rivalGroupKey;
       }
+      if (selectedFallbackKasas.length) {
+        params.fallback_kasa_nos = fallbackKasaKey;
+      }
     }
     if (selectedPlu !== null) params.plu = String(selectedPlu);
     return params;
@@ -354,6 +392,8 @@ function ProductSalesContent() {
     knownGroupKey,
     rivalGroupIds.length,
     rivalGroupKey,
+    selectedFallbackKasas.length,
+    fallbackKasaKey,
     selectedBusinessId,
     businessesLoaded,
     selectedPlu,
@@ -463,6 +503,9 @@ function ProductSalesContent() {
         if (selectedBusinessId && rivalGroupKey) {
           params.set('rival_group_ids', rivalGroupKey);
         }
+        if (selectedBusinessId && fallbackKasaKey) {
+          params.set('fallback_kasa_nos', fallbackKasaKey);
+        }
         const res = await axios.get(
           `${getApiUrl()}/reports/product-sales?${params.toString()}`,
           {
@@ -514,6 +557,7 @@ function ProductSalesContent() {
     selectedBusinessId,
     knownGroupKey,
     rivalGroupKey,
+    fallbackKasaKey,
   ]);
 
   // Şube kartları: her işletmenin satış özeti (ortak grup kurallarıyla)
@@ -571,6 +615,10 @@ function ProductSalesContent() {
             if (rivals.size && exclusive.length) {
               params.set('rival_group_ids', Array.from(rivals).join(','));
             }
+            const fallback = fallbackKasasForBusiness.get(b.id) || [];
+            if (fallback.length && exclusive.length) {
+              params.set('fallback_kasa_nos', fallback.join(','));
+            }
             const res = await axios.get(
               `${getApiUrl()}/reports/product-sales?${params.toString()}`,
               {
@@ -614,6 +662,7 @@ function ProductSalesContent() {
     customStartDate,
     customEndDate,
     kasaNo,
+    fallbackKasasForBusiness,
   ]);
 
   const scrollToProducts = () => {

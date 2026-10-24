@@ -466,6 +466,7 @@ export class ReportsController {
     @Query('shared_group_ids') sharedGroupIds?: string,
     @Query('known_group_ids') knownGroupIds?: string,
     @Query('rival_group_ids') rivalGroupIds?: string,
+    @Query('fallback_kasa_nos') fallbackKasaNos?: string,
     @Query('plu') plu?: number,
     @Query('kasa_no') kasaNo?: string,
     @Query('by_kasa') byKasa?: string,
@@ -479,6 +480,7 @@ export class ReportsController {
     const sharedIds = parseIds(sharedGroupIds);
     const knownIds = parseIds(knownGroupIds);
     const rivalIds = parseIds(rivalGroupIds);
+    const fallbackKasas = parseIds(fallbackKasaNos);
     const groupByKasa =
       byKasa === '1' || byKasa === 'true' || byKasa === 'yes';
     return this.reportsService.getProductSales(this.withKasa(req.user, kasaNo),
@@ -492,6 +494,7 @@ export class ReportsController {
       sharedIds.length ? sharedIds : undefined,
       knownIds.length ? knownIds : undefined,
       rivalIds.length ? rivalIds : undefined,
+      fallbackKasas.length ? fallbackKasas : undefined,
     );
   }
 
