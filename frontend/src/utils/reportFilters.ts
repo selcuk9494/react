@@ -6,6 +6,7 @@ const PERIOD_KEY = 'report_period';
 const START_KEY = 'report_start_date';
 const END_KEY = 'report_end_date';
 const KASA_KEY = 'report_kasa_no';
+const KASA_GROUP_MODE_KEY = 'report_kasa_group_based';
 
 const ALLOWED = [
   'today',
@@ -79,6 +80,15 @@ export function persistKasaNo(kasaNo: string) {
     return;
   }
   writeLS(KASA_KEY, String(kasaNo));
+}
+
+/** Kasa grup bazlı rapor modu (ürün satış). */
+export function readKasaGroupBasedMode(): boolean {
+  return readLS(KASA_GROUP_MODE_KEY) === '1';
+}
+
+export function persistKasaGroupBasedMode(on: boolean) {
+  writeLS(KASA_GROUP_MODE_KEY, on ? '1' : '0');
 }
 
 export type KasaEntry = { kasa_no: number; name: string };

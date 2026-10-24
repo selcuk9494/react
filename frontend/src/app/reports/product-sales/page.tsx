@@ -12,6 +12,8 @@ import {
   getBranchKasaEntries,
   formatKasaLabel,
   getKasaColor,
+  readKasaGroupBasedMode,
+  persistKasaGroupBasedMode,
   type KasaEntry,
 } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
@@ -50,6 +52,19 @@ function ProductSalesContent() {
   const [draftMap, setDraftMap] = useState<Record<number, number[]>>({});
   const [mapSaving, setMapSaving] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [kasaGroupBased, setKasaGroupBased] = useState(false);
+
+  useEffect(() => {
+    setKasaGroupBased(readKasaGroupBasedMode());
+  }, []);
+
+  const toggleKasaGroupBased = () => {
+    setKasaGroupBased((prev) => {
+      const next = !prev;
+      persistKasaGroupBasedMode(next);
+      return next;
+    });
+  };
 
   const kasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -73,23 +88,66 @@ function ProductSalesContent() {
 
   const hasMultiKasa = allKasaOptions.length > 1;
 
-  /** Seçili kasaya göre görünen gruplar (eşleme yoksa hepsi). */
+  const hasAnyGroupKasaMapping = useMemo(
+    () =>
+      Object.values(groupKasaMap).some(
+        (nos) => Array.isArray(nos) && nos.length > 0,
+      ),
+    [groupKasaMap],
+  );
+
+  /** Seçili kasaya eşlenen grup id'leri. */
+  const mappedGroupsForKasa = useMemo(() => {
+    if (!kasaNo) return [] as number[];
+    const kn = Number(kasaNo);
+    if (!Number.isFinite(kn)) return [];
+    return groups
+      .filter((g) => (groupKasaMap[g.id] || []).includes(kn))
+      .map((g) => g.id as number);
+  }, [groups, kasaNo, groupKasaMap]);
+
+  /** Kasa grup bazlı aktifken görünür gruplar; değilse hepsi. */
   const visibleGroups = useMemo(() => {
-    if (!kasaNo || !mapLoaded) return groups;
+    if (!kasaGroupBased || !kasaNo || !mapLoaded || !hasAnyGroupKasaMapping) {
+      return groups;
+    }
     const kn = Number(kasaNo);
     if (!Number.isFinite(kn)) return groups;
-    const hasAnyMapping = Object.values(groupKasaMap).some(
-      (nos) => Array.isArray(nos) && nos.length > 0,
-    );
-    if (!hasAnyMapping) return groups;
-    return groups.filter((g) => {
-      const mapped = groupKasaMap[g.id];
-      if (!mapped || mapped.length === 0) return true;
-      return mapped.includes(kn);
-    });
-  }, [groups, kasaNo, groupKasaMap, mapLoaded]);
+    return groups.filter((g) => (groupKasaMap[g.id] || []).includes(kn));
+  }, [
+    groups,
+    kasaNo,
+    groupKasaMap,
+    mapLoaded,
+    kasaGroupBased,
+    hasAnyGroupKasaMapping,
+  ]);
 
-  /** Grup seçiliyken kasa özetinde yalnızca eşli kasalar. */
+  /** API'ye gidecek grup filtresi. */
+  const effectiveGroupIds = useMemo(() => {
+    // Normal mod: kullanıcının seçimi
+    if (!kasaGroupBased || !mapLoaded) return selectedGroups;
+
+    // Kasa seçili: o kasaya eşlenen gruplar (kullanıcı daraltmışsa kesişim)
+    if (kasaNo && hasAnyGroupKasaMapping) {
+      const mapped = mappedGroupsForKasa;
+      if (!mapped.length) return [-1]; // eşleme yok → boş rapor
+      if (!selectedGroups.length) return mapped;
+      const intersect = selectedGroups.filter((id) => mapped.includes(id));
+      return intersect.length ? intersect : mapped;
+    }
+
+    return selectedGroups;
+  }, [
+    kasaGroupBased,
+    mapLoaded,
+    kasaNo,
+    hasAnyGroupKasaMapping,
+    mappedGroupsForKasa,
+    selectedGroups,
+  ]);
+
+  /** Grup seçiliyken / kasa-grup modunda kasa özeti. */
   const breakdownKasaOptions = useMemo(() => {
     if (!selectedGroups.length) return allKasaOptions;
     const set = new Set<number>();
@@ -108,10 +166,10 @@ function ProductSalesContent() {
 
   const additionalParams = useMemo(() => {
     const params: any = {};
-    if (selectedGroups.length) params.group_ids = selectedGroups.join(',');
+    if (effectiveGroupIds.length) params.group_ids = effectiveGroupIds.join(',');
     if (selectedPlu !== null) params.plu = String(selectedPlu);
     return params;
-  }, [selectedGroups, selectedPlu]);
+  }, [effectiveGroupIds, selectedPlu]);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
@@ -200,8 +258,23 @@ function ProductSalesContent() {
               params.set('start_date', customStartDate);
               params.set('end_date', customEndDate);
             }
-            if (selectedGroups.length) {
-              params.set('group_ids', selectedGroups.join(','));
+            let groupIdsForKasa = selectedGroups;
+            if (kasaGroupBased && hasAnyGroupKasaMapping) {
+              const mapped = groups
+                .filter((g) => (groupKasaMap[g.id] || []).includes(kasa))
+                .map((g) => g.id as number);
+              if (!mapped.length) {
+                return { kasa, total: 0, qty: 0, products: 0 };
+              }
+              if (selectedGroups.length) {
+                const intersect = selectedGroups.filter((id) => mapped.includes(id));
+                groupIdsForKasa = intersect.length ? intersect : mapped;
+              } else {
+                groupIdsForKasa = mapped;
+              }
+            }
+            if (groupIdsForKasa.length) {
+              params.set('group_ids', groupIdsForKasa.join(','));
             }
             const res = await axios.get(
               `${getApiUrl()}/reports/product-sales?${params.toString()}`,
@@ -237,6 +310,10 @@ function ProductSalesContent() {
     customStartDate,
     customEndDate,
     selectedGroups,
+    kasaGroupBased,
+    hasAnyGroupKasaMapping,
+    groups,
+    groupKasaMap,
   ]);
 
   useEffect(() => {
@@ -290,16 +367,33 @@ function ProductSalesContent() {
     };
   }, [token, hasMultiKasa, user?.selected_branch, user?.selected_branch_id]);
 
-  // Kasa değişince seçili grupları görünür olanlarla sınırla
+  // Kasa değişince: grup bazlı modda eşlenen gruplara ayarla; değilse görünürlerle sınırla
   useEffect(() => {
-    if (!kasaNo || !mapLoaded) return;
+    if (!mapLoaded) return;
+    if (kasaGroupBased && kasaNo && hasAnyGroupKasaMapping) {
+      setSelectedGroups((prev) => {
+        const same =
+          prev.length === mappedGroupsForKasa.length &&
+          prev.every((id, i) => id === mappedGroupsForKasa[i]);
+        return same ? prev : mappedGroupsForKasa;
+      });
+      return;
+    }
+    if (!kasaNo) return;
     setSelectedGroups((prev) => {
       if (!prev.length) return prev;
       const allowed = new Set(visibleGroups.map((g) => g.id));
       const next = prev.filter((id) => allowed.has(id));
       return next.length === prev.length ? prev : next;
     });
-  }, [kasaNo, visibleGroups, mapLoaded]);
+  }, [
+    kasaNo,
+    visibleGroups,
+    mapLoaded,
+    kasaGroupBased,
+    hasAnyGroupKasaMapping,
+    mappedGroupsForKasa,
+  ]);
 
   useEffect(() => {
       const groupIdParam = searchParams.get('group_id');
@@ -503,15 +597,43 @@ function ProductSalesContent() {
                 </button>
               )}
               {hasMultiKasa && (
-                <button
-                  type="button"
-                  onClick={openMapModal}
-                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
-                  title="Ürün gruplarını kasalarla eşleştir"
-                >
-                  <Link2 className="w-3.5 h-3.5" />
-                  Grup ↔ Kasa
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={openMapModal}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
+                    title="Ürün gruplarını kasalarla eşleştir"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    Grup ↔ Kasa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleKasaGroupBased}
+                    className={clsx(
+                      'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border font-semibold transition',
+                      kasaGroupBased
+                        ? 'border-slate-800 bg-slate-800 text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400',
+                    )}
+                    title={
+                      kasaGroupBased
+                        ? 'Kasa seçince yalnızca o kasaya eşlenen gruplar raporlanır'
+                        : 'Açıkken kasa raporu, eşlenen gruplara göre filtrelenir'
+                    }
+                  >
+                    <span
+                      className={clsx(
+                        'w-1.5 h-1.5 rounded-full',
+                        kasaGroupBased ? 'bg-emerald-400' : 'bg-slate-300',
+                      )}
+                    />
+                    Kasa grup bazlı rapor
+                    <span className="opacity-80 font-bold">
+                      {kasaGroupBased ? 'Açık' : 'Kapalı'}
+                    </span>
+                  </button>
+                </>
               )}
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
@@ -636,6 +758,17 @@ function ProductSalesContent() {
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
             />
           </div>
+          {kasaGroupBased && hasMultiKasa && (
+            <p className="mt-3 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <span className="font-bold text-slate-800">Kasa grup bazlı rapor açık:</span>{' '}
+              {kasaNo
+                ? `${formatKasaLabel(kasaNo, kasaEntries)} için yalnızca eşlenen gruplar raporlanıyor.`
+                : 'Bir kasa seçince o kasaya eşlenen grupların raporu gelir. Kapalıyken normal satış raporu alınır.'}
+              {!hasAnyGroupKasaMapping && (
+                <span className="text-amber-700"> Önce Grup ↔ Kasa ile eşleme kaydedin.</span>
+              )}
+            </p>
+          )}
         </div>
 
         {isLoading ? (
@@ -657,7 +790,8 @@ function ProductSalesContent() {
                 <p className="text-slate-300 text-xs font-semibold uppercase tracking-wide mb-2">
                   {kasaNo
                     ? formatKasaLabel(kasaNo, kasaEntries)
-                    : 'Tüm Kasalar'}{' '}
+                    : 'Tüm Kasalar'}
+                  {kasaGroupBased && kasaNo ? ' · Grup bazlı' : ''}{' '}
                   · {t('total_sales')}
                 </p>
                 <AutoFitText
