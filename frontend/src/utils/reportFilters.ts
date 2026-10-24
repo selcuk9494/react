@@ -161,6 +161,101 @@ export function formatKasaLabel(
   return `Kasa ${n}`;
 }
 
+/** Kasa numarasına göre tutarlı renk paleti (grup etiketleri / chip). */
+export type KasaColor = {
+  bg: string;
+  border: string;
+  text: string;
+  solid: string;
+  solidText: string;
+  bar: string;
+  tag: string;
+};
+
+const KASA_COLORS: KasaColor[] = [
+  {
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-300',
+    text: 'text-emerald-900',
+    solid: 'bg-emerald-600 border-emerald-600',
+    solidText: 'text-white',
+    bar: 'bg-emerald-500',
+    tag: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  {
+    bg: 'bg-sky-50',
+    border: 'border-sky-300',
+    text: 'text-sky-900',
+    solid: 'bg-sky-600 border-sky-600',
+    solidText: 'text-white',
+    bar: 'bg-sky-500',
+    tag: 'bg-sky-100 text-sky-800 border-sky-200',
+  },
+  {
+    bg: 'bg-amber-50',
+    border: 'border-amber-300',
+    text: 'text-amber-950',
+    solid: 'bg-amber-500 border-amber-500',
+    solidText: 'text-white',
+    bar: 'bg-amber-500',
+    tag: 'bg-amber-100 text-amber-900 border-amber-200',
+  },
+  {
+    bg: 'bg-violet-50',
+    border: 'border-violet-300',
+    text: 'text-violet-900',
+    solid: 'bg-violet-600 border-violet-600',
+    solidText: 'text-white',
+    bar: 'bg-violet-500',
+    tag: 'bg-violet-100 text-violet-800 border-violet-200',
+  },
+  {
+    bg: 'bg-rose-50',
+    border: 'border-rose-300',
+    text: 'text-rose-900',
+    solid: 'bg-rose-600 border-rose-600',
+    solidText: 'text-white',
+    bar: 'bg-rose-500',
+    tag: 'bg-rose-100 text-rose-800 border-rose-200',
+  },
+  {
+    bg: 'bg-teal-50',
+    border: 'border-teal-300',
+    text: 'text-teal-900',
+    solid: 'bg-teal-600 border-teal-600',
+    solidText: 'text-white',
+    bar: 'bg-teal-500',
+    tag: 'bg-teal-100 text-teal-800 border-teal-200',
+  },
+  {
+    bg: 'bg-orange-50',
+    border: 'border-orange-300',
+    text: 'text-orange-950',
+    solid: 'bg-orange-500 border-orange-500',
+    solidText: 'text-white',
+    bar: 'bg-orange-500',
+    tag: 'bg-orange-100 text-orange-900 border-orange-200',
+  },
+  {
+    bg: 'bg-indigo-50',
+    border: 'border-indigo-300',
+    text: 'text-indigo-900',
+    solid: 'bg-indigo-600 border-indigo-600',
+    solidText: 'text-white',
+    bar: 'bg-indigo-500',
+    tag: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  },
+];
+
+export function getKasaColor(kasaNo: number | string): KasaColor {
+  const n = Number(kasaNo);
+  const idx =
+    Number.isFinite(n) && n > 0
+      ? (Math.trunc(n) - 1) % KASA_COLORS.length
+      : 0;
+  return KASA_COLORS[idx < 0 ? 0 : idx];
+}
+
 /** Dashboard + tum raporlar icin ortak period/kasa state. */
 export function useSharedReportFilters() {
   const initial = useMemo(() => readStoredPeriod(), []);

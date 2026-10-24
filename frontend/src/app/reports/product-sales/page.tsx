@@ -11,6 +11,7 @@ import {
   getBranchKasaOptions,
   getBranchKasaEntries,
   formatKasaLabel,
+  getKasaColor,
   type KasaEntry,
 } from '@/utils/reportFilters';
 import { useReportData } from '@/utils/useReportData';
@@ -525,17 +526,21 @@ function ProductSalesContent() {
               </button>
               {visibleGroups.map((g) => {
                 const mapped = groupKasaMap[g.id] || [];
+                const primaryKasa = mapped[0];
+                const color = primaryKasa ? getKasaColor(primaryKasa) : null;
+                const selected = selectedGroups.includes(g.id);
+                const labels = mapped.map((n) => formatKasaLabel(n, kasaEntries));
                 return (
                   <button
                     key={g.id}
                     type="button"
                     title={
-                      mapped.length
-                        ? `Kasalar: ${mapped.map((n) => formatKasaLabel(n, kasaEntries)).join(', ')}`
+                      labels.length
+                        ? `Kasalar: ${labels.join(', ')}`
                         : undefined
                     }
                     onClick={() => {
-                      const removing = selectedGroups.includes(g.id);
+                      const removing = selected;
                       setSelectedGroups((prev) => {
                         if (removing) return prev.filter((x) => x !== g.id);
                         return [...prev, g.id];
@@ -551,19 +556,45 @@ function ProductSalesContent() {
                       }
                     }}
                     className={clsx(
-                      "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
-                      selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
+                      'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap transition',
+                      selected && color
+                        ? `${color.solid} ${color.solidText}`
+                        : selected
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : color
+                            ? `${color.bg} ${color.border} ${color.text}`
+                            : 'bg-white text-slate-700 border-slate-200',
                     )}
                   >
-                    {g.name}
+                    <span className="font-medium">{g.name}</span>
                     {mapped.length > 0 && (
-                      <span
-                        className={clsx(
-                          'ml-1.5 text-[10px] font-semibold',
-                          selectedGroups.includes(g.id) ? 'text-indigo-100' : 'text-slate-400',
+                      <span className="inline-flex items-center gap-1">
+                        {mapped.slice(0, 2).map((n) => {
+                          const c = getKasaColor(n);
+                          return (
+                            <span
+                              key={n}
+                              className={clsx(
+                                'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                                selected
+                                  ? 'bg-white/20 border-white/30 text-white'
+                                  : c.tag,
+                              )}
+                            >
+                              {formatKasaLabel(n, kasaEntries)}
+                            </span>
+                          );
+                        })}
+                        {mapped.length > 2 && (
+                          <span
+                            className={clsx(
+                              'text-[10px] font-semibold',
+                              selected ? 'text-white/80' : 'text-slate-400',
+                            )}
+                          >
+                            +{mapped.length - 2}
+                          </span>
                         )}
-                      >
-                        · {mapped.length} kasa
                       </span>
                     )}
                   </button>
@@ -671,19 +702,58 @@ function ProductSalesContent() {
                 <div className="text-sm text-slate-500">{groupAgg.length} grup</div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg).map((g) => (
-                  <div key={g.id} className="border border-slate-100 rounded-xl p-3 bg-slate-50/80">
-                    <div className="text-sm font-semibold text-slate-800 truncate" title={g.name}>{g.name || 'Diğer'}</div>
-                    <div className="text-xs text-slate-500">{g.qty} adet</div>
-                    <div className="text-sm font-bold text-slate-900 mt-1">{formatCurrency(g.total)}</div>
-                    <div className="mt-2 h-1.5 bg-slate-200 rounded">
+                {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg).map((g) => {
+                  const mapped = groupKasaMap[g.id] || [];
+                  const primaryKasa = mapped[0];
+                  const color = primaryKasa ? getKasaColor(primaryKasa) : null;
+                  return (
+                    <div
+                      key={g.id}
+                      className={clsx(
+                        'rounded-xl p-3 border',
+                        color
+                          ? `${color.bg} ${color.border}`
+                          : 'border-slate-100 bg-slate-50/80',
+                      )}
+                    >
+                      {mapped.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {mapped.map((n) => {
+                            const c = getKasaColor(n);
+                            return (
+                              <span
+                                key={n}
+                                className={clsx(
+                                  'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                                  c.tag,
+                                )}
+                              >
+                                {formatKasaLabel(n, kasaEntries)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div
-                        className="h-1.5 bg-indigo-600 rounded"
-                        style={{ width: `${totalSales > 0 ? Math.min(100, (g.total / totalSales) * 100) : 0}%` }}
-                      />
+                        className={clsx(
+                          'text-sm font-semibold truncate',
+                          color ? color.text : 'text-slate-800',
+                        )}
+                        title={g.name}
+                      >
+                        {g.name || 'Diğer'}
+                      </div>
+                      <div className="text-xs text-slate-500">{g.qty} adet</div>
+                      <div className="text-sm font-bold text-slate-900 mt-1">{formatCurrency(g.total)}</div>
+                      <div className="mt-2 h-1.5 bg-white/70 rounded">
+                        <div
+                          className={clsx('h-1.5 rounded', color ? color.bar : 'bg-indigo-600')}
+                          style={{ width: `${totalSales > 0 ? Math.min(100, (g.total / totalSales) * 100) : 0}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

@@ -11,6 +11,7 @@ import { getApiUrl } from '@/utils/api';
 import {
   formatKasaLabel,
   getBranchKasaEntries,
+  getKasaColor,
   type KasaEntry,
 } from '@/utils/reportFilters';
 
@@ -276,22 +277,26 @@ export default function ReportHeader({
                 >
                   {lang === 'tr' ? 'Tüm Kasalar' : 'All'}
                 </button>
-                {resolvedKasaEntries.map((e) => (
-                  <button
-                    key={e.kasa_no}
-                    type="button"
-                    title={`Kasa ${e.kasa_no}`}
-                    onClick={() => setKasaNo(String(e.kasa_no))}
-                    className={clsx(
-                      'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
-                      String(kasaNo) === String(e.kasa_no)
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300',
-                    )}
-                  >
-                    {formatKasaLabel(e.kasa_no, resolvedKasaEntries)}
-                  </button>
-                ))}
+                {resolvedKasaEntries.map((e) => {
+                  const color = getKasaColor(e.kasa_no);
+                  const active = String(kasaNo) === String(e.kasa_no);
+                  return (
+                    <button
+                      key={e.kasa_no}
+                      type="button"
+                      title={`Kasa ${e.kasa_no}`}
+                      onClick={() => setKasaNo(String(e.kasa_no))}
+                      className={clsx(
+                        'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                        active
+                          ? `${color.solid} ${color.solidText}`
+                          : `${color.bg} ${color.border} ${color.text}`,
+                      )}
+                    >
+                      {formatKasaLabel(e.kasa_no, resolvedKasaEntries)}
+                    </button>
+                  );
+                })}
                 <button
                   type="button"
                   onClick={openKasaNameModal}
