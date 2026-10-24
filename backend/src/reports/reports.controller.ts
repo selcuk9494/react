@@ -464,18 +464,21 @@ export class ReportsController {
     @Query('group_id') groupId?: number,
     @Query('group_ids') groupIds?: string,
     @Query('shared_group_ids') sharedGroupIds?: string,
+    @Query('known_group_ids') knownGroupIds?: string,
+    @Query('rival_group_ids') rivalGroupIds?: string,
     @Query('plu') plu?: number,
     @Query('kasa_no') kasaNo?: string,
     @Query('by_kasa') byKasa?: string,
   ) {
-    const ids = (groupIds || '')
-      .split(',')
-      .map((n) => parseInt(n))
-      .filter((n) => !isNaN(n));
-    const sharedIds = (sharedGroupIds || '')
-      .split(',')
-      .map((n) => parseInt(n))
-      .filter((n) => !isNaN(n));
+    const parseIds = (raw?: string) =>
+      (raw || '')
+        .split(',')
+        .map((n) => parseInt(n))
+        .filter((n) => !isNaN(n));
+    const ids = parseIds(groupIds);
+    const sharedIds = parseIds(sharedGroupIds);
+    const knownIds = parseIds(knownGroupIds);
+    const rivalIds = parseIds(rivalGroupIds);
     const groupByKasa =
       byKasa === '1' || byKasa === 'true' || byKasa === 'yes';
     return this.reportsService.getProductSales(this.withKasa(req.user, kasaNo),
@@ -487,6 +490,8 @@ export class ReportsController {
       typeof plu !== 'undefined' ? Number(plu) : undefined,
       groupByKasa,
       sharedIds.length ? sharedIds : undefined,
+      knownIds.length ? knownIds : undefined,
+      rivalIds.length ? rivalIds : undefined,
     );
   }
 

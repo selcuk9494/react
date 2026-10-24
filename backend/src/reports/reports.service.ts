@@ -3781,6 +3781,10 @@ export class ReportsService {
     plu?: number,
     byKasa = false,
     sharedGroupIds?: number[],
+    /** Tum subelere eslenmis gruplar; tip bu listede yoksa / null ise tanimsiz sayilir */
+    knownGroupIds?: number[],
+    /** Diger subelerin ozel (ortak olmayan) gruplari — cift sayimi onlemek icin */
+    rivalGroupIds?: number[],
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(
@@ -3885,34 +3889,93 @@ export class ReportsService {
         .map((n) => Number(n))
         .filter((n) => Number.isFinite(n)),
     );
+    const knownIds = (Array.isArray(knownGroupIds) ? knownGroupIds : [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n));
+    const rivalIds = (Array.isArray(rivalGroupIds) ? rivalGroupIds : [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n));
     const exclusiveIds = useArray
       ? (groupIds as number[]).filter((id) => !sharedSet.has(Number(id)))
       : [];
     const sharedInFilter = useArray
       ? (groupIds as number[]).filter((id) => sharedSet.has(Number(id)))
       : [];
-    // Ortak grup (DRINKS vb.): sadece ayni sipariste bu subenin ozel grubu varsa say
-    const useCompanionShared =
-      useArray && exclusiveIds.length > 0 && sharedInFilter.length > 0;
-    if (useCompanionShared) {
+    // Ortak + tanimsiz: ayni sipariste baskin subeye yaz (tek yerde)
+    const useCompanionAttr = useArray && exclusiveIds.length > 0;
+    if (useCompanionAttr) {
       params.push(exclusiveIds);
       const exclusiveParam = params.length;
-      params.push(sharedInFilter);
-      const sharedParam = params.length;
-      extraFilter += ` AND (
-        l.tip = ANY($${exclusiveParam})
-        OR (
-          l.tip = ANY($${sharedParam})
-          AND EXISTS (
-            SELECT 1
-            FROM adjusted c
-            WHERE c.adsno = l.adsno
+      const ticketMatch = `c.adsno = l.adsno
               AND c.adtur = l.adtur
               AND c.kasa = l.kasa
-              AND NOT COALESCE(c.is_menu, false)
+              AND NOT COALESCE(c.is_menu, false)`;
+      const anchorAmt = `COALESCE((
+            SELECT SUM(c.adj_tutar)
+            FROM adjusted c
+            WHERE ${ticketMatch}
               AND c.tip = ANY($${exclusiveParam})
+          ), 0)`;
+      const anchorMinTip = `COALESCE((
+            SELECT MIN(c.tip)
+            FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${exclusiveParam})
+          ), 2147483647)`;
+      let winsCompanion = `${anchorAmt} > 0`;
+      if (rivalIds.length) {
+        params.push(rivalIds);
+        const rivalParam = params.length;
+        const rivalAmt = `COALESCE((
+            SELECT SUM(c.adj_tutar)
+            FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${rivalParam})
+          ), 0)`;
+        const rivalMinTip = `COALESCE((
+            SELECT MIN(c.tip)
+            FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${rivalParam})
+          ), 2147483647)`;
+        // Daha yuksek tutarli sube kazanir; esitlikte daha kucuk grup id
+        winsCompanion = `(
+          ${anchorAmt} > ${rivalAmt}
+          OR (
+            ${anchorAmt} = ${rivalAmt}
+            AND ${anchorAmt} > 0
+            AND ${anchorMinTip} < ${rivalMinTip}
           )
-        )
+        )`;
+      }
+      let orParts = `l.tip = ANY($${exclusiveParam})`;
+      if (sharedInFilter.length) {
+        params.push(sharedInFilter);
+        const sharedParam = params.length;
+        orParts += `
+        OR (
+          l.tip = ANY($${sharedParam})
+          AND ${winsCompanion}
+        )`;
+      }
+      // Grup tanimsiz (tip null) veya hicbir subeye eslenmemis tip
+      if (knownIds.length) {
+        params.push(knownIds);
+        const knownParam = params.length;
+        orParts += `
+        OR (
+          (l.tip IS NULL OR NOT (l.tip = ANY($${knownParam})))
+          AND ${winsCompanion}
+        )`;
+      } else {
+        orParts += `
+        OR (
+          l.tip IS NULL
+          AND ${winsCompanion}
+        )`;
+      }
+      extraFilter += ` AND (
+        ${orParts}
       )`;
     } else if (useArray) {
       params.push(groupIds);
