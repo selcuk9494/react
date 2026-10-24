@@ -3906,15 +3906,20 @@ export class ReportsService {
     if (useCompanionAttr) {
       params.push(exclusiveIds);
       const exclusiveParam = params.length;
-      // Menü satirlari da companion sayilir (paket menu + icecek atamasi icin)
+      // Menü satirlari da companion: tip eslesmesi yeterli (tutar 0 olsa bile)
       const ticketMatch = `c.adsno = l.adsno
               AND c.adtur = l.adtur
               AND c.kasa = l.kasa`;
-      // Menü tutari genelde 0'a katlanir; varlik icin adj veya ham tutar kullan
       const lineWeight = `CASE
-            WHEN COALESCE(c.adj_tutar, 0) <> 0 THEN c.adj_tutar
-            ELSE COALESCE(c.tutar, 0)
+            WHEN COALESCE(c.adj_tutar, 0) <> 0 THEN ABS(c.adj_tutar)
+            WHEN COALESCE(c.tutar, 0) <> 0 THEN ABS(c.tutar)
+            ELSE 1
           END`;
+      const anchorExists = `EXISTS (
+            SELECT 1 FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${exclusiveParam})
+          )`;
       const anchorAmt = `COALESCE((
             SELECT SUM(${lineWeight})
             FROM adjusted c
@@ -3927,10 +3932,15 @@ export class ReportsService {
             WHERE ${ticketMatch}
               AND c.tip = ANY($${exclusiveParam})
           ), 2147483647)`;
-      let winsCompanion = `${anchorAmt} > 0`;
+      let winsCompanion = anchorExists;
       if (rivalIds.length) {
         params.push(rivalIds);
         const rivalParam = params.length;
+        const rivalExists = `EXISTS (
+            SELECT 1 FROM adjusted c
+            WHERE ${ticketMatch}
+              AND c.tip = ANY($${rivalParam})
+          )`;
         const rivalAmt = `COALESCE((
             SELECT SUM(${lineWeight})
             FROM adjusted c
@@ -3943,13 +3953,16 @@ export class ReportsService {
             WHERE ${ticketMatch}
               AND c.tip = ANY($${rivalParam})
           ), 2147483647)`;
-        // Daha yuksek tutarli sube kazanir; esitlikte daha kucuk grup id
+        // Bu subenin ozel urunu varsa; rakip varsa tutar / tip ile tek kazanan
         winsCompanion = `(
-          ${anchorAmt} > ${rivalAmt}
-          OR (
-            ${anchorAmt} = ${rivalAmt}
-            AND ${anchorAmt} > 0
-            AND ${anchorMinTip} < ${rivalMinTip}
+          ${anchorExists}
+          AND (
+            NOT (${rivalExists})
+            OR ${anchorAmt} > ${rivalAmt}
+            OR (
+              ${anchorAmt} = ${rivalAmt}
+              AND ${anchorMinTip} < ${rivalMinTip}
+            )
           )
         )`;
       }
