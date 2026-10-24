@@ -54,9 +54,21 @@ function ColMultiSelect({
     return options.filter((o) => o.toLowerCase().includes(needle));
   }, [options, q]);
 
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((o) => selected.includes(o));
+
   const toggle = (value: string) => {
     if (selected.includes(value)) onChange(selected.filter((v) => v !== value));
     else onChange([...selected, value]);
+  };
+
+  const toggleAllFiltered = () => {
+    if (allFilteredSelected) {
+      const drop = new Set(filtered);
+      onChange(selected.filter((v) => !drop.has(v)));
+    } else {
+      onChange(Array.from(new Set([...selected, ...filtered])));
+    }
   };
 
   const label =
@@ -106,30 +118,52 @@ function ColMultiSelect({
             {filtered.length === 0 ? (
               <p className="px-2 py-2 text-xs text-slate-400">Sonuç yok</p>
             ) : (
-              filtered.map((opt) => {
-                const on = selected.includes(opt);
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => toggle(opt)}
+              <>
+                <button
+                  type="button"
+                  onClick={toggleAllFiltered}
+                  className={clsx(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 border-b border-slate-100',
+                    allFilteredSelected && 'bg-indigo-50 text-indigo-900',
+                  )}
+                >
+                  <span
                     className={clsx(
-                      'w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-slate-50',
-                      on && 'bg-indigo-50 text-indigo-900',
+                      'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
+                      allFilteredSelected
+                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                        : 'border-slate-300',
                     )}
                   >
-                    <span
+                    {allFilteredSelected && <Check className="w-2.5 h-2.5" />}
+                  </span>
+                  <span className="truncate">Tümünü seç</span>
+                </button>
+                {filtered.map((opt) => {
+                  const on = selected.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => toggle(opt)}
                       className={clsx(
-                        'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
-                        on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300',
+                        'w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-slate-50',
+                        on && 'bg-indigo-50 text-indigo-900',
                       )}
                     >
-                      {on && <Check className="w-2.5 h-2.5" />}
-                    </span>
-                    <span className="truncate">{opt || '(boş)'}</span>
-                  </button>
-                );
-              })
+                      <span
+                        className={clsx(
+                          'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
+                          on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300',
+                        )}
+                      >
+                        {on && <Check className="w-2.5 h-2.5" />}
+                      </span>
+                      <span className="truncate">{opt || '(boş)'}</span>
+                    </button>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
