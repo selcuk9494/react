@@ -1,0 +1,19 @@
+{
+  "name": "fr-bridge-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FR Rapor Bridge WebSocket connection manager (Render). Independent of frfood-backend.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "load:50": "node scripts/load-50.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "ws": "^8.18.3"
+  }
+}

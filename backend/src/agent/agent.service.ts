@@ -1,7 +1,10 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
+
+/** Yazma belirsizliği — otomatik reclaim/retry yok (manuel doğrulama). */
+const AMBIGUOUS_WRITE_ERROR = 'ambiguous_write_needs_review';
 
 @Injectable()
 export class AgentService {
@@ -12,6 +15,37 @@ export class AgentService {
 
   private hashSecret(secret: string) {
     return createHash('sha256').update(secret).digest('hex');
+  }
+
+  private safeEqualHex(a: string, b: string) {
+    const aa = Buffer.from(String(a || ''), 'utf8');
+    const bb = Buffer.from(String(b || ''), 'utf8');
+    if (aa.length !== bb.length) return false;
+    try {
+      return timingSafeEqual(aa, bb);
+    } catch {
+      return false;
+    }
+  }
+
+  private isMutatingSql(sql: string) {
+    let s = String(sql || '');
+    s = s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ').trim();
+    if (!s) return false;
+    if (s === '__BATCH__') return true;
+    return /^(WITH\b[\s\S]*?\bAS\b[\s\S]*?)?(INSERT|UPDATE|DELETE|UPSERT|MERGE|ALTER|DROP|CREATE|TRUNCATE|GRANT|REVOKE|CALL|DO|REFRESH|VACUUM|CLUSTER|REINDEX|COPY)\b/i.test(
+      s,
+    );
+  }
+
+  private isMutatingJob(job: { sql?: string; params?: any }) {
+    if (!job) return false;
+    if (job.sql === '__BATCH__') {
+      const parts = Array.isArray(job.params) ? job.params : [];
+      if (!parts.length) return true;
+      return parts.some((p: any) => this.isMutatingSql(p?.sql));
+    }
+    return this.isMutatingSql(String(job.sql || ''));
   }
 
   private makePairCode() {
@@ -59,7 +93,10 @@ export class AgentService {
       [agentId],
     );
     const agent = rows[0];
-    if (!agent || agent.secret_hash !== this.hashSecret(secret || '')) {
+    if (
+      !agent ||
+      !this.safeEqualHex(agent.secret_hash, this.hashSecret(secret || ''))
+    ) {
       throw new UnauthorizedException('Köprü kimliği geçersiz');
     }
     return agent;
@@ -68,13 +105,45 @@ export class AgentService {
   async poll(agentId: string, secret: string) {
     const agent = await this.authAgent(agentId, secret);
     const pool = this.db.getMainPool();
+
+    // Long-poll YOK. Stale reclaim: read → pending; write → ambiguous (çift UPDATE yok).
+    const stale = await this.db.executeQuery(
+      pool,
+      `SELECT j.id, j.sql, j.params
+       FROM agent_jobs j
+       INNER JOIN branch_agents a ON a.id = j.agent_id
+       WHERE a.id = $1
+         AND j.status = 'processing'
+         AND j.completed_at IS NULL
+         AND j.created_at < NOW() - INTERVAL '90 seconds'
+         AND a.last_seen_at < NOW() - INTERVAL '90 seconds'`,
+      [agent.id],
+    );
+    for (const row of stale) {
+      if (this.isMutatingJob(row)) {
+        await this.db.executeQuery(
+          pool,
+          `UPDATE agent_jobs
+           SET status = 'error', error = $2, completed_at = NOW()
+           WHERE id = $1 AND status = 'processing'`,
+          [row.id, AMBIGUOUS_WRITE_ERROR],
+        );
+      } else {
+        await this.db.executeQuery(
+          pool,
+          `UPDATE agent_jobs SET status = 'pending'
+           WHERE id = $1 AND status = 'processing'`,
+          [row.id],
+        );
+      }
+    }
+
     await this.db.executeQuery(
       pool,
       `UPDATE branch_agents SET last_seen_at = NOW() WHERE id = $1`,
       [agent.id],
     );
 
-    // Long-poll YOK: Vercel serverless'i meşgul edip IP'li şubeleri de yavaşlatıyordu
     const claimed = await this.db.executeQuery(
       pool,
       `UPDATE agent_jobs
@@ -164,12 +233,13 @@ export class AgentService {
   ) {
     const agent = await this.authAgent(agentId, secret);
     const pool = this.db.getMainPool();
+    // İlk sonuç kazanır — çift job-result / WS+HTTP yarışında ikinci yazmaz.
     if (error) {
       await this.db.executeQuery(
         pool,
         `UPDATE agent_jobs
          SET status = 'error', error = $3, completed_at = NOW()
-         WHERE id = $1 AND agent_id = $2`,
+         WHERE id = $1 AND agent_id = $2 AND status = 'processing'`,
         [jobId, agent.id, String(error).slice(0, 2000)],
       );
       return { ok: true };
@@ -182,7 +252,7 @@ export class AgentService {
       pool,
       `UPDATE agent_jobs
        SET status = 'done', result = $3::jsonb, completed_at = NOW()
-       WHERE id = $1 AND agent_id = $2`,
+       WHERE id = $1 AND agent_id = $2 AND status = 'processing'`,
       [jobId, agent.id, JSON.stringify(payload)],
     );
     return { ok: true };

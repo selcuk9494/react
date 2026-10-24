@@ -40,6 +40,9 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host '[2/5] Dosyalar kopyalaniyor...'
 Copy-Item (Join-Path $here 'agent.js') (Join-Path $InstallDir 'agent.js') -Force
+Copy-Item (Join-Path $here 'poll-policy.js') (Join-Path $InstallDir 'poll-policy.js') -Force
+Copy-Item (Join-Path $here 'ws-transport.js') (Join-Path $InstallDir 'ws-transport.js') -Force
+Copy-Item (Join-Path $here 'sql-safety.js') (Join-Path $InstallDir 'sql-safety.js') -Force
 Copy-Item (Join-Path $here 'run.cmd') (Join-Path $InstallDir 'run.cmd') -Force
 Copy-Item (Join-Path $here 'watchdog.ps1') (Join-Path $InstallDir 'watchdog.ps1') -Force
 Copy-Item (Join-Path $here 'package.json') (Join-Path $InstallDir 'package.json') -Force

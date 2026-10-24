@@ -4,6 +4,32 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { Pool } = require('pg');
+const {
+  IDLE_POLL_MS,
+  nextDelayMs,
+  createSingleFlight,
+} = require('./poll-policy');
+const {
+  resolveWsUrl,
+  resolveTransport,
+  createWsBridge,
+} = require('./ws-transport');
+const {
+  isMutatingJob,
+  AMBIGUOUS_WRITE_ERROR,
+} = require('./sql-safety');
+
+/** Aynı jobId'nin ikinci kez SQL çalıştırmasını engeller (WS+HTTP yarışı / reconnect). */
+const localJobState = new Map();
+const LOCAL_JOB_CAP = 500;
+
+function rememberJob(jobId, state) {
+  localJobState.set(String(jobId), state);
+  if (localJobState.size > LOCAL_JOB_CAP) {
+    const first = localJobState.keys().next().value;
+    localJobState.delete(first);
+  }
+}
 
 const DATA_DIR =
   process.env.FR_RAPOR_DATA ||
@@ -231,113 +257,252 @@ async function buildDashboardSnapshot(pool, meta) {
   return result;
 }
 
-async function mainLoop() {
-  let cfg = Object.assign(
-    {
-      cloudUrl: 'https://react-delta-bice-16.vercel.app',
-      pgHost: '127.0.0.1',
-      pgPort: 5432,
-      pgDatabase: 'fastrest',
-      pgUser: 'begum',
-      pgPassword: '',
-    },
-    readConfig(),
-  );
-  writeConfig(cfg);
-  let pool = makePool(cfg);
-  let pairedLogged = false;
-  let fastUntil = 0;
-  let lastSnapshotAt = 0;
+const loopFlight = createSingleFlight();
 
-  while (!stopping) {
-    try {
-      cfg = await ensureEnrolled(cfg);
-      const cloud = (cfg.cloudUrl || 'https://react-delta-bice-16.vercel.app').replace(/\/$/, '');
-      const poll = await postJson(`${cloud}/api/agent/poll`, {
-        agentId: cfg.agentId,
-        secret: cfg.secret,
-      });
-      if (poll.pairCode) writePairCode(poll.pairCode);
-      if (poll.paired && !pairedLogged) {
-        pairedLogged = true;
-        log('FR Rapor ile eslendi, sorgular iletiliyor');
+async function processJobs(cloud, cfg, pool, jobs) {
+  if (!jobs.length) return;
+  await Promise.all(
+    jobs.map(async (job) => {
+      const id = String(job.id);
+      const prev = localJobState.get(id);
+      if (prev === 'done' || prev === 'running' || prev === 'ambiguous') {
+        log(`job ${id} atlandi (local state=${prev}) — cift execution engeli`);
+        return;
       }
-      const jobs = poll.jobs || [];
-      if (jobs.length) fastUntil = Date.now() + 30000;
-
-      await Promise.all(
-        jobs.map(async (job) => {
+      rememberJob(id, 'running');
+      const mutating = isMutatingJob(job);
+      let sqlRan = false;
+      try {
+        if (job.sql === '__BATCH__') {
+          const parts = Array.isArray(job.params) ? job.params : [];
+          const batch = [];
+          for (const part of parts) {
+            const result = await pool.query(part.sql, part.params || []);
+            sqlRan = true;
+            batch.push(result.rows);
+          }
+          await postJson(`${cloud}/api/agent/job-result`, {
+            agentId: cfg.agentId,
+            secret: cfg.secret,
+            jobId: job.id,
+            rows: batch,
+            batch,
+          });
+        } else {
+          const result = await pool.query(job.sql, job.params || []);
+          sqlRan = true;
+          await postJson(`${cloud}/api/agent/job-result`, {
+            agentId: cfg.agentId,
+            secret: cfg.secret,
+            jobId: job.id,
+            rows: result.rows,
+          });
+        }
+        rememberJob(id, 'done');
+      } catch (jobErr) {
+        const errMsg = jobErr.message || String(jobErr);
+        // Yazma SQL calisti ama sonuc belirsiz / hata: otomatik tekrar YOK
+        if (mutating && sqlRan) {
+          rememberJob(id, 'ambiguous');
           try {
-            if (job.sql === '__BATCH__') {
-              const parts = Array.isArray(job.params) ? job.params : [];
-              const batch = [];
-              for (const part of parts) {
-                const result = await pool.query(part.sql, part.params || []);
-                batch.push(result.rows);
-              }
-              await postJson(`${cloud}/api/agent/job-result`, {
-                agentId: cfg.agentId,
-                secret: cfg.secret,
-                jobId: job.id,
-                rows: batch,
-                batch,
-              });
-            } else {
-              const result = await pool.query(job.sql, job.params || []);
-              await postJson(`${cloud}/api/agent/job-result`, {
-                agentId: cfg.agentId,
-                secret: cfg.secret,
-                jobId: job.id,
-                rows: result.rows,
-              });
-            }
-          } catch (jobErr) {
             await postJson(`${cloud}/api/agent/job-result`, {
               agentId: cfg.agentId,
               secret: cfg.secret,
               jobId: job.id,
-              error: jobErr.message || String(jobErr),
+              error: AMBIGUOUS_WRITE_ERROR + ': ' + errMsg,
             });
+          } catch (_) {
+            log(
+              `CRITICAL job ${id}: yazma calisti, job-result yok — sunucu reclaim yazmayi tekrarlamamali`,
+            );
           }
-        }),
-      );
-
-      // Her 15 sn'de bir ozet buluta yaz — kullanici uzak DB beklemez
-      if (poll.paired && poll.snapshot && Date.now() - lastSnapshotAt > 15000) {
+          return;
+        }
         try {
-          const payload = await buildDashboardSnapshot(pool, poll.snapshot);
-          await postJson(`${cloud}/api/agent/dashboard-snapshot`, {
+          await postJson(`${cloud}/api/agent/job-result`, {
             agentId: cfg.agentId,
             secret: cfg.secret,
-            period: poll.snapshot.period || 'today',
-            payload,
+            jobId: job.id,
+            error: errMsg,
           });
-          lastSnapshotAt = Date.now();
-          log('dashboard snapshot gonderildi');
-        } catch (snapErr) {
-          log('snapshot hata: ' + (snapErr.message || snapErr));
+          rememberJob(id, 'done');
+        } catch (reportErr) {
+          if (mutating && sqlRan) {
+            rememberJob(id, 'ambiguous');
+          } else {
+            localJobState.delete(id); // read: sunucu reclaim ile tekrar deneyebilir
+          }
+          log(
+            'job-result gonderilemedi ' +
+              job.id +
+              ': ' +
+              (reportErr.message || reportErr),
+          );
         }
       }
+    }),
+  );
+}
 
-      const delay = jobs.length ? 30 : Date.now() < fastUntil ? 80 : 150;
-      await new Promise((r) => setTimeout(r, delay));
-    } catch (err) {
-      const detail =
-        (err && err.cause && (err.cause.message || String(err.cause))) ||
-        (err && err.message) ||
-        String(err);
-      log('dongu hata: ' + detail);
-      try {
-        await pool.end();
-      } catch (_) {}
-      cfg = Object.assign({}, readConfig(), cfg);
-      pool = makePool(cfg);
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
+async function maybePushSnapshot(cloud, cfg, pool, session, lastSnapshotAtRef) {
+  if (!session?.paired || !session?.snapshot) return lastSnapshotAtRef.value;
+  if (Date.now() - lastSnapshotAtRef.value <= 15000) return lastSnapshotAtRef.value;
   try {
-    await pool.end();
-  } catch (_) {}
+    const payload = await buildDashboardSnapshot(pool, session.snapshot);
+    await postJson(`${cloud}/api/agent/dashboard-snapshot`, {
+      agentId: cfg.agentId,
+      secret: cfg.secret,
+      period: session.snapshot.period || 'today',
+      payload,
+    });
+    lastSnapshotAtRef.value = Date.now();
+    log('dashboard snapshot gonderildi');
+  } catch (snapErr) {
+    log('snapshot hata: ' + (snapErr.message || snapErr));
+  }
+  return lastSnapshotAtRef.value;
+}
+
+async function mainLoop() {
+  if (!loopFlight.tryEnter()) {
+    log('mainLoop zaten calisiyor — ikinci ornek engellendi');
+    return;
+  }
+  let wsBridge = null;
+  try {
+    let cfg = Object.assign(
+      {
+        cloudUrl: 'https://react-delta-bice-16.vercel.app',
+        pgHost: '127.0.0.1',
+        pgPort: 5432,
+        pgDatabase: 'fastrest',
+        pgUser: 'begum',
+        pgPassword: '',
+        // http | auto | ws — varsayilan http (mevcut musteriler); Microvise test: auto+bridgeWsUrl
+        transport: 'http',
+        bridgeWsUrl: '',
+      },
+      readConfig(),
+    );
+    writeConfig(cfg);
+    let pool = makePool(cfg);
+    let pairedLogged = false;
+    const lastSnapshotAtRef = { value: 0 };
+    let errorStreak = 0;
+    /** @type {any} */
+    let lastSession = null;
+    let jobChain = Promise.resolve();
+
+    const transport = resolveTransport(cfg);
+    const wsUrl = resolveWsUrl(cfg);
+    const wsDesired = (transport === 'ws' || transport === 'auto') && !!wsUrl;
+
+    log(
+      `poll politikasi: idle=${IDLE_POLL_MS}ms, busy=hemen, backoff=exp+jitter; transport=${transport}` +
+        (wsUrl ? ` ws=${wsUrl}` : ''),
+    );
+
+    const enqueueJobs = (cloud, localCfg, jobs) => {
+      if (!jobs?.length) return;
+      jobChain = jobChain
+        .then(() => processJobs(cloud, localCfg, pool, jobs))
+        .catch((err) => log('jobChain hata: ' + (err.message || err)));
+      return jobChain;
+    };
+
+    const ensureWs = (localCfg, cloud) => {
+      if (!wsDesired) return;
+      if (wsBridge) return;
+      wsBridge = createWsBridge({
+        wsUrl,
+        agentId: localCfg.agentId,
+        secret: localCfg.secret,
+        log,
+        onSession(session) {
+          lastSession = session;
+          if (session.pairCode) writePairCode(session.pairCode);
+          if (session.paired && !pairedLogged) {
+            pairedLogged = true;
+            log('FR Rapor ile eslendi (ws), sorgular iletiliyor');
+          }
+          void maybePushSnapshot(cloud, localCfg, pool, session, lastSnapshotAtRef);
+        },
+        onJobs(jobs) {
+          return enqueueJobs(cloud, localCfg, jobs);
+        },
+      });
+      wsBridge.start();
+    };
+
+    while (!stopping) {
+      let hadJobs = false;
+      try {
+        cfg = await ensureEnrolled(cfg);
+        const cloud = (cfg.cloudUrl || 'https://react-delta-bice-16.vercel.app').replace(
+          /\/$/,
+          '',
+        );
+        ensureWs(cfg, cloud);
+
+        const wsUp = wsBridge && wsBridge.isConnected();
+        if (wsUp) {
+          // WSS aktif: HTTP poll yok (Vercel yuku dusuk). Snapshot ping/auth.ok ile.
+          await maybePushSnapshot(cloud, cfg, pool, lastSession, lastSnapshotAtRef);
+          errorStreak = 0;
+          await new Promise((r) => setTimeout(r, IDLE_POLL_MS));
+        } else {
+          // HTTP poll: transport=http veya WS dusukken fallback
+          if (wsDesired && !wsUp) {
+            log('ws kapali — HTTP poll fallback');
+          }
+          const poll = await postJson(`${cloud}/api/agent/poll`, {
+            agentId: cfg.agentId,
+            secret: cfg.secret,
+          });
+          lastSession = poll;
+          if (poll.pairCode) writePairCode(poll.pairCode);
+          if (poll.paired && !pairedLogged) {
+            pairedLogged = true;
+            log('FR Rapor ile eslendi, sorgular iletiliyor');
+          }
+          const jobs = poll.jobs || [];
+          hadJobs = jobs.length > 0;
+          await enqueueJobs(cloud, cfg, jobs);
+          await maybePushSnapshot(cloud, cfg, pool, poll, lastSnapshotAtRef);
+
+          errorStreak = 0;
+          const delay = nextDelayMs({ hadJobs, errorStreak: 0 });
+          if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+        }
+      } catch (err) {
+        errorStreak = Math.min(errorStreak + 1, 8);
+        const detail =
+          (err && err.cause && (err.cause.message || String(err.cause))) ||
+          (err && err.message) ||
+          String(err);
+        const backoff = nextDelayMs({ hadJobs: false, errorStreak });
+        log(`dongu hata (streak=${errorStreak}, backoff=${backoff}ms): ${detail}`);
+        try {
+          await pool.end();
+        } catch (_) {}
+        // Config'teki agentId/secret korunur — pending isler bulutta kalir
+        cfg = Object.assign({}, readConfig(), cfg);
+        pool = makePool(cfg);
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+    try {
+      wsBridge?.stop();
+    } catch (_) {}
+    try {
+      await pool.end();
+    } catch (_) {}
+  } finally {
+    try {
+      wsBridge?.stop();
+    } catch (_) {}
+    loopFlight.leave();
+  }
 }
 
 mainLoop().catch((err) => {

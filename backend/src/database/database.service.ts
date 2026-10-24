@@ -634,7 +634,46 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
        RETURNING id`,
       [agentId, sql, JSON.stringify(paramsPayload ?? [])],
     );
-    return inserted.rows[0].id as string;
+    const jobId = inserted.rows[0].id as string;
+    // Job PG'de kalıcı; bildirim kaybolsa bile safety poll / sonraki claim alır.
+    void this.notifyBridgeJob(agentId, jobId);
+    return jobId;
+  }
+
+  /**
+   * fr-bridge-server'a anında haber: LISTEN/NOTIFY + opsiyonel HTTP.
+   * frfood-backend ile ilişkisi yok. Bildirim başarısız olsa job pending kalır.
+   */
+  private async notifyBridgeJob(agentId: string, jobId: string) {
+    if (!agentId || !jobId || this.isMock || !this.mainPool) return;
+    const payload = JSON.stringify({ agentId, jobId });
+    const channel = String(
+      process.env.BRIDGE_NOTIFY_CHANNEL || 'agent_job_ready',
+    ).replace(/[^a-zA-Z0-9_]/g, '') || 'agent_job_ready';
+    try {
+      await this.mainPool.query(`SELECT pg_notify($1, $2)`, [channel, payload]);
+    } catch {
+      // Vercel/pool kısıtı — HTTP yedek veya bridge safety poll yeter
+    }
+    const notifyUrl = String(process.env.BRIDGE_NOTIFY_URL || '').trim();
+    const secret = String(process.env.BRIDGE_INTERNAL_SECRET || '').trim();
+    if (!notifyUrl || !secret) return;
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 2500);
+      await fetch(notifyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bridge-Secret': secret,
+        },
+        body: payload,
+        signal: ac.signal,
+      });
+      clearTimeout(t);
+    } catch {
+      // ignore — job zaten pending
+    }
   }
 
   private async flushAgentQueue(agentId: string) {

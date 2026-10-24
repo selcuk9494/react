@@ -1,0 +1,30 @@
+# Referans Blueprint — frfood-backend'e dokunmaz.
+# Dashboard'da Branch: fr-bridge-render  |  Root: fr-bridge-server
+services:
+  - type: web
+    name: fr-bridge-server
+    env: node
+    rootDir: fr-bridge-server
+    region: frankfurt
+    plan: starter
+    # branch: fr-bridge-render  (Dashboard'da seç; YAML branch alanı servise göre değişir)
+    healthCheckPath: /health
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BRIDGE_MAX_AGENTS
+        value: "50"
+      - key: BRIDGE_SAFETY_POLL_MS
+        value: "2000"
+      - key: BRIDGE_NOTIFY_CHANNEL
+        value: agent_job_ready
+      - key: BRIDGE_PG_POOL_MAX
+        value: "5"
+      - key: DB_SSL
+        value: require
+      - key: DATABASE_URL
+        sync: false
+      - key: BRIDGE_INTERNAL_SECRET
+        sync: false
