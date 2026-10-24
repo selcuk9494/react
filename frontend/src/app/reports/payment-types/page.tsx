@@ -28,12 +28,13 @@ export default function PaymentTypesPage() {
 
   // Use optimized hook with SWR
   const { data, error, isLoading } = useReportData({
-    endpoint: '/reports/payment-types',
+endpoint: '/reports/payment-types',
     token,
     period,
     customStartDate,
     customEndDate,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const canDrilldown = useMemo(() => {
@@ -88,7 +89,7 @@ export default function PaymentTypesPage() {
     error: ordersError,
     isLoading: ordersLoading,
   } = useReportData({
-    endpoint: '/reports/payment-types/orders',
+endpoint: '/reports/payment-types/orders',
     token,
     period,
     customStartDate,
@@ -96,6 +97,7 @@ export default function PaymentTypesPage() {
     additionalParams: ordersParams,
     enabled: Boolean(token && canDrilldown && selectedPayment),
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const orders = (ordersResponse as any)?.data || [];

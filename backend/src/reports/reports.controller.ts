@@ -20,13 +20,21 @@ import { interval, Observable, from, map, switchMap } from 'rxjs';
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
-  /** Istemci kasa filtresini user uzerine isle (getBranchPool okur). */
-  private withKasa(user: any, kasaNo?: string) {
+  /** Istemci kasa + sube filtresini user uzerine isle (getBranchPool okur). */
+  private withKasa(user: any, kasaNo?: string, branchId?: string) {
+    let next = user;
     const n = kasaNo != null && String(kasaNo).trim() !== '' ? Number(kasaNo) : NaN;
     if (Number.isFinite(n) && n > 0) {
-      return { ...user, _kasa_no: n };
+      next = { ...next, _kasa_no: n };
     }
-    return user;
+    const b =
+      branchId != null && String(branchId).trim() !== ''
+        ? Number(branchId)
+        : NaN;
+    if (Number.isFinite(b) && b > 0) {
+      next = { ...next, _branch_id: b };
+    }
+    return next;
   }
 
 
@@ -61,7 +69,7 @@ export class ReportsController {
     @Query('kasa_no') kasaNo?: string,
   ) {
     try {
-      return await this.reportsService.getDashboard(this.withKasa(req.user, kasaNo),
+      return await this.reportsService.getDashboard(this.withKasa(req.user, kasaNo, branchId),
         period,
         startDate,
         endDate,
@@ -132,8 +140,9 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo, branchId),
       period,
       status,
       startDate,
@@ -152,8 +161,9 @@ export class ReportsController {
     @Query('start_time') startTime?: string,
     @Query('end_time') endTime?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getDiscountOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getDiscountOrders(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -172,8 +182,9 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo, branchId),
       period,
       'open',
       startDate,
@@ -191,8 +202,9 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('type') type?: 'adisyon' | 'paket',
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getOrders(this.withKasa(req.user, kasaNo, branchId),
       period,
       'closed',
       startDate,
@@ -209,8 +221,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getGuestNationalityReport(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getGuestNationalityReport(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -280,8 +293,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getPersonnelReport(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getPersonnelReport(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -296,8 +310,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getCashReport(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getCashReport(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -318,8 +333,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getSalesChart(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getSalesChart(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -334,8 +350,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getPaymentTypes(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getPaymentTypes(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -354,8 +371,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getPaymentTypeOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getPaymentTypeOrders(this.withKasa(req.user, kasaNo, branchId),
       period,
       otip,
       startDate,
@@ -378,8 +396,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getPaymentTypeItems(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getPaymentTypeItems(this.withKasa(req.user, kasaNo, branchId),
       period,
       otip,
       startDate,
@@ -398,8 +417,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getCancelledItems(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getCancelledItems(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -414,8 +434,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getUnsoldCancels(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getUnsoldCancels(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -430,8 +451,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getCourierTracking(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getCourierTracking(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -446,8 +468,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getPerformance(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getPerformance(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -469,6 +492,7 @@ export class ReportsController {
     @Query('fallback_kasa_nos') fallbackKasaNos?: string,
     @Query('plu') plu?: number,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
     @Query('by_kasa') byKasa?: string,
   ) {
     const parseIds = (raw?: string) =>
@@ -483,7 +507,7 @@ export class ReportsController {
     const fallbackKasas = parseIds(fallbackKasaNos);
     const groupByKasa =
       byKasa === '1' || byKasa === 'true' || byKasa === 'yes';
-    return this.reportsService.getProductSales(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getProductSales(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -507,8 +531,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getProductSalesOrders(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getProductSalesOrders(this.withKasa(req.user, kasaNo, branchId),
       Number(plu),
       period,
       startDate,
@@ -525,12 +550,13 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('include_menu') includeMenu?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
     const showMenu =
       includeMenu === '1' ||
       includeMenu === 'true' ||
       includeMenu === 'yes';
-    return this.reportsService.getDynamicMenuProductSales(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getDynamicMenuProductSales(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -540,8 +566,15 @@ export class ReportsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('reports/kasas')
-  async getBranchKasas(@Request() req) {
-    return this.reportsService.getBranchKasaList(req.user);
+  async getBranchKasas(
+    @Request() req,
+    @Query('branch_id') branchId?: string,
+  ) {
+    const id = branchId != null ? parseInt(String(branchId), 10) : NaN;
+    return this.reportsService.getBranchKasaList(
+      req.user,
+      Number.isFinite(id) ? id : undefined,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -589,8 +622,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getUnpayable(this.withKasa(req.user, kasaNo),
+    return this.reportsService.getUnpayable(this.withKasa(req.user, kasaNo, branchId),
       period,
       startDate,
       endDate,
@@ -605,8 +639,9 @@ export class ReportsController {
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
     @Query('kasa_no') kasaNo?: string,
+    @Query('branch_id') branchId?: string,
   ) {
-    return this.reportsService.getDebts(this.withKasa(req.user, kasaNo), period, startDate, endDate);
+    return this.reportsService.getDebts(this.withKasa(req.user, kasaNo, branchId), period, startDate, endDate);
   }
 
   @UseGuards(JwtAuthGuard)

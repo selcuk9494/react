@@ -18,12 +18,13 @@ export default function CashReportPage() {
   const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/cash-report',
+endpoint: '/reports/cash-report',
     token,
     period,
     customStartDate,
     customEndDate,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const rows = Array.isArray(data?.rows) ? data.rows : [];

@@ -521,7 +521,22 @@ export class ReportsService {
   }
 
   /** Rapor UI kasa filtresi — expand yok, hizli. */
-  async getBranchKasaList(user: any) {
+  async getBranchKasaList(user: any, branchId?: number) {
+    const requested = Number(branchId);
+    if (Number.isFinite(requested) && requested > 0) {
+      const assigned = await this.loadAssignedBranch(
+        String(user?.id || ''),
+        requested,
+      );
+      if (assigned) {
+        user = {
+          ...user,
+          selected_branch: 0,
+          selected_branch_id: assigned.id,
+          branches: [assigned],
+        };
+      }
+    }
     const branchIndex = user.selected_branch || 0;
     const branch =
       user?.selected_branch_id && Array.isArray(user?.branches)
@@ -594,9 +609,20 @@ export class ReportsService {
   /** Kasa isimleri — şube ortak, tüm kullanıcılar görür. */
   async saveBranchKasaNames(
     user: any,
-    body: { kasa_list?: Array<{ kasa_no?: number; name?: string | null }> },
+    body: {
+      branch_id?: number;
+      kasa_list?: Array<{ kasa_no?: number; name?: string | null }>;
+    },
   ) {
-    const branch = this.resolveSelectedBranch(user);
+    let branch = this.resolveSelectedBranch(user);
+    const requested = Number(body?.branch_id);
+    if (Number.isFinite(requested) && requested > 0) {
+      const assigned = await this.loadAssignedBranch(
+        String(user?.id || ''),
+        requested,
+      );
+      if (assigned) branch = assigned;
+    }
     if (!branch?.id) return { ok: false, error: 'branch_required' };
     const pool = this.db.getMainPool();
     const items = Array.isArray(body?.kasa_list) ? body.kasa_list : [];
@@ -637,18 +663,60 @@ export class ReportsService {
       }
     } catch {}
 
-    return this.getBranchKasaList(user);
+    return this.getBranchKasaList(user, Number(branch.id));
   }
 
   private async getBranchPool(user: any) {
-    const branchIndex = user.selected_branch || 0;
+    const requestedBranchId = Number(user?._branch_id);
+    let workingUser = user;
+    if (Number.isFinite(requestedBranchId) && requestedBranchId > 0) {
+      const assigned = await this.loadAssignedBranch(
+        String(user?.id || ''),
+        requestedBranchId,
+      );
+      if (assigned) {
+        workingUser = {
+          ...user,
+          selected_branch: 0,
+          selected_branch_id: assigned.id,
+          branches: [assigned],
+        };
+      } else if (user?.is_admin) {
+        try {
+          const pool = this.db.getMainPool();
+          const rows = await this.db.executeQuery(
+            pool,
+            `SELECT b.*,
+                    COALESCE(array_agg(k.kasa_no) FILTER (WHERE k.kasa_no IS NOT NULL), '{}') AS kasalar
+             FROM branches b
+             LEFT JOIN branch_kasas k ON k.branch_id = b.id
+             WHERE b.id = $1
+             GROUP BY b.id
+             LIMIT 1`,
+            [requestedBranchId],
+          );
+          if (rows?.[0]) {
+            workingUser = {
+              ...user,
+              selected_branch: 0,
+              selected_branch_id: rows[0].id,
+              branches: [rows[0]],
+            };
+          }
+        } catch {}
+      }
+    }
+
+    const branchIndex = workingUser.selected_branch || 0;
     const branch =
-      user?.selected_branch_id && Array.isArray(user?.branches)
-        ? user.branches.find(
-            (b: any) => String(b?.id) === String(user.selected_branch_id),
-          ) || user.branches[branchIndex]
-        : user.branches[branchIndex];
+      workingUser?.selected_branch_id && Array.isArray(workingUser?.branches)
+        ? workingUser.branches.find(
+            (b: any) =>
+              String(b?.id) === String(workingUser.selected_branch_id),
+          ) || workingUser.branches[branchIndex]
+        : workingUser.branches?.[branchIndex];
     if (!branch) throw new Error('Invalid branch selection');
+    user = workingUser;
 
     // Collect kasa numbers: primary + any extras
     let kasa_nos: number[] = [];

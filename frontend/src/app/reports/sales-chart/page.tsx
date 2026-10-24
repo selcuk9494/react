@@ -19,12 +19,13 @@ export default function SalesChartPage() {
   const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/sales-chart',
+endpoint: '/reports/sales-chart',
     token,
     period,
     customStartDate,
     customEndDate,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const formatCurrency = (val: number) => {

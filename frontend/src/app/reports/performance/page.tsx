@@ -18,12 +18,13 @@ export default function PerformancePage() {
   const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/performance',
+endpoint: '/reports/performance',
     token,
     period,
     customStartDate,
     customEndDate,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const formatCurrency = (val: number) => {

@@ -79,11 +79,14 @@ export default function ReportHeader({
   // branch_kasas tablosundan guncel kasa listesi (+ isimler)
   useEffect(() => {
     if (!token || !setKasaNo) return;
+    const branchId = user?.selected_branch_id;
     let cancelled = false;
     (async () => {
       try {
         const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
           headers: { Authorization: `Bearer ${token}` },
+          params:
+            branchId != null ? { branch_id: branchId } : undefined,
         });
         if (!cancelled) setApiKasaList(applyKasaListResponse(res.data));
       } catch {
@@ -93,7 +96,19 @@ export default function ReportHeader({
     return () => {
       cancelled = true;
     };
-  }, [token, setKasaNo, user?.selected_branch, user?.selected_branch_id, kasaListTick]);
+  }, [
+    token,
+    setKasaNo,
+    user?.selected_branch,
+    user?.selected_branch_id,
+    user?.branch_epoch,
+    kasaListTick,
+  ]);
+
+  // Şube değişince eski kasa isimleri kalmasın
+  useEffect(() => {
+    setApiKasaList([]);
+  }, [user?.selected_branch_id]);
 
   const resolvedKasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -139,7 +154,7 @@ export default function ReportHeader({
       }));
       const res = await axios.put(
         `${getApiUrl()}/reports/kasas`,
-        { kasa_list },
+        { kasa_list, branch_id: user?.selected_branch_id },
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const next = applyKasaListResponse(res.data);

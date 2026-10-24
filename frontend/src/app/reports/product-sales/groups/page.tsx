@@ -19,12 +19,13 @@ export default function ProductGroupSalesPage() {
   const kasaOptions = getBranchKasaOptions(user);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/product-sales',
+endpoint: '/reports/product-sales',
     token,
     period,
     customStartDate,
     customEndDate,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const totalSales = Array.isArray(data) ? data.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0) : 0;

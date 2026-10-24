@@ -36,13 +36,14 @@ export default function DiscountPage() {
   }), [startTime, endTime]);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/discount',
+endpoint: '/reports/discount',
     token,
     period,
     customStartDate,
     customEndDate,
     additionalParams,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const formatCurrency = (val: number) => {

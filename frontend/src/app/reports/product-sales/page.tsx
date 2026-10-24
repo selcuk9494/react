@@ -231,10 +231,11 @@ function ProductSalesContent() {
   };
 
   // Şube + select-branch sync (JWT güncellenince epoch artar)
-  const branchScopeKey = `${user?.selected_branch_id ?? ''}:${user?.selected_branch ?? ''}:${user?.branch_epoch ?? 0}`;
+  const selectedBranchId = user?.selected_branch_id;
+  const branchScopeKey = `${selectedBranchId ?? ''}:${user?.selected_branch ?? ''}:${user?.branch_epoch ?? 0}`;
   const prevBranchIdRef = useRef<string>('');
   useEffect(() => {
-    const branchId = String(user?.selected_branch_id ?? '');
+    const branchId = String(selectedBranchId ?? '');
     const switched =
       prevBranchIdRef.current !== '' && prevBranchIdRef.current !== branchId;
     prevBranchIdRef.current = branchId;
@@ -243,11 +244,15 @@ function ProductSalesContent() {
     setBusinessesLoaded(false);
     setBusinessBreakdown([]);
     setBusinessBreakdownLoading(false);
+    setKasaBreakdown([]);
+    setKasaBreakdownLoading(false);
     setSelectedBusinessId('');
+    setSelectedGroups([]);
     setShowBizModal(false);
     setDraftBusinesses([]);
     setApiKasaList([]);
-  }, [user?.selected_branch_id]);
+    setKasaNo('');
+  }, [selectedBranchId, setKasaNo]);
 
   const kasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -460,16 +465,23 @@ function ProductSalesContent() {
     customEndDate,
     additionalParams,
     kasaNo,
+    branchId: selectedBranchId,
   });
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || selectedBranchId == null) {
+      setApiKasaList([]);
+      return;
+    }
     let cancelled = false;
+    const scopeAtStart = branchScopeKey;
     (async () => {
       try {
         const res = await axios.get(`${getApiUrl()}/reports/kasas`, {
           headers: { Authorization: `Bearer ${token}` },
+          params: { branch_id: selectedBranchId },
         });
+        if (cancelled || scopeAtStart !== branchScopeKey) return;
         const fromList = Array.isArray(res.data?.kasa_list)
           ? res.data.kasa_list
               .map((item: any) => ({
@@ -482,7 +494,7 @@ function ProductSalesContent() {
               .filter((e: KasaEntry) => Number.isFinite(e.kasa_no) && e.kasa_no > 0)
           : [];
         if (fromList.length > 0) {
-          if (!cancelled) setApiKasaList(fromList);
+          setApiKasaList(fromList);
           return;
         }
         const list = Array.isArray(res.data?.kasas)
@@ -491,15 +503,15 @@ function ProductSalesContent() {
               .filter((n: number) => Number.isFinite(n) && n > 0)
               .map((kasa_no: number) => ({ kasa_no, name: '' }))
           : [];
-        if (!cancelled) setApiKasaList(list);
+        setApiKasaList(list);
       } catch {
-        if (!cancelled) setApiKasaList([]);
+        if (!cancelled && scopeAtStart === branchScopeKey) setApiKasaList([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [token, user?.selected_branch, user?.selected_branch_id]);
+  }, [token, selectedBranchId, branchScopeKey]);
 
   useEffect(() => {
     const onNames = (ev: Event) => {
@@ -546,6 +558,7 @@ function ProductSalesContent() {
           params.set('start_date', customStartDate);
           params.set('end_date', customEndDate);
         }
+        if (selectedBranchId != null) params.set('branch_id', String(selectedBranchId));
         if (effectiveGroupKey) params.set('group_ids', effectiveGroupKey);
         if (selectedBusinessId && sharedGroupKey) {
           params.set('shared_group_ids', sharedGroupKey);
@@ -611,6 +624,8 @@ function ProductSalesContent() {
     knownGroupKey,
     rivalGroupKey,
     fallbackKasaKey,
+    branchScopeKey,
+    selectedBranchId,
   ]);
 
   // Şube kartları: her işletmenin satış özeti (ortak grup kurallarıyla)
@@ -656,6 +671,9 @@ function ProductSalesContent() {
             if (period === 'custom') {
               params.set('start_date', customStartDate);
               params.set('end_date', customEndDate);
+            }
+            if (selectedBranchId != null) {
+              params.set('branch_id', String(selectedBranchId));
             }
             if (kasaNo) params.set('kasa_no', String(kasaNo));
             params.set('group_ids', groupIds.join(','));
@@ -717,6 +735,7 @@ function ProductSalesContent() {
     kasaNo,
     fallbackKasasForBusiness,
     branchScopeKey,
+    selectedBranchId,
   ]);
 
   const scrollToProducts = () => {

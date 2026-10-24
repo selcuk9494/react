@@ -48,11 +48,14 @@ export function useReportData({
       ...(kasaNo != null && String(kasaNo).trim() !== ''
         ? { kasa_no: String(kasaNo) }
         : {}),
+      ...(branchId != null && String(branchId).trim() !== ''
+        ? { branch_id: String(branchId) }
+        : {}),
       ...additionalParams,
     });
 
     return `${getApiUrl()}${endpoint}?${params.toString()}`;
-  }, [token, enabled, endpoint, period, customStartDate, customEndDate, additionalParams, kasaNo]);
+  }, [token, enabled, endpoint, period, customStartDate, customEndDate, additionalParams, kasaNo, branchId]);
 
   const { data, error, isLoading, mutate } = useSWR(
     apiUrl ? [apiUrl, token] : null,

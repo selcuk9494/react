@@ -34,13 +34,14 @@ export default function DynamicMenuProductsPage() {
   const additionalParams = useMemo(() => ({ include_menu: '1' }), []);
 
   const { data, isLoading, error } = useReportData({
-    endpoint: '/reports/dynamic-menu-products',
+endpoint: '/reports/dynamic-menu-products',
     token,
     period,
     customStartDate,
     customEndDate,
     additionalParams,
     kasaNo,
+    branchId: user?.selected_branch_id,
   });
 
   const asNumber = (value: any) => {
