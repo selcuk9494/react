@@ -16,6 +16,7 @@ const {
 const { createListenManager } = require('./listen');
 const { classifyDatabaseTarget, redactErrorMessage } = require('./db-url-meta');
 const { createRuntimeStatus } = require('./runtime-status');
+const { buildPgConnectionConfig } = require('./pg-ssl');
 
 const config = loadConfig();
 const registry = createConnectionRegistry(config.maxAgents);
@@ -60,21 +61,17 @@ function makePool() {
     };
   }
   const poolMax = config.poolMax;
-  if (config.databaseUrl) {
-    return new Pool({
-      connectionString: config.databaseUrl,
+  return new Pool(
+    buildPgConnectionConfig({
+      databaseUrl: config.databaseUrl,
+      dbParts: config.db,
       ssl: config.ssl,
-      max: poolMax,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 8_000,
-    });
-  }
-  return new Pool({
-    ...config.db,
-    max: poolMax,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 8_000,
-  });
+      poolExtras: {
+        max: poolMax,
+        idleTimeoutMillis: 30_000,
+      },
+    }),
+  );
 }
 
 const pool = makePool();
@@ -84,17 +81,11 @@ function log(...args) {
 }
 
 function makeClientConfig() {
-  if (config.databaseUrl) {
-    return {
-      connectionString: config.databaseUrl,
-      ssl: config.ssl,
-      connectionTimeoutMillis: 8_000,
-    };
-  }
-  return {
-    ...config.db,
-    connectionTimeoutMillis: 8_000,
-  };
+  return buildPgConnectionConfig({
+    databaseUrl: config.databaseUrl,
+    dbParts: config.db,
+    ssl: config.ssl,
+  });
 }
 
 async function probePostgres() {
@@ -461,6 +452,9 @@ function startSafetyPoll() {
 
 async function main() {
   startHttp();
+  if (!testMode) {
+    log('TLS meta', JSON.stringify(config.sslMeta || {}));
+  }
   await probePostgres();
   if (!runtime.postgres.ok && !testMode) {
     log('WARNING: initial PostgreSQL probe failed:', runtime.postgres.lastError);

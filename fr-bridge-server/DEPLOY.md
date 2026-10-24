@@ -57,16 +57,28 @@ SELECT to_regclass('public.agent_jobs') AS agent_jobs,
 
 İkisi de non-null olmalı. **UPDATE yok.**
 
-## TLS (güvenli varsayılan)
+## TLS (güvenli varsayılan — doğrulama kapatılmaz)
 
 | Env | Anlam |
 |-----|--------|
 | *(yok)* / `DB_SSL=disable` | SSL kapalı |
-| `DB_SSL=require` veya `PGSSLMODE=require` | SSL + **`rejectUnauthorized: true`** |
-| `DB_SSL=no-verify` | SSL + cert doğrulama kapalı (**bilinçli opt-in**; log uyarısı) |
+| `DB_SSL=require` | SSL + **`rejectUnauthorized: true`** |
+| `DB_CA_CERT` | Supabase PEM CA (Dashboard → Database Settings → SSL). Render env’de `\n` ile tek satır olabilir |
+| `DB_CA_CERT_PATH` | PEM dosya yolu (alternatif) |
+| `NODE_EXTRA_CA_CERTS` | Node global CA dosyası (alternatif) |
+| `DB_SSL=no-verify` | **Yasak** — uygulama hata fırlatır |
 
-`render.com` host adı **otomatik insecure açmaz**.  
-Managed PG’de geçerli CA ile `DB_SSL=require` kullanın. Cert hatası olursa önce CA/URL düzeltin; `no-verify` son çare.
+### Supabase + `self-signed certificate in certificate chain`
+
+Kök neden: `DB_SSL=require` Node varsayılan CA store ile doğrular; Supabase **kendi CA**’sını kullanır. CA verilmeden `rejectUnauthorized: true` → zincir hatası.
+
+Çözüm (doğrulamayı açık tut):
+1. Supabase → Database Settings → SSL → **CA certificate** indir  
+2. Render env: `DB_CA_CERT=<PEM>` (veya dosya + `DB_CA_CERT_PATH` / `NODE_EXTRA_CA_CERTS`)  
+3. `DB_SSL=require` kalsın  
+4. `DATABASE_URL` içinden `?sslmode=...` kaldırılabilir (kod sslmode’u strip eder; Pool/LISTEN aynı `ssl` nesnesini kullanır)
+
+**TLS doğrulamasını kapatma.**
 
 ## Bağlantı kapasitesi (Vercel çoklu instance)
 

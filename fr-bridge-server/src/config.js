@@ -1,6 +1,6 @@
 'use strict';
 
-const { resolvePgSsl } = require('./pg-ssl');
+const { resolvePgSsl, sslMeta } = require('./pg-ssl');
 
 function required(name) {
   const v = process.env[name];
@@ -40,9 +40,10 @@ function loadConfig() {
             database: process.env.DB_NAME || process.env.DB_DATABASE || 'postgres',
             user: process.env.DB_USER || 'postgres',
             password: process.env.DB_PASSWORD || '',
-            ssl,
+            // ssl ayrı alanda; db parçalarına gömme (çift kaynak olmasın)
           },
     ssl,
+    sslMeta: sslMeta(ssl),
     internalSecret: process.env.BRIDGE_INTERNAL_SECRET || '',
     safetyPollMs: Math.max(1000, Number(process.env.BRIDGE_SAFETY_POLL_MS || 2000)),
     heartbeatTtlMs: Math.max(30_000, Number(process.env.BRIDGE_HEARTBEAT_TTL_MS || 90_000)),
