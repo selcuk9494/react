@@ -85,11 +85,16 @@ function ProductSalesContent() {
     [kasaEntries],
   );
 
-  const groupToBusiness = useMemo(() => {
-    const m = new Map<number, { businessId: number; name: string; index: number }>();
+  const groupToBusinesses = useMemo(() => {
+    const m = new Map<
+      number,
+      { businessId: number; name: string; index: number }[]
+    >();
     businesses.forEach((b, index) => {
       for (const gid of b.group_ids || []) {
-        m.set(gid, { businessId: b.id, name: b.name, index });
+        const list = m.get(gid) || [];
+        list.push({ businessId: b.id, name: b.name, index });
+        m.set(gid, list);
       }
     });
     return m;
@@ -429,22 +434,17 @@ function ProductSalesContent() {
     ]);
   };
 
-  /** Bir ürün grubunu tek şubeye bağla (veya aynı şubeye tekrar basınca kaldır). */
+  /** Bir ürün grubunu birden fazla şubeye bağla (toggle). */
   const assignGroupToSube = (groupId: number, bizKey: string) => {
     setDraftBusinesses((prev) =>
       prev.map((b) => {
-        if (b.key === bizKey) {
-          const on = b.group_ids.includes(groupId);
-          return {
-            ...b,
-            group_ids: on
-              ? b.group_ids.filter((id) => id !== groupId)
-              : [...b.group_ids.filter((id) => id !== groupId), groupId],
-          };
-        }
+        if (b.key !== bizKey) return b;
+        const on = b.group_ids.includes(groupId);
         return {
           ...b,
-          group_ids: b.group_ids.filter((id) => id !== groupId),
+          group_ids: on
+            ? b.group_ids.filter((id) => id !== groupId)
+            : [...b.group_ids, groupId],
         };
       }),
     );
@@ -663,14 +663,18 @@ function ProductSalesContent() {
                 Tümü
               </button>
               {visibleGroups.map((g) => {
-                const biz = groupToBusiness.get(g.id);
-                const color = biz ? getBusinessColor(biz.index) : null;
+                const bizList = groupToBusinesses.get(g.id) || [];
+                const color = bizList[0] ? getBusinessColor(bizList[0].index) : null;
                 const selected = selectedGroups.includes(g.id);
                 return (
                   <button
                     key={g.id}
                     type="button"
-                    title={biz ? biz.name : undefined}
+                    title={
+                      bizList.length
+                        ? bizList.map((b) => b.name).join(', ')
+                        : undefined
+                    }
                     onClick={() => {
                       setSelectedGroups((prev) => {
                         if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
@@ -689,14 +693,28 @@ function ProductSalesContent() {
                     )}
                   >
                     <span className="font-medium">{g.name}</span>
-                    {biz && (
+                    {bizList.slice(0, 2).map((biz) => {
+                      const c = getBusinessColor(biz.index);
+                      return (
+                        <span
+                          key={biz.businessId}
+                          className={clsx(
+                            'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                            selected ? 'bg-white/20 border-white/30 text-white' : c.tag,
+                          )}
+                        >
+                          {biz.name}
+                        </span>
+                      );
+                    })}
+                    {bizList.length > 2 && (
                       <span
                         className={clsx(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
-                          selected ? 'bg-white/20 border-white/30 text-white' : color?.tag,
+                          'text-[10px] font-semibold',
+                          selected ? 'text-white/80' : 'text-slate-400',
                         )}
                       >
-                        {biz.name}
+                        +{bizList.length - 2}
                       </span>
                     )}
                   </button>
@@ -812,8 +830,8 @@ function ProductSalesContent() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {(selectedGroups.length > 0 ? groupAgg.filter(g => selectedGroups.includes(g.id)) : groupAgg).map((g) => {
-                  const biz = groupToBusiness.get(g.id);
-                  const color = biz ? getBusinessColor(biz.index) : null;
+                  const bizList = groupToBusinesses.get(g.id) || [];
+                  const color = bizList[0] ? getBusinessColor(bizList[0].index) : null;
                   return (
                     <div
                       key={g.id}
@@ -824,11 +842,22 @@ function ProductSalesContent() {
                           : 'border-slate-100 bg-slate-50/80',
                       )}
                     >
-                      {biz && (
+                      {bizList.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
-                          <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded-md border', color?.tag)}>
-                            {biz.name}
-                          </span>
+                          {bizList.map((biz) => {
+                            const c = getBusinessColor(biz.index);
+                            return (
+                              <span
+                                key={biz.businessId}
+                                className={clsx(
+                                  'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                                  c.tag,
+                                )}
+                              >
+                                {biz.name}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                       <div
@@ -1096,17 +1125,13 @@ function ProductSalesContent() {
               <section>
                 <h4 className="text-sm font-bold text-slate-800 mb-2">2. Grup ↔ Şube eşleme</h4>
                 <p className="text-xs text-slate-500 mb-3">
-                  Her ürün grubu için şube seçin. Kasa butonu yoktur.
+                  Bir grup birden fazla şubeye bağlanabilir (ör. DRINKS). İstediğiniz kadar şube seçin.
                 </p>
                 <div className="space-y-3">
                   {groups.length === 0 ? (
                     <p className="text-sm text-slate-500 py-6 text-center">Ürün grubu bulunamadı.</p>
                   ) : (
-                    groups.map((g) => {
-                      const assigned = draftBusinesses.find((b) =>
-                        b.group_ids.includes(g.id),
-                      );
-                      return (
+                    groups.map((g) => (
                         <div
                           key={g.id}
                           className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
@@ -1130,7 +1155,7 @@ function ProductSalesContent() {
                                 const color = getBusinessColor(
                                   draftBusinesses.findIndex((x) => x.key === b.key),
                                 );
-                                const on = assigned?.key === b.key;
+                                const on = b.group_ids.includes(g.id);
                                 return (
                                   <button
                                     key={b.key}
@@ -1154,8 +1179,7 @@ function ProductSalesContent() {
                             )}
                           </div>
                         </div>
-                      );
-                    })
+                    ))
                   )}
                 </div>
               </section>

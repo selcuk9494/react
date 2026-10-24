@@ -454,7 +454,6 @@ export class ReportsService {
       [branch.id],
     );
 
-    const usedGroups = new Set<number>();
     let order = 0;
     for (const item of incoming) {
       const name = String(item?.name || '').trim().slice(0, 120);
@@ -477,13 +476,11 @@ export class ReportsService {
         ),
       );
       for (const groupId of groupIds) {
-        if (usedGroups.has(groupId)) continue; // bir grup tek işletmeye
-        usedGroups.add(groupId);
         await this.db.executeQuery(
           pool,
           `INSERT INTO branch_business_groups (branch_id, business_id, group_id)
            VALUES ($1, $2, $3)
-           ON CONFLICT (branch_id, group_id) DO NOTHING`,
+           ON CONFLICT (branch_id, business_id, group_id) DO NOTHING`,
           [branch.id, businessId, groupId],
         );
       }

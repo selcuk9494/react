@@ -319,9 +319,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           id SERIAL PRIMARY KEY,
           branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
           business_id INTEGER NOT NULL REFERENCES branch_businesses(id) ON DELETE CASCADE,
-          group_id INTEGER NOT NULL,
-          UNIQUE (branch_id, group_id)
+          group_id INTEGER NOT NULL
         );
+      `);
+      // Eski tek-isletme kisiti kaldir; ayni grup birden fazla isletmeye baglanabilsin
+      await client.query(`
+        ALTER TABLE branch_business_groups
+        DROP CONSTRAINT IF EXISTS branch_business_groups_branch_id_group_id_key
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS branch_business_groups_branch_biz_group_uidx
+        ON branch_business_groups (branch_id, business_id, group_id)
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS branch_business_groups_biz_idx
