@@ -3,6 +3,7 @@ import {
   Body,
   Get,
   Post,
+  Put,
   Patch,
   Query,
   Request,
@@ -523,6 +524,18 @@ export class ReportsController {
   @Get('reports/kasas')
   async getBranchKasas(@Request() req) {
     return this.reportsService.getBranchKasaList(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('reports/group-kasa-map')
+  async getGroupKasaMap(@Request() req) {
+    return this.reportsService.getGroupKasaMap(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('reports/group-kasa-map')
+  async saveGroupKasaMap(@Request() req, @Body() body: any) {
+    return this.reportsService.saveGroupKasaMap(req.user, body || {});
   }
 
   @UseGuards(JwtAuthGuard)

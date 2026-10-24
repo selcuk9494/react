@@ -373,6 +373,88 @@ export class ReportsService {
     }
   }
 
+  private resolveSelectedBranch(user: any) {
+    const branchIndex = user?.selected_branch || 0;
+    if (user?.selected_branch_id && Array.isArray(user?.branches)) {
+      return (
+        user.branches.find(
+          (b: any) => String(b?.id) === String(user.selected_branch_id),
+        ) || user.branches[branchIndex]
+      );
+    }
+    return user?.branches?.[branchIndex] || null;
+  }
+
+  /** Ürün grubu ↔ kasa eşlemesi (şube ortak). */
+  async getGroupKasaMap(user: any) {
+    const branch = this.resolveSelectedBranch(user);
+    if (!branch?.id) return { mappings: [] as any[] };
+    await this.db.ensureBranchGroupKasaMapSchema();
+    const pool = this.db.getMainPool();
+    const rows = await this.db.executeQuery(
+      pool,
+      `SELECT group_id, kasa_no
+       FROM branch_group_kasa_map
+       WHERE branch_id = $1
+       ORDER BY group_id, kasa_no`,
+      [branch.id],
+    );
+    const byGroup = new Map<number, number[]>();
+    for (const r of rows) {
+      const gid = Number(r.group_id);
+      const kn = Number(r.kasa_no);
+      if (!Number.isFinite(gid) || !Number.isFinite(kn) || kn <= 0) continue;
+      const list = byGroup.get(gid) || [];
+      list.push(kn);
+      byGroup.set(gid, list);
+    }
+    const mappings = Array.from(byGroup.entries()).map(([group_id, kasa_nos]) => ({
+      group_id,
+      kasa_nos: Array.from(new Set(kasa_nos)).sort((a, b) => a - b),
+    }));
+    return { mappings };
+  }
+
+  async saveGroupKasaMap(
+    user: any,
+    body: { mappings?: Array<{ group_id: number; kasa_nos?: number[] }> },
+  ) {
+    const branch = this.resolveSelectedBranch(user);
+    if (!branch?.id) return { ok: false, error: 'branch_required' };
+    await this.db.ensureBranchGroupKasaMapSchema();
+    const pool = this.db.getMainPool();
+    const mappings = Array.isArray(body?.mappings) ? body.mappings : [];
+
+    await this.db.executeQuery(
+      pool,
+      'DELETE FROM branch_group_kasa_map WHERE branch_id = $1',
+      [branch.id],
+    );
+
+    for (const item of mappings) {
+      const groupId = Number(item?.group_id);
+      if (!Number.isFinite(groupId)) continue;
+      const kasas = Array.from(
+        new Set(
+          (Array.isArray(item?.kasa_nos) ? item.kasa_nos : [])
+            .map((n) => Number(n))
+            .filter((n) => Number.isFinite(n) && n > 0),
+        ),
+      );
+      for (const kasaNo of kasas) {
+        await this.db.executeQuery(
+          pool,
+          `INSERT INTO branch_group_kasa_map (branch_id, group_id, kasa_no)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (branch_id, group_id, kasa_no) DO NOTHING`,
+          [branch.id, groupId, kasaNo],
+        );
+      }
+    }
+
+    return this.getGroupKasaMap(user);
+  }
+
   /** Rapor UI kasa filtresi — expand yok, hizli. */
   async getBranchKasaList(user: any) {
     const branchIndex = user.selected_branch || 0;

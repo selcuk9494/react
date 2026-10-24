@@ -148,6 +148,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE branch_kasas
         ADD COLUMN IF NOT EXISTS kasa_name VARCHAR(100)
       `);
+      await this.ensureBranchGroupKasaMapSchema(client);
       await this.ensureUserBranchAssignmentsSchema(client);
       await client.query(`
         DELETE FROM branches b
@@ -266,6 +267,30 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     } finally {
       client.release();
+    }
+  }
+
+  /** Sube bazli urun grubu ↔ kasa eslemesi (tum kullanicilar ortak). */
+  async ensureBranchGroupKasaMapSchema(existingClient?: any) {
+    const client = existingClient || (await this.mainPool.connect());
+    const ownClient = !existingClient;
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS branch_group_kasa_map (
+          id SERIAL PRIMARY KEY,
+          branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          group_id INTEGER NOT NULL,
+          kasa_no INTEGER NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (branch_id, group_id, kasa_no)
+        );
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS branch_group_kasa_map_branch_idx
+        ON branch_group_kasa_map (branch_id);
+      `);
+    } finally {
+      if (ownClient) client.release();
     }
   }
 

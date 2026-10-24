@@ -4,7 +4,7 @@ import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Package, Layers, ArrowUpDown, ReceiptText, X } from 'lucide-react';
+import { Package, Layers, ArrowUpDown, ReceiptText, X, Link2 } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
 import {
   useSharedReportFilters,
@@ -43,6 +43,12 @@ function ProductSalesContent() {
     { kasa: number; total: number; qty: number; products: number }[]
   >([]);
   const [kasaBreakdownLoading, setKasaBreakdownLoading] = useState(false);
+  /** group_id → eşli kasa numaraları (şube ortak) */
+  const [groupKasaMap, setGroupKasaMap] = useState<Record<number, number[]>>({});
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [draftMap, setDraftMap] = useState<Record<number, number[]>>({});
+  const [mapSaving, setMapSaving] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const kasaEntries = useMemo(() => {
     const map = new Map<number, string>();
@@ -63,6 +69,41 @@ function ProductSalesContent() {
     () => kasaEntries.map((e) => e.kasa_no),
     [kasaEntries],
   );
+
+  const hasMultiKasa = allKasaOptions.length > 1;
+
+  /** Seçili kasaya göre görünen gruplar (eşleme yoksa hepsi). */
+  const visibleGroups = useMemo(() => {
+    if (!kasaNo || !mapLoaded) return groups;
+    const kn = Number(kasaNo);
+    if (!Number.isFinite(kn)) return groups;
+    const hasAnyMapping = Object.values(groupKasaMap).some(
+      (nos) => Array.isArray(nos) && nos.length > 0,
+    );
+    if (!hasAnyMapping) return groups;
+    return groups.filter((g) => {
+      const mapped = groupKasaMap[g.id];
+      if (!mapped || mapped.length === 0) return true;
+      return mapped.includes(kn);
+    });
+  }, [groups, kasaNo, groupKasaMap, mapLoaded]);
+
+  /** Grup seçiliyken kasa özetinde yalnızca eşli kasalar. */
+  const breakdownKasaOptions = useMemo(() => {
+    if (!selectedGroups.length) return allKasaOptions;
+    const set = new Set<number>();
+    let anyMapped = false;
+    for (const gid of selectedGroups) {
+      const nos = groupKasaMap[gid];
+      if (nos && nos.length) {
+        anyMapped = true;
+        nos.forEach((n) => set.add(n));
+      }
+    }
+    if (!anyMapped) return allKasaOptions;
+    const filtered = allKasaOptions.filter((k) => set.has(k));
+    return filtered.length ? filtered : allKasaOptions;
+  }, [selectedGroups, groupKasaMap, allKasaOptions]);
 
   const additionalParams = useMemo(() => {
     const params: any = {};
@@ -122,7 +163,7 @@ function ProductSalesContent() {
 
   // Tum kasalar seciliyken her kasanin ozetini ayni sayfada goster
   useEffect(() => {
-    if (!token || kasaNo || allKasaOptions.length < 2) {
+    if (!token || kasaNo || breakdownKasaOptions.length < 1 || allKasaOptions.length < 2) {
       setKasaBreakdown([]);
       return;
     }
@@ -132,7 +173,7 @@ function ProductSalesContent() {
       setKasaBreakdownLoading(true);
       try {
         const rows = await Promise.all(
-          allKasaOptions.map(async (kasa) => {
+          breakdownKasaOptions.map(async (kasa) => {
             const params = new URLSearchParams({ period, kasa_no: String(kasa) });
             if (period === 'custom') {
               params.set('start_date', customStartDate);
@@ -170,7 +211,7 @@ function ProductSalesContent() {
   }, [
     token,
     kasaNo,
-    allKasaOptions,
+    breakdownKasaOptions,
     period,
     customStartDate,
     customEndDate,
@@ -190,6 +231,54 @@ function ProductSalesContent() {
     };
     if (token) fetchGroups();
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !hasMultiKasa) {
+      setGroupKasaMap({});
+      setMapLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${getApiUrl()}/reports/group-kasa-map`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const next: Record<number, number[]> = {};
+        for (const item of res.data?.mappings || []) {
+          const gid = Number(item?.group_id);
+          if (!Number.isFinite(gid)) continue;
+          const nos: number[] = (Array.isArray(item?.kasa_nos) ? item.kasa_nos : [])
+            .map((n: any) => Number(n))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+          next[gid] = [...new Set<number>(nos)].sort((a, b) => a - b);
+        }
+        if (!cancelled) {
+          setGroupKasaMap(next);
+          setMapLoaded(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setGroupKasaMap({});
+          setMapLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, hasMultiKasa, user?.selected_branch, user?.selected_branch_id]);
+
+  // Kasa değişince seçili grupları görünür olanlarla sınırla
+  useEffect(() => {
+    if (!kasaNo || !mapLoaded) return;
+    setSelectedGroups((prev) => {
+      if (!prev.length) return prev;
+      const allowed = new Set(visibleGroups.map((g) => g.id));
+      const next = prev.filter((id) => allowed.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [kasaNo, visibleGroups, mapLoaded]);
 
   useEffect(() => {
       const groupIdParam = searchParams.get('group_id');
@@ -238,6 +327,69 @@ function ProductSalesContent() {
   const asNumber = (value: any) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
+  };
+
+  const openMapModal = () => {
+    const draft: Record<number, number[]> = {};
+    for (const g of groups) {
+      draft[g.id] = [...(groupKasaMap[g.id] || [])];
+    }
+    setDraftMap(draft);
+    setShowMapModal(true);
+  };
+
+  const toggleDraftKasa = (groupId: number, kasa: number) => {
+    setDraftMap((prev) => {
+      const cur = new Set(prev[groupId] || []);
+      if (cur.has(kasa)) cur.delete(kasa);
+      else cur.add(kasa);
+      return {
+        ...prev,
+        [groupId]: Array.from(cur).sort((a, b) => a - b),
+      };
+    });
+  };
+
+  const setDraftAllKasas = (groupId: number, all: boolean) => {
+    setDraftMap((prev) => ({
+      ...prev,
+      [groupId]: all ? [...allKasaOptions] : [],
+    }));
+  };
+
+  const saveGroupKasaMap = async () => {
+    if (!token) return;
+    setMapSaving(true);
+    try {
+      const mappings = Object.entries(draftMap)
+        .map(([gid, nos]) => ({
+          group_id: Number(gid),
+          kasa_nos: nos,
+        }))
+        .filter((m) => Number.isFinite(m.group_id) && m.kasa_nos.length > 0);
+      const res = await axios.put(
+        `${getApiUrl()}/reports/group-kasa-map`,
+        { mappings },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const next: Record<number, number[]> = {};
+      for (const item of res.data?.mappings || mappings) {
+        const gid = Number(item?.group_id);
+        if (!Number.isFinite(gid)) continue;
+        const nos: number[] = (Array.isArray(item?.kasa_nos) ? item.kasa_nos : [])
+          .map((n: any) => Number(n))
+          .filter((n: number) => Number.isFinite(n) && n > 0);
+        next[gid] = [...new Set<number>(nos)].sort((a, b) => a - b);
+      }
+      setGroupKasaMap(next);
+      setMapLoaded(true);
+      setShowMapModal(false);
+    } catch (e) {
+      console.error(e);
+      alert('Grup-kasa eşlemesi kaydedilemedi.');
+    } finally {
+      setMapSaving(false);
+    }
   };
 
   const openOrderDetail = (order: any) => {
@@ -329,6 +481,17 @@ function ProductSalesContent() {
                   Temizle
                 </button>
               )}
+              {hasMultiKasa && (
+                <button
+                  type="button"
+                  onClick={openMapModal}
+                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold"
+                  title="Ürün gruplarını kasalarla eşleştir"
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  Grup ↔ Kasa
+                </button>
+              )}
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5">
               <button
@@ -340,23 +503,52 @@ function ProductSalesContent() {
               >
                 Tümü
               </button>
-              {groups.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => {
-                    setSelectedGroups((prev) => {
-                      if (prev.includes(g.id)) return prev.filter((x) => x !== g.id);
-                      return [...prev, g.id];
-                    });
-                  }}
-                  className={clsx(
-                    "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
-                    selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
-                  )}
-                >
-                  {g.name}
-                </button>
-              ))}
+              {visibleGroups.map((g) => {
+                const mapped = groupKasaMap[g.id] || [];
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    title={
+                      mapped.length
+                        ? `Kasalar: ${mapped.map((n) => formatKasaLabel(n, kasaEntries)).join(', ')}`
+                        : undefined
+                    }
+                    onClick={() => {
+                      const removing = selectedGroups.includes(g.id);
+                      setSelectedGroups((prev) => {
+                        if (removing) return prev.filter((x) => x !== g.id);
+                        return [...prev, g.id];
+                      });
+                      // Grup seçilince eşli tüm kasalarda raporlanabilsin
+                      if (
+                        !removing &&
+                        mapped.length > 0 &&
+                        kasaNo &&
+                        !mapped.includes(Number(kasaNo))
+                      ) {
+                        setKasaNo('');
+                      }
+                    }}
+                    className={clsx(
+                      "px-3 py-1.5 rounded-lg text-sm border whitespace-nowrap",
+                      selectedGroups.includes(g.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200"
+                    )}
+                  >
+                    {g.name}
+                    {mapped.length > 0 && (
+                      <span
+                        className={clsx(
+                          'ml-1.5 text-[10px] font-semibold',
+                          selectedGroups.includes(g.id) ? 'text-indigo-100' : 'text-slate-400',
+                        )}
+                      >
+                        · {mapped.length} kasa
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <select
@@ -430,7 +622,7 @@ function ProductSalesContent() {
 
               {!kasaNo && allKasaOptions.length > 1 && (
                 kasaBreakdownLoading
-                  ? allKasaOptions.map((k) => (
+                  ? breakdownKasaOptions.map((k) => (
                       <div key={k} className="h-28 bg-white rounded-2xl border border-slate-200 animate-pulse" />
                     ))
                   : kasaBreakdown.map((row) => (
@@ -631,6 +823,112 @@ function ProductSalesContent() {
           </>
         )}
       </main>
+
+      {showMapModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !mapSaving && setShowMapModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Grup ↔ Kasa Eşleme</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Her ürün grubunu hangi kasalarda raporlanacağını seçin. Kayıt şube için ortaktır; tüm kullanıcılar görür.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={mapSaving}
+                onClick={() => setShowMapModal(false)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4 space-y-3">
+              {groups.length === 0 ? (
+                <p className="text-sm text-slate-500 py-8 text-center">Ürün grubu bulunamadı.</p>
+              ) : (
+                groups.map((g) => {
+                  const selected = draftMap[g.id] || [];
+                  return (
+                    <div
+                      key={g.id}
+                      className="rounded-xl border border-slate-200 p-3 bg-slate-50/60"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="font-semibold text-slate-900 text-sm truncate" title={g.name}>
+                          {g.name}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                            onClick={() => setDraftAllKasas(g.id, true)}
+                          >
+                            Tüm kasalar
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[11px] font-semibold text-slate-500 hover:underline"
+                            onClick={() => setDraftAllKasas(g.id, false)}
+                          >
+                            Temizle
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {kasaEntries.map((k) => {
+                          const on = selected.includes(k.kasa_no);
+                          return (
+                            <button
+                              key={k.kasa_no}
+                              type="button"
+                              onClick={() => toggleDraftKasa(g.id, k.kasa_no)}
+                              className={clsx(
+                                'text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition',
+                                on
+                                  ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300',
+                              )}
+                            >
+                              {formatKasaLabel(k.kasa_no, kasaEntries)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={mapSaving}
+                onClick={() => setShowMapModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                disabled={mapSaving}
+                onClick={saveGroupKasaMap}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {mapSaving ? 'Kaydediliyor...' : 'Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
