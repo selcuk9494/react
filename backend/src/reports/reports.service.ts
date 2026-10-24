@@ -3780,6 +3780,7 @@ export class ReportsService {
     groupIds?: number[],
     plu?: number,
     byKasa = false,
+    sharedGroupIds?: number[],
   ) {
     const { pool, kasa_nos, closingHour } = await this.getBranchPool(user);
     const { start, end } = this.getDateRange(
@@ -3879,7 +3880,41 @@ export class ReportsService {
     if (!includeOpen) {
       params.push(endDateOnly);
     }
-    if (useArray) {
+    const sharedSet = new Set(
+      (Array.isArray(sharedGroupIds) ? sharedGroupIds : [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n)),
+    );
+    const exclusiveIds = useArray
+      ? (groupIds as number[]).filter((id) => !sharedSet.has(Number(id)))
+      : [];
+    const sharedInFilter = useArray
+      ? (groupIds as number[]).filter((id) => sharedSet.has(Number(id)))
+      : [];
+    // Ortak grup (DRINKS vb.): sadece ayni sipariste bu subenin ozel grubu varsa say
+    const useCompanionShared =
+      useArray && exclusiveIds.length > 0 && sharedInFilter.length > 0;
+    if (useCompanionShared) {
+      params.push(exclusiveIds);
+      const exclusiveParam = params.length;
+      params.push(sharedInFilter);
+      const sharedParam = params.length;
+      extraFilter += ` AND (
+        l.tip = ANY($${exclusiveParam})
+        OR (
+          l.tip = ANY($${sharedParam})
+          AND EXISTS (
+            SELECT 1
+            FROM adjusted c
+            WHERE c.adsno = l.adsno
+              AND c.adtur = l.adtur
+              AND c.kasa = l.kasa
+              AND NOT COALESCE(c.is_menu, false)
+              AND c.tip = ANY($${exclusiveParam})
+          )
+        )
+      )`;
+    } else if (useArray) {
       params.push(groupIds);
       extraFilter += ` AND l.tip = ANY($${params.length})`;
     } else if (groupId) {

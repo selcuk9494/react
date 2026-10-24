@@ -463,11 +463,16 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('group_id') groupId?: number,
     @Query('group_ids') groupIds?: string,
+    @Query('shared_group_ids') sharedGroupIds?: string,
     @Query('plu') plu?: number,
     @Query('kasa_no') kasaNo?: string,
     @Query('by_kasa') byKasa?: string,
   ) {
     const ids = (groupIds || '')
+      .split(',')
+      .map((n) => parseInt(n))
+      .filter((n) => !isNaN(n));
+    const sharedIds = (sharedGroupIds || '')
       .split(',')
       .map((n) => parseInt(n))
       .filter((n) => !isNaN(n));
@@ -481,6 +486,7 @@ export class ReportsController {
       ids.length ? ids : undefined,
       typeof plu !== 'undefined' ? Number(plu) : undefined,
       groupByKasa,
+      sharedIds.length ? sharedIds : undefined,
     );
   }
 

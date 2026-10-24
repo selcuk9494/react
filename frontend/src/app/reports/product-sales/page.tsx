@@ -157,14 +157,31 @@ function ProductSalesContent() {
     selectedGroups,
   ]);
 
+  /** Birden fazla şubeye bağlı ortak gruplar (ör. DRINKS). */
+  const sharedGroupIdsInFilter = useMemo(() => {
+    if (!selectedBusinessId || !businessesLoaded) return [] as number[];
+    return effectiveGroupIds.filter(
+      (id) => (groupToBusinesses.get(id) || []).length > 1,
+    );
+  }, [
+    selectedBusinessId,
+    businessesLoaded,
+    effectiveGroupIds,
+    groupToBusinesses,
+  ]);
+
   const breakdownKasaOptions = allKasaOptions;
 
   const additionalParams = useMemo(() => {
     const params: any = {};
     if (effectiveGroupIds.length) params.group_ids = effectiveGroupIds.join(',');
+    // Ortak grup: aynı siparişte bu şubenin kendi ürünü varsa o şubede say
+    if (sharedGroupIdsInFilter.length) {
+      params.shared_group_ids = sharedGroupIdsInFilter.join(',');
+    }
     if (selectedPlu !== null) params.plu = String(selectedPlu);
     return params;
-  }, [effectiveGroupIds, selectedPlu]);
+  }, [effectiveGroupIds, sharedGroupIdsInFilter, selectedPlu]);
 
   const { data, isLoading, error } = useReportData({
     endpoint: '/reports/product-sales',
@@ -258,6 +275,9 @@ function ProductSalesContent() {
         if (effectiveGroupIds.length) {
           params.set('group_ids', effectiveGroupIds.join(','));
         }
+        if (sharedGroupIdsInFilter.length) {
+          params.set('shared_group_ids', sharedGroupIdsInFilter.join(','));
+        }
         const res = await axios.get(
           `${getApiUrl()}/reports/product-sales?${params.toString()}`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -299,6 +319,7 @@ function ProductSalesContent() {
     customStartDate,
     customEndDate,
     effectiveGroupIds,
+    sharedGroupIdsInFilter,
   ]);
 
   useEffect(() => {
@@ -939,7 +960,11 @@ function ProductSalesContent() {
           {selectedBusiness && (
             <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
               <span className="font-bold text-slate-800">{selectedBusiness.name}</span>
-              {' '}ürün raporu — gruplar bu şubeye bağlı. Kasa filtresi üstte ayrı çalışır (kasa eşlemesi yok).
+              {' '}ürün raporu — gruplar bu şubeye bağlı.
+              {sharedGroupIdsInFilter.length > 0
+                ? ' Ortak gruplar (ör. DRINKS), aynı siparişte bu şubenin ürünü varsa burada sayılır.'
+                : ''}
+              {' '}Kasa filtresi üstte ayrı çalışır.
             </p>
           )}
         </div>
