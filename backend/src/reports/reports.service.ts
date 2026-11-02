@@ -982,48 +982,34 @@ export class ReportsService {
       }
       return rows;
     } else {
-      // Dashboard ile ayni kaynak: ads_odeme.raptar. Eski liste kaptar ile
-      // filtrelediginden ciro gorunup kapali liste bos kalabiliyordu (Kybele vb.).
+      // Dashboard ile ayni kaynak: ads_odeme.raptar (kaptar filtresi ciroyu
+      // gosterip listeyi bos birakiyordu). Agent uyumu icin tek CTE + LEFT JOIN.
       const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
-      const params: any[] = [kasa_nos];
+      const payParams: any[] = [kasa_nos];
       let paymentDateFilter = '';
-      let unpaidKaptarFilter = '';
       if (period !== 'all') {
         if (w.isBusinessPeriod) {
           paymentDateFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
-          unpaidKaptarFilter = `
-            AND (
-              (a.kaptar = $4::date AND COALESCE(a.kapsaat, '00:00:00') >= $6)
-              OR (a.kaptar = $5::date AND COALESCE(a.kapsaat, '00:00:00') < $6)
-            )
-          `;
-          params.push(
-            w.startTs,
-            w.endTs,
-            w.startDateOnly,
-            w.nextDateOnly,
-            w.closingTimeStr,
-          );
+          payParams.push(w.startTs, w.endTs);
         } else {
           paymentDateFilter =
             ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
-          unpaidKaptarFilter =
-            ` AND COALESCE(a.kaptar, a.raptar) >= $2::date AND COALESCE(a.kaptar, a.raptar) < ($3::date + interval '1 day')`;
-          params.push(w.startDateOnly, w.endDateOnly);
+          payParams.push(w.startDateOnly, w.endDateOnly);
         }
       }
 
-      const typeCondAdisyon = typeCondition.replace(/\bmasano\b/g, 'a.masano');
       const typeCondPayment =
         type === 'paket'
-          ? 'AND COALESCE(o.adtur, 0) = 1'
+          ? ' AND COALESCE(o.adtur, 0) = 1'
           : type === 'adisyon'
-            ? 'AND COALESCE(o.adtur, 0) = 0'
+            ? ' AND COALESCE(o.adtur, 0) = 0'
             : '';
 
-      const customerExtraClosed = await this.getCustomerExtraSelects(
+      const customerExtraClosed = await this.getCustomerExtraSelects(pool, 'm');
+      const customerJoinClosed = await this.customerJoinOnMustid(
         pool,
-        'cust',
+        'COALESCE(p.payment_mustid, meta.mustid)',
+        'm',
       );
 
       const query = `
@@ -1032,8 +1018,8 @@ export class ReportsService {
                     o.adsno,
                     COALESCE(o.adtur, 0) as adtur,
                     MAX(o.raptar) as raptar,
-                    COALESCE(SUM(o.otutar), 0) as toplam_tutar,
-                    COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
+                    COALESCE(SUM(COALESCE(o.otutar, 0)), 0) as toplam_tutar,
+                    COALESCE(SUM(COALESCE(o.iskonto, 0)), 0) as toplam_iskonto,
                     MAX(o.mustid) as payment_mustid
                 FROM ads_odeme o
                 WHERE o.kasa = ANY($1)${paymentDateFilter}${typeCondPayment}
@@ -1044,7 +1030,7 @@ export class ReportsService {
                     a.adsno,
                     COALESCE(a.adtur, 0) as adtur,
                     MAX(COALESCE(a.masano, 0)) as masano,
-                    CAST(MAX(COALESCE(a.sipyer, 0)) AS INTEGER) as sipyer,
+                    MAX(COALESCE(a.sipyer, 0)) as sipyer,
                     MAX(a.raptar) as raptar,
                     MAX(a.kaptar) as kaptar,
                     MAX(a.kapsaat) as kapanis_saati,
@@ -1053,70 +1039,55 @@ export class ReportsService {
                     MAX(a.mustid) as mustid,
                     MAX(COALESCE(a.mustcnt, 0)) as person_count,
                     MAX(a.country) as country_code,
-                    COALESCE(SUM(a.tutar), 0) as toplam_tutar_adisyon
+                    COALESCE(SUM(COALESCE(a.tutar, 0)), 0) as toplam_tutar_adisyon
                 FROM ads_adisyon a
+                INNER JOIN payment_agg p
+                  ON p.adsno = a.adsno
+                 AND p.adtur = COALESCE(a.adtur, 0)
                 WHERE a.kasa = ANY($1)
-                  AND (
-                    EXISTS (
-                      SELECT 1 FROM payment_agg p
-                      WHERE p.adsno = a.adsno AND p.adtur = COALESCE(a.adtur, 0)
-                    )
-                    OR (
-                      NOT EXISTS (
-                        SELECT 1 FROM ads_odeme ox
-                        WHERE ox.kasa = a.kasa
-                          AND ox.adsno = a.adsno
-                          AND COALESCE(ox.adtur, 0) = COALESCE(a.adtur, 0)
-                      )
-                      ${unpaidKaptarFilter}
-                      ${typeCondAdisyon}
-                    )
-                  )
                 GROUP BY a.adsno, COALESCE(a.adtur, 0)
-            ),
-            keys AS (
-                SELECT adsno, adtur FROM payment_agg
-                UNION
-                SELECT adsno, adtur FROM adisyon_meta
             )
             SELECT
-                k.adsno,
-                CASE
-                  WHEN p.adsno IS NOT NULL
-                    THEN COALESCE(p.toplam_tutar, 0) + COALESCE(p.toplam_iskonto, 0)
-                  ELSE COALESCE(m.toplam_tutar_adisyon, 0)
-                END as tutar,
-                COALESCE(m.masano, 0) as masano,
-                COALESCE(m.masano, 0) as masa_no,
-                k.adtur,
-                COALESCE(m.sipyer, 0) as sipyer,
-                COALESCE(p.raptar, m.raptar, m.kaptar) as tarih,
-                m.kapanis_saati,
-                m.acilis_saati,
+                p.adsno,
+                (COALESCE(p.toplam_tutar, 0) + COALESCE(p.toplam_iskonto, 0)) as tutar,
+                COALESCE(meta.masano, 0) as masano,
+                COALESCE(meta.masano, 0) as masa_no,
+                p.adtur,
+                COALESCE(meta.sipyer, 0) as sipyer,
+                COALESCE(p.raptar, meta.raptar, meta.kaptar) as tarih,
+                meta.kapanis_saati,
+                meta.acilis_saati,
                 per.adi as garson_adi,
-                COALESCE(p.payment_mustid, m.mustid) as mustid,
+                COALESCE(p.payment_mustid, meta.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
-                CONCAT(COALESCE(cust.adi, ''), ' ', COALESCE(cust.soyadi, '')) as customer_name,
+                COALESCE(
+                  NULLIF(BTRIM(CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, ''))), ''),
+                  m.adi
+                ) as customer_name,
                 ${customerExtraClosed.phone} as customer_phone,
                 ${customerExtraClosed.address} as customer_address,
-                COALESCE(m.person_count, 0) as person_count,
-                m.country_code,
+                COALESCE(meta.person_count, 0) as person_count,
+                meta.country_code,
                 ${countryLookup.name} as country_name
-            FROM keys k
-            LEFT JOIN payment_agg p ON p.adsno = k.adsno AND p.adtur = k.adtur
-            LEFT JOIN adisyon_meta m ON m.adsno = k.adsno AND m.adtur = k.adtur
-            LEFT JOIN personel per ON m.garsonno = per.id
-            ${await this.customerJoinOnMustid(pool, 'COALESCE(p.payment_mustid, m.mustid)', 'cust')}
-            ${countryLookup.join.replace(/orders\./g, 'm.')}
-            ORDER BY k.adsno DESC
+            FROM payment_agg p
+            LEFT JOIN adisyon_meta meta
+              ON meta.adsno = p.adsno AND meta.adtur = p.adtur
+            LEFT JOIN personel per ON meta.garsonno = per.id
+            ${customerJoinClosed}
+            ${countryLookup.join.replace(/orders\./g, 'meta.')}
+            ORDER BY p.adsno DESC
         `;
-      const rows = await this.db.executeQuery(pool, query, params);
-      const tipMap = await this.getOrderTipAmounts(
-        pool,
-        (rows || []).map((r: any) => r.adsno),
-      );
-      for (const row of rows || []) {
-        row.tip_tutar = tipMap.get(String(row.adsno)) || 0;
+      const rows = await this.db.executeQuery(pool, query, payParams);
+      try {
+        const tipMap = await this.getOrderTipAmounts(
+          pool,
+          (rows || []).map((r: any) => r.adsno),
+        );
+        for (const row of rows || []) {
+          row.tip_tutar = tipMap.get(String(row.adsno)) || 0;
+        }
+      } catch {
+        for (const row of rows || []) row.tip_tutar = 0;
       }
       return rows;
     }
