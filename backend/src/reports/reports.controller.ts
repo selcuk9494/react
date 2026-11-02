@@ -280,6 +280,12 @@ export class ReportsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch('reports/order-tip')
+  async updateOrderTip(@Request() req, @Body() body: any) {
+    return this.reportsService.updateOrderTip(req.user, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('reports/customer')
   async getCustomer(@Request() req, @Query('id') id: number) {
     return this.reportsService.getCustomerById(req.user, id);

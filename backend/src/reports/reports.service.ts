@@ -1972,6 +1972,138 @@ export class ReportsService {
     }
   }
 
+  /**
+   * Kapalı adisyon bahşiş düzeltme (garsontip).
+   * tip_tutar=0 ise kayıtlar silinir; >0 ise tek satıra yazılır.
+   */
+  async updateOrderTip(user: any, body: any) {
+    this.ensureReportAllowed(user, 'order_tip_edit');
+
+    const adsno = String(body?.adsno || '').trim();
+    if (!adsno) {
+      throw new BadRequestException('Adisyon numarası gerekli');
+    }
+
+    const tipRaw = Number(
+      String(body?.tip_tutar ?? body?.tip ?? '')
+        .replace(/\s/g, '')
+        .replace(',', '.'),
+    );
+    if (!Number.isFinite(tipRaw) || tipRaw < 0) {
+      throw new BadRequestException('Geçersiz bahşiş tutarı');
+    }
+    const tipTutar = Math.round(tipRaw * 100) / 100;
+
+    const { pool, kasa_nos } = await this.getBranchPool(user);
+    if (!(await this.hasTable(pool, 'garsontip'))) {
+      throw new BadRequestException('Bu şubede bahşiş tablosu yok');
+    }
+    if (!(await this.hasColumn(pool, 'garsontip', 'tiptutar'))) {
+      throw new BadRequestException('Bahşiş kolonu bulunamadı');
+    }
+    if (!(await this.hasColumn(pool, 'garsontip', 'adsno'))) {
+      throw new BadRequestException('Bahşiş adsno kolonu bulunamadı');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const closed = await client.query(
+        `
+        SELECT
+          COUNT(*)::int as n,
+          MAX(COALESCE(masano, 0)) as masano,
+          MAX(garsonno) as garsonno,
+          MAX(COALESCE(kaptar, raptar, CURRENT_DATE)) as tarih
+        FROM ads_adisyon
+        WHERE kasa = ANY($1) AND adsno::text = $2::text
+        `,
+        [kasa_nos, adsno],
+      );
+      const hasAdisyon = Number(closed.rows?.[0]?.n || 0) > 0;
+      if (!hasAdisyon) {
+        const paid = await client.query(
+          `
+          SELECT 1 FROM ads_odeme
+          WHERE kasa = ANY($1) AND adsno::text = $2::text
+          LIMIT 1
+          `,
+          [kasa_nos, adsno],
+        );
+        if (!paid.rows?.length) {
+          throw new NotFoundException('Adisyon bulunamadı');
+        }
+      }
+
+      await client.query(
+        `DELETE FROM garsontip WHERE adsno::text = $1::text`,
+        [adsno],
+      );
+
+      if (tipTutar > 0) {
+        const cols = await client.query(
+          `
+          SELECT lower(column_name) as column_name
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND lower(table_name) = 'garsontip'
+          `,
+        );
+        const colSet = new Set(
+          (cols.rows || []).map((r: any) => String(r.column_name)),
+        );
+        const meta = closed.rows?.[0] || {};
+        const fields: string[] = [];
+        const values: string[] = [];
+        const params: any[] = [];
+        const add = (col: string, val: any) => {
+          if (!colSet.has(col)) return;
+          params.push(val);
+          fields.push(col);
+          values.push(`$${params.length}`);
+        };
+
+        if (colSet.has('sirano')) {
+          const next = await client.query(
+            `SELECT COALESCE(MAX(sirano), 0) + 1 AS n FROM garsontip`,
+          );
+          add('sirano', Number(next.rows?.[0]?.n) || 1);
+        }
+        if (colSet.has('oid')) {
+          const next = await client.query(
+            `SELECT COALESCE(MAX(oid), 0) + 1 AS n FROM garsontip`,
+          );
+          add('oid', Number(next.rows?.[0]?.n) || 1);
+        }
+        add('adsno', Number(adsno) || adsno);
+        add('tiptutar', tipTutar);
+        add('garson', Number(meta.garsonno) || 0);
+        add('masa', Number(meta.masano) || 0);
+        if (colSet.has('tarih')) {
+          add('tarih', meta.tarih || new Date());
+        }
+
+        if (!fields.includes('tiptutar') || !fields.includes('adsno')) {
+          throw new BadRequestException('Bahşiş kaydı yazılamadı');
+        }
+
+        await client.query(
+          `INSERT INTO garsontip (${fields.join(', ')}) VALUES (${values.join(', ')})`,
+          params,
+        );
+      }
+
+      await client.query('COMMIT');
+      return { ok: true, adsno, tip_tutar: tipTutar };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getCustomerById(user: any, id: number) {
     const { pool } = await this.getBranchPool(user);
     const extra = await this.getCustomerExtraSelects(pool, 'm');
