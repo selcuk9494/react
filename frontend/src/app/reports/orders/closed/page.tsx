@@ -57,6 +57,7 @@ function ClosedOrdersContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const isFetchingRef = useRef(false);
 
@@ -87,6 +88,7 @@ function ClosedOrdersContent() {
       } else {
         setLoading(true);
       }
+      setFetchError(null);
 
       let url = `${getApiUrl()}/reports/closed-orders?period=${period}&page=${page}&limit=100`;
       if (period === 'custom') {
@@ -107,7 +109,8 @@ function ClosedOrdersContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const data = res.data.data || res.data;
+      const raw = res.data.data || res.data;
+      const data = Array.isArray(raw) ? raw : [];
 
       if (append) {
         setAllOrders(prev => [...prev, ...data]);
@@ -115,12 +118,22 @@ function ClosedOrdersContent() {
         setAllOrders(data);
       }
 
-      setTotal(res.data.total || (res.data.data ? res.data.total : data.length));
+      setTotal(res.data.total || data.length);
       setTotalPages(res.data.total_pages || 1);
       setCurrentPage(page);
 
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      if (!append) setAllOrders([]);
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        'Kapalı adisyonlar yüklenemedi';
+      setFetchError(
+        typeof msg === 'string'
+          ? msg
+          : 'Şube veritabanına bağlanılamadı. Bridge/agent veya interneti kontrol edin.',
+      );
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -224,6 +237,7 @@ function ClosedOrdersContent() {
     { key: 'acilis_saati', label: 'Açılış', format: (value: any) => value ? formatTime(String(value)) : '' },
     { key: 'kapanis_saati', label: 'Kapanış', format: (value: any) => value ? formatTime(String(value)) : '' },
     { key: 'iskonto', label: 'İndirim', format: (value: any) => formatCurrency(Number(value || 0)) },
+    { key: 'tip_tutar', label: 'Bahşiş', format: (value: any) => formatCurrency(Number(value || 0)) },
     { key: 'tutar', label: 'Net Tutar', format: (value: any, row: any) => formatCurrency(Number(value || 0) - Number(row.iskonto || 0)) },
   ];
 
@@ -326,6 +340,19 @@ function ClosedOrdersContent() {
           </div>
         </div>
 
+        {fetchError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            Bağlantı / sorgu hatası: {fetchError}
+            <button
+              type="button"
+              className="ml-3 underline font-bold"
+              onClick={() => fetchOrders(1)}
+            >
+              Tekrar dene
+            </button>
+          </div>
+        )}
+
         {/* Count / total */}
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <p className="text-sm font-bold text-emerald-900">
@@ -336,9 +363,16 @@ function ClosedOrdersContent() {
               </span>
             )}
           </p>
-          <p className="text-sm font-black text-emerald-700">
-            {t('matching_total')}: {formatCurrency(orders.reduce((sum, o) => sum + netAmount(o), 0))}
-          </p>
+          <div className="text-right space-y-0.5">
+            <p className="text-sm font-black text-emerald-700">
+              {t('matching_total')}: {formatCurrency(orders.reduce((sum, o) => sum + netAmount(o), 0))}
+            </p>
+            {orders.some((o) => Number(o.tip_tutar || 0) > 0) && (
+              <p className="text-xs font-bold text-amber-700">
+                {t('tip')}: {formatCurrency(orders.reduce((sum, o) => sum + Number(o.tip_tutar || 0), 0))}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* List */}
@@ -369,6 +403,11 @@ function ClosedOrdersContent() {
                   <p className="text-xs text-slate-500">Brüt: <span className="font-semibold line-through">{formatCurrency(Number(order.tutar || 0))}</span></p>
                 )}
                 <p className="text-2xl font-black text-emerald-600">{formatCurrency(Number(order.tutar || 0) - Number(order.iskonto || 0))}</p>
+                {Number(order.tip_tutar || 0) > 0 && (
+                  <p className="mt-1 text-sm font-bold text-amber-700">
+                    {t('tip')}: {formatCurrency(Number(order.tip_tutar))}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5 border-t border-slate-100 pt-3">
@@ -418,6 +457,14 @@ function ClosedOrdersContent() {
                   <div className="flex items-center">
                     <Tag className="w-3.5 h-3.5 mr-2 text-emerald-500 shrink-0" />
                     <span className="text-xs text-emerald-600 font-semibold">İndirim: {formatCurrency(order.iskonto)}</span>
+                  </div>
+                )}
+                {Number(order.tip_tutar || 0) > 0 && (
+                  <div className="flex items-center">
+                    <Tag className="w-3.5 h-3.5 mr-2 text-amber-500 shrink-0" />
+                    <span className="text-xs text-amber-700 font-semibold">
+                      {t('tip')}: {formatCurrency(Number(order.tip_tutar))}
+                    </span>
                   </div>
                 )}
                 {order.acilis_saati && (

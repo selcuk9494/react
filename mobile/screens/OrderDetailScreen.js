@@ -242,6 +242,10 @@ export default function OrderDetailScreen({ navigation, route }) {
     });
     
     message += `------------------\n`;
+    const tipAmount = Number(orderData.tip_tutar || 0);
+    if (tipAmount > 0) {
+      message += `Bahşiş: ${formatCurrency(tipAmount)}\n`;
+    }
     message += `*Toplam: ${formatCurrency(getTotalPaid())}*`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
@@ -299,6 +303,9 @@ export default function OrderDetailScreen({ navigation, route }) {
           </table>
 
           <div class="total">
+            ${Number(orderData.tip_tutar || 0) > 0
+              ? `Bahşiş: ${formatCurrency(Number(orderData.tip_tutar))}<br/>`
+              : ''}
             Toplam: ${formatCurrency(getTotalPaid())}
           </div>
         </body>
@@ -652,6 +659,13 @@ export default function OrderDetailScreen({ navigation, route }) {
                     <Text style={styles.discountValue}>-{formatCurrency(orderData.toplam_iskonto)}</Text>
                 </View>
             )}
+
+            {Number(orderData?.tip_tutar || 0) > 0 && (
+                <View style={[styles.summaryRow, styles.tipRow]}>
+                    <Text style={styles.tipLabel}>Bahşiş</Text>
+                    <Text style={styles.tipValue}>{formatCurrency(Number(orderData.tip_tutar))}</Text>
+                </View>
+            )}
             
             <View style={styles.divider} />
             
@@ -900,24 +914,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 17,
   },
-  topCancelAllButton: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#fecaca',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  topCancelAllButtonText: {
-    color: '#b91c1c',
-    fontSize: 14,
-    fontWeight: '900',
-    marginLeft: 8,
-  },
   productsSection: {
     marginBottom: 20,
   },
@@ -1140,6 +1136,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#047857',
     fontWeight: '600',
+  },
+  topCancelAllButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  topCancelAllButtonText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '900',
+    marginLeft: 8,
+  },
+  tipRow: {
+    backgroundColor: '#fffbeb',
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  tipLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  tipValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#b45309',
   },
   discountValue: {
     fontSize: 16,

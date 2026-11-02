@@ -982,59 +982,65 @@ export class ReportsService {
       }
       return rows;
     } else {
-      let bizStartDate = dStart;
-      let bizEndDate = dEnd;
-      let bizStartTs = `${bizStartDate} ${closingTimeStr}`;
-      let bizEndTs = `${bizEndDate} ${closingTimeStr}`;
-      if (isBusinessPeriod) {
-        const biz = this.getBusinessDayDate(
-          closingHour,
-          period === 'today' ? 'today' : 'yesterday',
-        );
-        const b = new Date(`${biz}T00:00:00Z`);
-        const n = new Date(b.getTime() + 24 * 60 * 60 * 1000);
-        const nextDate = format(n, 'yyyy-MM-dd');
-        bizStartDate = biz;
-        bizEndDate = nextDate;
-        bizStartTs = `${bizStartDate} ${closingTimeStr}`;
-        bizEndTs = `${bizEndDate} ${closingTimeStr}`;
-      }
-
+      // Dashboard ile ayni kaynak: ads_odeme.raptar. Eski liste kaptar ile
+      // filtrelediginden ciro gorunup kapali liste bos kalabiliyordu (Kybele vb.).
+      const w = this.getPeriodWindow(period, closingHour, startDate, endDate);
       const params: any[] = [kasa_nos];
-      let adisyonDateFilter = '';
       let paymentDateFilter = '';
-      let outerDateFilter = '';
+      let unpaidKaptarFilter = '';
       if (period !== 'all') {
-        if (isBusinessPeriod) {
-          adisyonDateFilter = `
+        if (w.isBusinessPeriod) {
+          paymentDateFilter = ` AND o.raptar >= $2 AND o.raptar < $3`;
+          unpaidKaptarFilter = `
             AND (
-              (a.kaptar = $2::date AND COALESCE(a.kapsaat, '00:00:00') >= $4)
-              OR (a.kaptar = $3::date AND COALESCE(a.kapsaat, '00:00:00') < $4)
+              (a.kaptar = $4::date AND COALESCE(a.kapsaat, '00:00:00') >= $6)
+              OR (a.kaptar = $5::date AND COALESCE(a.kapsaat, '00:00:00') < $6)
             )
           `;
-          paymentDateFilter = ` AND o.raptar >= $5 AND o.raptar < $6`;
-          outerDateFilter = '';
           params.push(
-            bizStartDate,
-            bizEndDate,
-            closingTimeStr,
-            bizStartTs,
-            bizEndTs,
+            w.startTs,
+            w.endTs,
+            w.startDateOnly,
+            w.nextDateOnly,
+            w.closingTimeStr,
           );
         } else {
-          adisyonDateFilter =
-            ` AND a.raptar >= $2::date AND a.raptar < ($3::date + interval '1 day')`;
           paymentDateFilter =
             ` AND o.raptar >= $2::date AND o.raptar < ($3::date + interval '1 day')`;
-          outerDateFilter =
-            ` WHERE COALESCE(p.raptar, a.raptar, a.kaptar) >= $2::date AND COALESCE(p.raptar, a.raptar, a.kaptar) < ($3::date + interval '1 day')`;
-          params.push(dStart, dEnd);
+          unpaidKaptarFilter =
+            ` AND COALESCE(a.kaptar, a.raptar) >= $2::date AND COALESCE(a.kaptar, a.raptar) < ($3::date + interval '1 day')`;
+          params.push(w.startDateOnly, w.endDateOnly);
         }
       }
 
+      const typeCondAdisyon = typeCondition.replace(/\bmasano\b/g, 'a.masano');
+      const typeCondPayment =
+        type === 'paket'
+          ? 'AND COALESCE(o.adtur, 0) = 1'
+          : type === 'adisyon'
+            ? 'AND COALESCE(o.adtur, 0) = 0'
+            : '';
+
+      const customerExtraClosed = await this.getCustomerExtraSelects(
+        pool,
+        'cust',
+      );
+
       const query = `
-            WITH adisyon_agg AS (
-                SELECT 
+            WITH payment_agg AS (
+                SELECT
+                    o.adsno,
+                    COALESCE(o.adtur, 0) as adtur,
+                    MAX(o.raptar) as raptar,
+                    COALESCE(SUM(o.otutar), 0) as toplam_tutar,
+                    COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
+                    MAX(o.mustid) as payment_mustid
+                FROM ads_odeme o
+                WHERE o.kasa = ANY($1)${paymentDateFilter}${typeCondPayment}
+                GROUP BY o.adsno, COALESCE(o.adtur, 0)
+            ),
+            adisyon_meta AS (
+                SELECT
                     a.adsno,
                     COALESCE(a.adtur, 0) as adtur,
                     MAX(COALESCE(a.masano, 0)) as masano,
@@ -1049,49 +1055,69 @@ export class ReportsService {
                     MAX(a.country) as country_code,
                     COALESCE(SUM(a.tutar), 0) as toplam_tutar_adisyon
                 FROM ads_adisyon a
-                WHERE a.kasa = ANY($1) ${typeCondition}${adisyonDateFilter}
+                WHERE a.kasa = ANY($1)
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM payment_agg p
+                      WHERE p.adsno = a.adsno AND p.adtur = COALESCE(a.adtur, 0)
+                    )
+                    OR (
+                      NOT EXISTS (
+                        SELECT 1 FROM ads_odeme ox
+                        WHERE ox.kasa = a.kasa
+                          AND ox.adsno = a.adsno
+                          AND COALESCE(ox.adtur, 0) = COALESCE(a.adtur, 0)
+                      )
+                      ${unpaidKaptarFilter}
+                      ${typeCondAdisyon}
+                    )
+                  )
                 GROUP BY a.adsno, COALESCE(a.adtur, 0)
             ),
-            payment_agg AS (
-                SELECT
-                    o.adsno,
-                    COALESCE(o.adtur, 0) as adtur,
-                    MAX(o.raptar) as raptar,
-                    COALESCE(SUM(o.otutar), 0) as toplam_tutar,
-                    COALESCE(SUM(o.iskonto), 0) as toplam_iskonto,
-                    MAX(o.mustid) as payment_mustid
-                FROM ads_odeme o
-                WHERE o.kasa = ANY($1)${paymentDateFilter}
-                GROUP BY o.adsno, COALESCE(o.adtur, 0)
+            keys AS (
+                SELECT adsno, adtur FROM payment_agg
+                UNION
+                SELECT adsno, adtur FROM adisyon_meta
             )
-            SELECT 
-                a.adsno,
-                a.toplam_tutar_adisyon as tutar,
-                a.masano,
-                a.masano as masa_no,
-                a.adtur,
-                a.sipyer,
-                COALESCE(p.raptar, a.raptar, a.kaptar) as tarih,
-                a.kapanis_saati,
-                a.acilis_saati,
+            SELECT
+                k.adsno,
+                CASE
+                  WHEN p.adsno IS NOT NULL
+                    THEN COALESCE(p.toplam_tutar, 0) + COALESCE(p.toplam_iskonto, 0)
+                  ELSE COALESCE(m.toplam_tutar_adisyon, 0)
+                END as tutar,
+                COALESCE(m.masano, 0) as masano,
+                COALESCE(m.masano, 0) as masa_no,
+                k.adtur,
+                COALESCE(m.sipyer, 0) as sipyer,
+                COALESCE(p.raptar, m.raptar, m.kaptar) as tarih,
+                m.kapanis_saati,
+                m.acilis_saati,
                 per.adi as garson_adi,
-                COALESCE(p.payment_mustid, a.mustid) as mustid,
+                COALESCE(p.payment_mustid, m.mustid) as mustid,
                 COALESCE(p.toplam_iskonto, 0) as iskonto,
-                CONCAT(COALESCE(m.adi, ''), ' ', COALESCE(m.soyadi, '')) as customer_name,
-                ${customerExtra.phone} as customer_phone,
-                ${customerExtra.address} as customer_address,
-                a.person_count,
-                a.country_code,
+                CONCAT(COALESCE(cust.adi, ''), ' ', COALESCE(cust.soyadi, '')) as customer_name,
+                ${customerExtraClosed.phone} as customer_phone,
+                ${customerExtraClosed.address} as customer_address,
+                COALESCE(m.person_count, 0) as person_count,
+                m.country_code,
                 ${countryLookup.name} as country_name
-            FROM adisyon_agg a
-            LEFT JOIN payment_agg p ON p.adsno = a.adsno AND p.adtur = a.adtur
-            LEFT JOIN personel per ON a.garsonno = per.id
-            ${await this.customerJoinOnMustid(pool, 'COALESCE(p.payment_mustid, a.mustid)', 'm')}
-            ${countryLookup.join.replace(/orders\./g, 'a.')}
-            ${outerDateFilter}
-            ORDER BY a.adsno DESC
+            FROM keys k
+            LEFT JOIN payment_agg p ON p.adsno = k.adsno AND p.adtur = k.adtur
+            LEFT JOIN adisyon_meta m ON m.adsno = k.adsno AND m.adtur = k.adtur
+            LEFT JOIN personel per ON m.garsonno = per.id
+            ${await this.customerJoinOnMustid(pool, 'COALESCE(p.payment_mustid, m.mustid)', 'cust')}
+            ${countryLookup.join.replace(/orders\./g, 'm.')}
+            ORDER BY k.adsno DESC
         `;
       const rows = await this.db.executeQuery(pool, query, params);
+      const tipMap = await this.getOrderTipAmounts(
+        pool,
+        (rows || []).map((r: any) => r.adsno),
+      );
+      for (const row of rows || []) {
+        row.tip_tutar = tipMap.get(String(row.adsno)) || 0;
+      }
       return rows;
     }
   }
@@ -1243,7 +1269,10 @@ export class ReportsService {
           ? [kasa_nos, adsno, resolvedAdtur]
           : [kasa_nos, adsno];
       const rows = await this.db.executeQuery(pool, query, params);
-      return rows[0] || null;
+      const openRow = rows[0] || null;
+      if (!openRow) return null;
+      openRow.tip_tutar = 0;
+      return openRow;
     } else {
       const query = `
             WITH order_info AS (
@@ -1345,7 +1374,10 @@ export class ReportsService {
           ? [kasa_nos, adsno, resolvedAdtur]
           : [kasa_nos, adsno],
       );
-      return rows[0] || null;
+      const closedRow = rows[0] || null;
+      if (!closedRow) return null;
+      closedRow.tip_tutar = await this.getOrderTipAmount(pool, adsno);
+      return closedRow;
     }
   }
 
@@ -2324,6 +2356,46 @@ export class ReportsService {
       : `FROM lined l
         JOIN ticket t ON t.adsno = l.adsno AND t.adtur = l.adtur`;
     return { catalogSelect, catalogJoin, pairCtes, adjCase, adjFrom };
+  }
+
+  /**
+   * Masa kapanışında girilen bahşiş (garsontip.tiptutar).
+   * Ciro/ödeme toplamına dahil değildir. Tablo yoksa 0.
+   */
+  private async getOrderTipAmount(pool: any, adsno: string): Promise<number> {
+    const map = await this.getOrderTipAmounts(pool, [adsno]);
+    return map.get(String(adsno)) || 0;
+  }
+
+  private async getOrderTipAmounts(
+    pool: any,
+    adsNos: Array<string | number>,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const ids = [...new Set(adsNos.map((id) => String(id)).filter(Boolean))];
+    if (!ids.length) return out;
+    try {
+      if (!(await this.hasTable(pool, 'garsontip'))) return out;
+      if (!(await this.hasColumn(pool, 'garsontip', 'tiptutar'))) return out;
+      if (!(await this.hasColumn(pool, 'garsontip', 'adsno'))) return out;
+      const rows = await this.db.executeQuery(
+        pool,
+        `
+        SELECT adsno::text AS adsno,
+               COALESCE(SUM(COALESCE(tiptutar, 0)), 0) AS tip_tutar
+        FROM garsontip
+        WHERE adsno::text = ANY($1::text[])
+        GROUP BY adsno::text
+      `,
+        [ids],
+      );
+      for (const row of rows || []) {
+        out.set(String(row.adsno), Number(row.tip_tutar) || 0);
+      }
+    } catch {
+      /* tip tablosu yok / okunamadı */
+    }
+    return out;
   }
 
   private async hasTable(pool: any, table: string): Promise<boolean> {

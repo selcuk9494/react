@@ -343,6 +343,11 @@ function OrderDetailContent() {
     if (orderData.toplam_iskonto > 0) {
       text += `İndirim: -${formatCurrency(orderData.toplam_iskonto)}\n`;
     }
+
+    const tipShare = Number(orderData.tip_tutar || 0);
+    if (tipShare > 0) {
+      text += `Bahşiş: ${formatCurrency(tipShare)}\n`;
+    }
     
     text += `*Toplam: ${formatCurrency(getTotalPaid())}*\n`;
     
@@ -864,6 +869,17 @@ function OrderDetailContent() {
                             {t('discount')}
                         </span>
                         <span className="text-lg font-bold text-emerald-600">-{formatCurrency(orderData.toplam_iskonto)}</span>
+                    </div>
+                )}
+                {Number(orderData?.tip_tutar || 0) > 0 && (
+                    <div className="flex justify-between items-center pb-3 bg-amber-50 -mx-6 px-6 py-3 rounded-xl border-l-4 border-amber-500">
+                        <span className="font-semibold flex items-center gap-2 text-amber-800">
+                            <CreditCard className="w-5 h-5" />
+                            {t('tip')}
+                        </span>
+                        <span className="text-lg font-bold text-amber-700">
+                            {formatCurrency(Number(orderData.tip_tutar))}
+                        </span>
                     </div>
                 )}
                 <div className="border-t-2 border-dashed border-gray-300 my-4"></div>
