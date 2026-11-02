@@ -234,6 +234,38 @@ function OrderDetailContent() {
     }
   };
 
+  const updateOrderTip = async () => {
+    if (!token || !orderData?.adsno) return;
+    const current = Number(orderData.tip_tutar || 0);
+    const valueText = window.prompt(
+      String(t('tip_edit_prompt')),
+      String(current > 0 ? current : '0'),
+    );
+    if (valueText === null) return;
+    const value = Number(String(valueText).replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(value) || value < 0) {
+      alert('Geçerli bir bahşiş tutarı girin.');
+      return;
+    }
+    try {
+      setLoading(true);
+      await axios.patch(
+        `${getApiUrl()}/reports/order-tip`,
+        {
+          adsno: orderData.adsno,
+          tip_tutar: value,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      await fetchOrderDetail();
+    } catch (error: any) {
+      console.error('❌ Update order tip error:', error);
+      alert(error.response?.data?.message || 'Bahşiş güncellenemedi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateOpenOrderDiscount = async (mode: 'amount' | 'percent') => {
     if (!token || !orderData?.adsno) return;
     const label = mode === 'percent' ? 'İndirim yüzdesi' : 'İndirim tutarı';
@@ -871,15 +903,27 @@ function OrderDetailContent() {
                         <span className="text-lg font-bold text-emerald-600">-{formatCurrency(orderData.toplam_iskonto)}</span>
                     </div>
                 )}
-                {Number(orderData?.tip_tutar || 0) > 0 && (
-                    <div className="flex justify-between items-center pb-3 bg-amber-50 -mx-6 px-6 py-3 rounded-xl border-l-4 border-amber-500">
+                {(Number(orderData?.tip_tutar || 0) > 0 ||
+                  (orderData?.order_type === 'closed' && isReportAllowed('order_tip_edit'))) && (
+                    <div className="flex justify-between items-center pb-3 bg-amber-50 -mx-6 px-6 py-3 rounded-xl border-l-4 border-amber-500 gap-3">
                         <span className="font-semibold flex items-center gap-2 text-amber-800">
                             <CreditCard className="w-5 h-5" />
                             {t('tip')}
                         </span>
-                        <span className="text-lg font-bold text-amber-700">
-                            {formatCurrency(Number(orderData.tip_tutar))}
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-lg font-bold text-amber-700">
+                                {formatCurrency(Number(orderData?.tip_tutar || 0))}
+                            </span>
+                            {orderData?.order_type === 'closed' && isReportAllowed('order_tip_edit') && (
+                                <button
+                                    type="button"
+                                    onClick={updateOrderTip}
+                                    className="no-print rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100"
+                                >
+                                    {t('tip_edit')}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
                 <div className="border-t-2 border-dashed border-gray-300 my-4"></div>
