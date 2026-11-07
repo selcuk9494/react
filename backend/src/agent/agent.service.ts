@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/
 import { createHash, randomBytes } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../cache/cache.service';
+import { writeAgentPollDiag } from './agent-poll-diag';
 
 @Injectable()
 export class AgentService {
@@ -67,6 +68,7 @@ export class AgentService {
 
   async poll(agentId: string, secret: string) {
     const agent = await this.authAgent(agentId, secret);
+    writeAgentPollDiag(agent);
     const pool = this.db.getMainPool();
     await this.db.executeQuery(
       pool,
