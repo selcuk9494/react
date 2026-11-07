@@ -6,6 +6,19 @@ const { redactErrorMessage } = require('./db-url-meta');
 /**
  * LISTEN yöneticisi: her denemede yeni Client; başarısız client yeniden kullanılmaz.
  */
+function queryWithTimeout(client, text, timeoutMs) {
+  let timer;
+  return Promise.race([
+    client.query(text),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('LISTEN query timeout')), timeoutMs);
+      timer.unref?.();
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function createListenManager(opts) {
   const {
     channel,
@@ -14,6 +27,7 @@ function createListenManager(opts) {
     log = console.log,
     maxBackoffMs = 60_000,
     baseBackoffMs = 1000,
+    queryTimeoutMs = 8_000,
   } = opts;
 
   let stopped = false;
@@ -22,6 +36,7 @@ function createListenManager(opts) {
   let attempt = 0;
   let status = {
     listening: false,
+    phase: 'not_started',
     lastError: null,
     lastConnectedAt: null,
     lastNotifyAt: null,
@@ -53,6 +68,7 @@ function createListenManager(opts) {
     if (stopped) return;
     clearReconnectTimer();
     status.listening = false;
+    status.phase = 'reconnecting';
     status.lastError = redactErrorMessage(reason);
     attempt += 1;
     status.attempts = attempt;
@@ -79,6 +95,7 @@ function createListenManager(opts) {
     const prev = client;
     client = null;
     status.listening = false;
+    status.phase = 'connecting';
     await destroyClient(prev);
 
     const next = new Client(makeClientConfig());
@@ -87,9 +104,11 @@ function createListenManager(opts) {
 
     try {
       await next.connect();
-      await next.query(`LISTEN ${channel}`);
+      await queryWithTimeout(next, `LISTEN ${channel}`, queryTimeoutMs);
       attempt = 0;
+      status.attempts = 0;
       status.listening = true;
+      status.phase = 'listening';
       status.lastError = null;
       status.lastConnectedAt = new Date().toISOString();
       log('LISTEN active', channel);
@@ -136,6 +155,7 @@ function createListenManager(opts) {
       stopped = true;
       clearReconnectTimer();
       status.listening = false;
+      status.phase = 'not_started';
       const c = client;
       client = null;
       await destroyClient(c);

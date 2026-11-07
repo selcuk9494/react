@@ -84,9 +84,52 @@ test('LISTEN reconnect creates a new Client after failure (no reuse)', async () 
     assert.ok(fake.constructed() >= 2, 'expected at least 2 Client constructions');
     assert.equal(fake.clients()[0].ended, true, 'failed client cleaned up');
     assert.equal(mgr.getStatus().listening, true);
+    assert.equal(mgr.getStatus().phase, 'listening');
+    assert.equal(mgr.getStatus().attempts, 0);
     await mgr.stop();
   } finally {
     fake.restore();
+  }
+});
+
+test('hung LISTEN query times out and schedules reconnect', async () => {
+  const listenPath = require.resolve('../src/listen');
+  const pgPath = require.resolve('pg');
+  const realPg = require('pg');
+  const origClient = realPg.Client;
+  const { EventEmitter } = require('events');
+
+  class HungClient extends EventEmitter {
+    async connect() {}
+    async query() {
+      return new Promise(() => {});
+    }
+    async end() {}
+    destroy() {}
+  }
+
+  realPg.Client = HungClient;
+  delete require.cache[listenPath];
+  const { createListenManager } = require('../src/listen');
+  try {
+    const mgr = createListenManager({
+      channel: 'agent_job_ready',
+      makeClientConfig: () => ({}),
+      queryTimeoutMs: 30,
+      baseBackoffMs: 10_000,
+      log() {},
+      onNotify() {},
+    });
+    mgr.start();
+    await new Promise((r) => setTimeout(r, 80));
+    const status = mgr.getStatus();
+    assert.equal(status.listening, false);
+    assert.equal(status.phase, 'reconnecting');
+    assert.match(String(status.lastError), /timeout/);
+    await mgr.stop();
+  } finally {
+    realPg.Client = origClient;
+    delete require.cache[listenPath];
   }
 });
 

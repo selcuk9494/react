@@ -2,30 +2,86 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createRuntimeStatus } = require('../src/runtime-status');
+const { evaluateHealth } = require('../src/runtime-status');
 
-test('health unhealthy when postgres down even if timer would tick', () => {
-  const runtime = createRuntimeStatus();
-  runtime.postgres.ok = false;
-  runtime.postgres.lastError = 'connect failed';
-  runtime.listen.listening = true;
-  runtime.safetyPoll.lastOkAt = null;
-
-  const healthy = runtime.postgres.ok && runtime.listen.listening;
-  assert.equal(healthy, false);
+test('postgres down is 503 even if LISTEN is up', () => {
+  const v = evaluateHealth({
+    postgresOk: false,
+    listenWanted: true,
+    phase: 'listening',
+    withinStartupGrace: true,
+    lastError: null,
+  });
+  assert.equal(v.ok, false);
+  assert.equal(v.ready, false);
 });
 
-test('health unhealthy when LISTEN down', () => {
-  const runtime = createRuntimeStatus();
-  runtime.postgres.ok = true;
-  runtime.listen.listening = false;
-  const healthy = runtime.postgres.ok && runtime.listen.listening;
-  assert.equal(healthy, false);
+test('LISTEN down after startup is 503 and not ready', () => {
+  const v = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'reconnecting',
+    withinStartupGrace: true,
+    lastError: 'connection ended',
+  });
+  assert.equal(v.ok, false);
+  assert.equal(v.ready, false);
 });
 
-test('health ok only when both postgres and listen ok', () => {
-  const runtime = createRuntimeStatus();
-  runtime.postgres.ok = true;
-  runtime.listen.listening = true;
-  assert.equal(runtime.postgres.ok && runtime.listen.listening, true);
+test('first LISTEN connect inside grace is HTTP 200 but not cutover-ready', () => {
+  const v = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'connecting',
+    withinStartupGrace: true,
+    lastError: null,
+  });
+  assert.equal(v.ok, true);
+  assert.equal(v.ready, false);
+  assert.equal(v.starting, true);
+});
+
+test('connecting past grace is 503', () => {
+  const v = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'connecting',
+    withinStartupGrace: false,
+    lastError: null,
+  });
+  assert.equal(v.ok, false);
+  assert.equal(v.ready, false);
+});
+
+test('listener not started yet inside grace is not the same as zero agents', () => {
+  const starting = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'not_started',
+    withinStartupGrace: true,
+    lastError: null,
+  });
+  const listeningNoAgents = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'listening',
+    withinStartupGrace: false,
+    lastError: null,
+  });
+  assert.equal(starting.ok, true);
+  assert.equal(starting.ready, false);
+  assert.equal(listeningNoAgents.ok, true);
+  assert.equal(listeningNoAgents.ready, true);
+});
+
+test('health ready only when postgres and LISTEN are both up', () => {
+  const v = evaluateHealth({
+    postgresOk: true,
+    listenWanted: true,
+    phase: 'listening',
+    withinStartupGrace: false,
+    lastError: null,
+  });
+  assert.equal(v.ok, true);
+  assert.equal(v.ready, true);
 });

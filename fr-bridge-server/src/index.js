@@ -15,14 +15,17 @@ const {
 } = require('./jobs');
 const { createListenManager } = require('./listen');
 const { classifyDatabaseTarget, redactErrorMessage } = require('./db-url-meta');
-const { createRuntimeStatus } = require('./runtime-status');
+const { createRuntimeStatus, evaluateHealth } = require('./runtime-status');
 const { buildPgConnectionConfig } = require('./pg-ssl');
 
 const config = loadConfig();
 const registry = createConnectionRegistry(config.maxAgents);
 const testMode = String(process.env.BRIDGE_TEST_MODE || '') === '1';
 const runtime = createRuntimeStatus();
+const bootedAt = Date.now();
+const STARTUP_GRACE_MS = 20_000;
 let listenManager = null;
+let dbTarget = null;
 
 function makePool() {
   if (testMode) {
@@ -105,12 +108,16 @@ async function probePostgres() {
 
 function syncListenStatus() {
   if (!listenManager) {
-    runtime.listen.listening = false;
+    if (!testMode) {
+      runtime.listen.listening = false;
+      runtime.listen.phase = 'not_started';
+    }
     return;
   }
   const s = listenManager.getStatus();
   runtime.listen = {
     listening: !!s.listening,
+    phase: s.phase || (s.listening ? 'listening' : 'not_started'),
     lastError: s.lastError,
     lastConnectedAt: s.lastConnectedAt,
     lastNotifyAt: s.lastNotifyAt,
@@ -273,12 +280,18 @@ function buildHealthPayload() {
   syncListenStatus();
   const dbOk = runtime.postgres.ok;
   const listenWanted = !testMode && !!(config.databaseUrl || config.db);
-  const listenOk = testMode ? true : runtime.listen.listening;
-  // DB zorunlu. LISTEN production'da zorunlu; düşmüşse 503 (safety poll tek başına sağlıklı sayılmaz).
-  const healthy = dbOk && (!listenWanted || listenOk);
+  const phase = testMode ? 'listening' : runtime.listen.phase || 'not_started';
+  const verdict = evaluateHealth({
+    postgresOk: dbOk,
+    listenWanted,
+    phase,
+    withinStartupGrace: Date.now() - bootedAt < STARTUP_GRACE_MS,
+    lastError: runtime.listen.lastError,
+  });
 
   return {
-    ok: healthy,
+    ok: verdict.ok,
+    ready: verdict.ready,
     degraded: false,
     service: 'fr-bridge-server',
     agents: registry.size(),
@@ -289,12 +302,21 @@ function buildHealthPayload() {
       lastError: runtime.postgres.lastError,
     },
     listen: {
-      ok: runtime.listen.listening,
+      ok: testMode ? true : runtime.listen.listening,
+      state: phase,
+      started: phase !== 'not_started',
       channel: runtime.listen.channel || config.channel,
       lastConnectedAt: runtime.listen.lastConnectedAt,
       lastError: runtime.listen.lastError,
       attempts: runtime.listen.attempts,
     },
+    db: dbTarget
+      ? {
+          class: dbTarget.kind,
+          listenProtocolOk: dbTarget.listenOk,
+          ipv4Hint: dbTarget.ipv4Hint,
+        }
+      : null,
     safetyPoll: {
       lastOkAt: runtime.safetyPoll.lastOkAt,
       lastErrorAt: runtime.safetyPoll.lastErrorAt,
@@ -371,10 +393,16 @@ function startListen() {
   if (testMode || (!config.databaseUrl && !config.db)) {
     log('LISTEN skipped (test mode or no DB)');
     runtime.listen.listening = testMode;
+    runtime.listen.phase = testMode ? 'listening' : 'not_started';
     return null;
   }
 
   const meta = classifyDatabaseTarget(config.databaseUrl, config.db);
+  dbTarget = {
+    kind: meta.kind,
+    listenOk: meta.listenOk,
+    ipv4Hint: meta.ipv4Hint,
+  };
   log(
     'DB target class=',
     meta.kind,
@@ -475,4 +503,5 @@ module.exports = {
   probePostgres,
   runtime,
   classifyDatabaseTarget,
+  evaluateHealth,
 };
