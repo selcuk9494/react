@@ -17,6 +17,7 @@ const { createListenManager } = require('./listen');
 const { classifyDatabaseTarget, redactErrorMessage } = require('./db-url-meta');
 const { createRuntimeStatus, evaluateHealth } = require('./runtime-status');
 const { buildPgConnectionConfig } = require('./pg-ssl');
+const { isBranch151, note151, sendAuthOk } = require('./auth-diag');
 
 const config = loadConfig();
 const registry = createConnectionRegistry(config.maxAgents);
@@ -180,8 +181,18 @@ async function onAuth(ws, msg) {
     return;
   }
   ws.agentId = agentId;
+  note151(agentId, log, 'diag151 auth accepted');
+  note151(agentId, log, 'diag151 sessionPayload started');
+  if (isBranch151(agentId)) ws.diag151Phase = 'session';
+  const sessionStarted = Date.now();
   const session = await sessionPayload(pool, agent);
-  send(ws, { type: 'auth.ok', ...session });
+  if (isBranch151(agentId)) ws.diag151Phase = 'done';
+  note151(
+    agentId,
+    log,
+    'diag151 sessionPayload completed ms=' + (Date.now() - sessionStarted),
+  );
+  sendAuthOk(ws, { type: 'auth.ok', ...session }, log);
   log('agent connected', agentId, 'paired=', session.paired, 'n=', registry.size());
   await pushJobs(agentId);
 }
@@ -218,6 +229,9 @@ function attachWs(wss) {
       const type = String(msg.type || '');
       if (type === 'auth') {
         void onAuth(ws, msg).catch((err) => {
+          if (isBranch151(ws.agentId) && ws.diag151Phase === 'session') {
+            note151(ws.agentId, log, 'diag151 sessionPayload error');
+          }
           log('auth error', redactErrorMessage(err.message || err));
           send(ws, { type: 'auth.err', error: 'auth_failed' });
           ws.close(4011, 'auth_failed');
